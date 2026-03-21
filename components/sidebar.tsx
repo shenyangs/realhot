@@ -18,6 +18,11 @@ const navItems: NavItem[] = [
     description: "先判断今天该做什么，再推进选题生产"
   },
   {
+    href: "/hotspots",
+    label: "热点看板",
+    description: "查看全部抓取热点、信源和处理建议"
+  },
+  {
     href: "/review",
     label: "选题库",
     description: "查看选题、进入编辑、提交审核"

@@ -339,165 +339,123 @@ export function ReviewEditor({
   }
 
   return (
-    <div className="editorWorkbench">
-      <section className="editorMain">
-        <div className="editorBrief panel">
-          <div className="editorBriefGrid">
-            <div>
-              <span>平台</span>
-              <strong>{platformLabel}</strong>
-            </div>
-            <div>
-              <span>内容类型</span>
-              <strong>{trackLabel}</strong>
-            </div>
-            <div>
-              <span>建议角度</span>
-              <strong>{angle}</strong>
-            </div>
-            <div>
-              <span>当前目标</span>
-              <strong>先把稿子改到可审，再推进发布</strong>
-            </div>
-            <div>
-              <span>保存状态</span>
-              <strong>
-                {saveState === "loading"
-                  ? "正在读取本地草稿"
-                  : saveState === "saving"
-                    ? "正在保存到本地草稿"
-                    : `已保存 · ${formatLocalTimestamp(lastSavedAt)}`}
-              </strong>
-            </div>
+    <div className="editorSimpleFlow">
+      <div className="editorSimpleMeta">
+        <span className="reviewInlineMeta">当前平台：{platformLabel}</span>
+        <span className="reviewInlineMeta">内容类型：{trackLabel}</span>
+        <span className="reviewInlineMeta">建议角度：{angle}</span>
+        <span className="reviewInlineMeta">
+          保存状态：
+          {saveState === "loading"
+            ? " 正在读取本地草稿"
+            : saveState === "saving"
+              ? " 正在保存"
+              : ` 已保存 · ${formatLocalTimestamp(lastSavedAt)}`}
+        </span>
+      </div>
+
+      <div className="editorSimpleFields">
+        <div className="field">
+          <span>标题</span>
+          <input value={title} onChange={(event) => setTitle(event.target.value)} />
+        </div>
+
+        <div className="field">
+          <span>封面钩子</span>
+          <input value={coverHook} onChange={(event) => setCoverHook(event.target.value)} />
+        </div>
+
+        <div className="editorBodyHeader">
+          <span>正文</span>
+          <small className="muted">
+            {bodyStats.characters} 字 · {bodyStats.paragraphs} 段
+          </small>
+        </div>
+
+        <textarea
+          className="editorBody"
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          rows={18}
+        />
+
+        <div className="buttonRow">
+          <button
+            disabled={!previousSnapshot}
+            onClick={revertToPreviousSavedVersion}
+            type="button"
+          >
+            回退到上一个已保存版本
+          </button>
+        </div>
+
+        <div className="reviewContextCopy">
+          <p><strong>为什么现在做：</strong>{whyNow}</p>
+          <p><strong>为什么和品牌相关：</strong>{whyUs}</p>
+        </div>
+      </div>
+
+      <section className="editorAssistantSection">
+        <div className="reviewSimpleHeader">
+          <div>
+            <p className="eyebrow">AI 改稿</p>
+            <h3>直接说你想怎么改</h3>
           </div>
         </div>
 
-        <div className="panel editorPanel">
-          <div className="editorStatusBar">
-            <div className="editorStatusMeta">
-              <span className="pill pill-neutral">当前改动只作用于 {platformLabel}</span>
-              <small className="muted">
-                {loadedFromStorageRef.current
-                  ? "已恢复这一个平台版本的本地草稿。"
-                  : "当前版本会自动保存在这个浏览器里。"}
-              </small>
-            </div>
-            <div className="buttonRow">
-              <button
-                disabled={!previousSnapshot}
-                onClick={revertToPreviousSavedVersion}
-                type="button"
-              >
-                回退到上一个已保存版本
-              </button>
-            </div>
-          </div>
-
-          <div className="field">
-            <span>标题</span>
-            <input value={title} onChange={(event) => setTitle(event.target.value)} />
-          </div>
-
-          <div className="field">
-            <span>封面钩子</span>
-            <input value={coverHook} onChange={(event) => setCoverHook(event.target.value)} />
-          </div>
-
-          <div className="editorBodyHeader">
-            <span>正文编辑区</span>
-            <small className="muted">
-              {bodyStats.characters} 字 · {bodyStats.paragraphs} 段
-            </small>
-          </div>
-
-          <textarea
-            className="editorBody"
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            rows={18}
-          />
+        <div className="modeSwitch">
+          <button
+            className={mode === "direct" ? "modeButton activeModeButton" : "modeButton"}
+            onClick={() => setMode("direct")}
+            type="button"
+          >
+            直接改正文
+          </button>
+          <button
+            className={mode === "suggest" ? "modeButton activeModeButton" : "modeButton"}
+            onClick={() => setMode("suggest")}
+            type="button"
+          >
+            建议模式
+          </button>
         </div>
 
-        <div className="grid grid-2">
-          <div className="subPanel helperPanel">
-            <strong>配图 / 镜头建议</strong>
-            <p className="muted">
-              这一版更适合“问题抛出 + 观点拆解 + 方法收束”的结构，画面或配图建议围绕行业变化和品牌方法论展开。
-            </p>
-          </div>
-          <div className="subPanel helperPanel">
-            <strong>风险提醒</strong>
-            <ul className="simpleList">
-              {redLines.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      <aside className="editorAside">
-        <section className="panel assistantPanel">
-          <div className="assistantHeader">
-            <div>
-              <p className="eyebrow">AI 改稿助手</p>
-              <h3>直接说你想怎么改</h3>
-            </div>
-            <div className="modeSwitch">
-              <button
-                className={mode === "direct" ? "modeButton activeModeButton" : "modeButton"}
-                onClick={() => setMode("direct")}
-                type="button"
-              >
-                直接改正文
-              </button>
-              <button
-                className={mode === "suggest" ? "modeButton activeModeButton" : "modeButton"}
-                onClick={() => setMode("suggest")}
-                type="button"
-              >
-                建议模式
-              </button>
-            </div>
-          </div>
-
-          <div className="promptChips">
-            {quickPrompts.map((item) => (
-              <button
-                className="promptChip"
-                key={item}
-                onClick={() => setPrompt(item)}
-                type="button"
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-
-          <label className="field">
-            <span>本轮改稿要求</span>
-            <textarea
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="例如：把第一段写得更像创始人对行业趋势的判断，减少新闻转述感。"
-              rows={5}
-            />
-          </label>
-
-          <div className="buttonRow">
-            <button disabled={isPending} onClick={() => requestRewrite(prompt)} type="button">
-              {mode === "direct" ? "执行改稿" : "生成建议"}
+        <div className="promptChips">
+          {quickPrompts.map((item) => (
+            <button
+              className="promptChip"
+              key={item}
+              onClick={() => setPrompt(item)}
+              type="button"
+            >
+              {item}
             </button>
-          </div>
+          ))}
+        </div>
 
-          {message ? <p className="muted">{message}</p> : null}
-          {saveState === "saving" ? (
-            <p className="muted">当前有未完成保存的改动，此时刷新或关闭页面会触发浏览器提醒。</p>
-          ) : null}
-        </section>
+        <label className="field">
+          <span>本轮改稿要求</span>
+          <textarea
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder="例如：把第一段写得更像创始人对行业趋势的判断，减少新闻转述感。"
+            rows={4}
+          />
+        </label>
+
+        <div className="buttonRow">
+          <button disabled={isPending} onClick={() => requestRewrite(prompt)} type="button">
+            {mode === "direct" ? "执行改稿" : "生成建议"}
+          </button>
+        </div>
+
+        {message ? <p className="muted">{message}</p> : null}
+        {saveState === "saving" ? (
+          <p className="muted">当前有未完成保存的改动，刷新或关闭页面时浏览器会提醒。</p>
+        ) : null}
 
         {suggestion ? (
-          <section className="panel suggestionPanel">
+          <section className="suggestionPanel">
             <div className="listItem">
               <strong>本轮建议</strong>
               <span className="pill pill-neutral">{suggestion.provider}</span>
@@ -518,14 +476,24 @@ export function ReviewEditor({
           </section>
         ) : null}
 
-        <section className="panel helperPanel">
-          <strong>为什么现在做</strong>
-          <p className="muted">{whyNow}</p>
-          <strong>为什么和品牌相关</strong>
-          <p className="muted">{whyUs}</p>
+        <section className="editorAssistNote">
+          <div>
+            <strong>配图 / 镜头建议</strong>
+            <p className="muted">
+              这一版更适合“问题抛出 + 观点拆解 + 方法收束”的结构，画面建议围绕真实办公场景和组织协同展开。
+            </p>
+          </div>
+          <div>
+            <strong>风险提醒</strong>
+            <ul className="simpleList">
+              {redLines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </div>
         </section>
 
-        <section className="panel changeLogPanel">
+        <section className="changeLogPanel">
           <div className="listItem">
             <strong>改稿记录</strong>
             <span className="pill pill-neutral">{changeLog.length} 次</span>
@@ -547,11 +515,11 @@ export function ReviewEditor({
                 </div>
               ))
             ) : (
-              <p className="emptyState">还没有本轮改稿记录。你可以先用右上角的改稿框说清楚需求。</p>
+              <p className="emptyState">还没有本轮改稿记录。你可以直接在上面输入修改要求。</p>
             )}
           </div>
         </section>
-      </aside>
+      </section>
     </div>
   );
 }

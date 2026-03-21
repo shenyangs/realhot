@@ -66,10 +66,16 @@
 - `AA1 / 百度热搜`
 - `AA1 / 微博热搜`
 - `Zhihu / Hot List`
+- `Bilibili / Popular`
+- `Toutiao / Hot Board`
 
 同步服务会抓取公开新闻条目，按品牌主题、竞品命中、发布时间和风险词做基础打分，再把结果写入 `hotspots` 和 `hotspot_scores`。如果配置了 `HOTSPOT_SYNC_SECRET`，调用 `POST /api/hotspots/sync` 时需要带 `Authorization: Bearer <secret>` 或 `x-sync-secret`。
 
 同步器会优先把“直连平台/API 信源”与“聚合型信源”一起拉取，再按标题进行跨源合并。若同一热点被多个来源同时命中，会在 `reasons` 中增加“多源交叉命中”提示，并给予轻微优先级加权。同步结果里的 `providers` 还会附带网页校验信息，例如页面是否可达、是否命中静态标题、是否被访客系统/门禁页拦截。
+
+如果部署环境存在公司代理、自签名证书或本地证书链干预，Node 原生 `fetch` 可能报 TLS 证书错误。此时建议优先修正系统/运行时 CA 配置；仅在调试或内网验收阶段，才临时启用 `HOTSPOT_ALLOW_INSECURE_TLS=true` 作为兜底。
+
+另外，`cnBeta RSS` 当前在部分环境下存在 DNS 不稳定问题，因此默认关闭，避免上线后长期出现 provider 失败噪音；需要时可显式设置 `ENABLE_RSS_CNBETA=true` 再启用。
 
 ### Experimental Aggregator Source
 
@@ -79,12 +85,16 @@
 - `ENABLE_AA1_BAIDU_HOT_SEARCH=true`
 - `ENABLE_AA1_WEIBO_HOT_SEARCH=true`
 - `ENABLE_ZHIHU_HOT_SEARCH=true`
+- `ENABLE_BILIBILI_POPULAR_HOT=true`
+- `ENABLE_TOUTIAO_HOT_BOARD=true`
 - `AUXILIARY_HOT_SOURCE_MAX_ITEMS=10`
 - `ENABLE_ENTOBIT_HOT_SEARCH=true`
 - `ENTOBIT_HOT_SEARCH_RANK_TYPES=realTimeHotSearchList,douyin,baidu,xiaohongshu`
 - `ENTOBIT_HOT_SEARCH_MAX_ITEMS=10`
 
-如果某个实验源抓不到数据，同步流程会继续跑其他源，不会阻塞主链路。当前正式部署策略不依赖本地浏览器渲染，而是优先使用公开 API、可直连页面校验和多源交叉合并。当前实测中，AA1 百度热搜与知乎热榜可直接返回结构化数据；AA1 微博热搜存在返回空数组的情况，因此只作为补充信源；Entobit 也保持在“补充聚合信源”位置，而不是唯一来源。
+如果某个实验源抓不到数据，同步流程会继续跑其他源，不会阻塞主链路。当前正式部署策略不依赖本地浏览器渲染，而是优先使用公开 API、可直连页面校验和多源交叉合并。当前实测中，AA1 百度热搜、知乎热榜、B 站热门、头条热榜都可直接返回结构化数据；AA1 微博热搜存在返回空数组的情况，因此只作为补充信源；Entobit 也保持在“补充聚合信源”位置，而不是唯一来源。
+
+同步结果里的 `providers` 现在会额外返回 `fetchStatus` 和 `fetchNote`，便于线上快速区分“抓取成功但为空”与“请求本身失败”。
 
 默认情况下，同步完成后会自动对 `ship-now` 热点生成内容包，并写入 `hotspot_packs` 与 `content_variants`。相关开关：
 

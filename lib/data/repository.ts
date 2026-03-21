@@ -5,6 +5,7 @@ import {
   hotspotPacks as mockHotspotPacks,
   hotspotSignals as mockHotspotSignals
 } from "@/lib/data/mock";
+import { readLocalDataStore, updateLocalDataStore } from "@/lib/data/local-store";
 import {
   BrandSource,
   BrandStrategyPack,
@@ -205,7 +206,8 @@ export async function getBrandStrategyPack(): Promise<BrandStrategyPack> {
   const supabase = getSupabaseServerClient();
 
   if (!supabase) {
-    return mockBrandStrategyPack;
+    const store = await readLocalDataStore();
+    return store.brand;
   }
 
   const { data: brand, error: brandError } = await supabase
@@ -237,7 +239,8 @@ export async function getHotspotSignals(): Promise<HotspotSignal[]> {
   const supabase = getSupabaseServerClient();
 
   if (!supabase) {
-    return mockHotspotSignals;
+    const store = await readLocalDataStore();
+    return store.hotspots;
   }
 
   const { data, error } = await supabase
@@ -257,7 +260,8 @@ export async function getReviewQueue(): Promise<HotspotPack[]> {
   const supabase = getSupabaseServerClient();
 
   if (!supabase) {
-    return mockHotspotPacks;
+    const store = await readLocalDataStore();
+    return store.packs;
   }
 
   const { data, error } = await supabase
@@ -335,7 +339,35 @@ export async function updateHotspotPackReview(
   const supabase = getSupabaseServerClient();
 
   if (!supabase) {
-    return null;
+    const note = input.note?.trim() ? input.note.trim() : undefined;
+    const reviewer = input.reviewer?.trim() ? input.reviewer.trim() : undefined;
+    const reviewedAt = new Date().toISOString();
+    let updatedPack: HotspotPack | null = null;
+
+    await updateLocalDataStore((store) => {
+      const packs = store.packs.map((pack) => {
+        if (pack.id !== packId) {
+          return pack;
+        }
+
+        updatedPack = {
+          ...pack,
+          status: input.status,
+          reviewNote: note,
+          reviewedBy: reviewer,
+          reviewedAt
+        };
+
+        return updatedPack;
+      });
+
+      return {
+        ...store,
+        packs
+      };
+    });
+
+    return updatedPack;
   }
 
   const payload = {
@@ -362,7 +394,10 @@ export async function getPublishJobsForPack(packId: string): Promise<PublishJob[
   const supabase = getSupabaseServerClient();
 
   if (!supabase) {
-    return [];
+    const store = await readLocalDataStore();
+    return store.publishJobs
+      .filter((job) => job.packId === packId)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
   const { data, error } = await supabase
@@ -402,23 +437,47 @@ export async function queuePublishJobs(
 
   if (!supabase) {
     const now = new Date().toISOString();
-    const jobs = pack.variants.flatMap((variant) =>
-      variant.platforms.map((platform) => ({
-        id: deterministicId(`${pack.id}:${variant.id}:${platform}:mock`),
-        packId: pack.id,
-        variantId: variant.id,
-        platform,
-        status: "queued" as const,
-        queueSource,
-        scheduledAt: scheduledAt ?? undefined,
-        createdAt: now,
-        updatedAt: now
-      }))
-    );
+    const store = await updateLocalDataStore((current) => {
+      const nextJobs = [...current.publishJobs];
+
+      for (const variant of pack.variants) {
+        for (const platform of variant.platforms) {
+          const jobId = deterministicId(`${pack.id}:${variant.id}:${platform}`);
+          const existingIndex = nextJobs.findIndex((job) => job.id === jobId);
+          const existing = existingIndex >= 0 ? nextJobs[existingIndex] : undefined;
+          const job: PublishJob = {
+            id: jobId,
+            packId: pack.id,
+            variantId: variant.id,
+            platform,
+            status: "queued",
+            queueSource,
+            scheduledAt: scheduledAt ?? undefined,
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now
+          };
+
+          if (existingIndex >= 0) {
+            nextJobs[existingIndex] = job;
+          } else {
+            nextJobs.push(job);
+          }
+        }
+      }
+
+      return {
+        ...current,
+        publishJobs: nextJobs
+      };
+    });
+
+    const jobs = store.publishJobs
+      .filter((job) => job.packId === pack.id)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
     return {
       jobs,
-      persisted: false,
+      persisted: true,
       usedMockStorage: true
     };
   }
@@ -470,7 +529,41 @@ export async function getQueuedPublishJobs(input?: {
   const supabase = getSupabaseServerClient();
 
   if (!supabase) {
-    return [];
+    const store = await readLocalDataStore();
+    const now = Date.now();
+    const queued = store.publishJobs
+      .filter((job) => job.status === "queued")
+      .filter((job) => (input?.packId ? job.packId === input.packId : true))
+      .filter((job) => {
+        if (!job.scheduledAt) {
+          return true;
+        }
+
+        const scheduled = Date.parse(job.scheduledAt);
+        return Number.isNaN(scheduled) || scheduled <= now;
+      })
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+
+    const limited =
+      input?.limit && input.limit > 0 ? queued.slice(0, input.limit) : queued;
+
+    return limited.flatMap((job) => {
+      const pack = store.packs.find((item) => item.id === job.packId);
+      const variant = pack?.variants.find((item) => item.id === job.variantId);
+
+      if (!variant) {
+        return [];
+      }
+
+      return [
+        {
+          ...job,
+          variantTitle: variant.title,
+          variantBody: variant.body,
+          variantFormat: variant.format
+        }
+      ];
+    });
   }
 
   const query = supabase
@@ -518,7 +611,32 @@ export async function updatePublishJobStatus(
   const supabase = getSupabaseServerClient();
 
   if (!supabase) {
-    return null;
+    let updatedJob: PublishJob | null = null;
+
+    await updateLocalDataStore((store) => {
+      const publishJobs = store.publishJobs.map((job) => {
+        if (job.id !== jobId) {
+          return job;
+        }
+
+        updatedJob = {
+          ...job,
+          status: input.status,
+          publishedAt: input.publishedAt,
+          failureReason: input.failureReason,
+          updatedAt: new Date().toISOString()
+        };
+
+        return updatedJob;
+      });
+
+      return {
+        ...store,
+        publishJobs
+      };
+    });
+
+    return updatedJob;
   }
 
   const payload = {

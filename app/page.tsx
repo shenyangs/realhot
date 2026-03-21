@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { EmptyStateCard } from "@/components/empty-state-card";
+import { HotspotActionButton } from "@/components/hotspot-action-button";
 import {
   getBrandStrategyPack,
   getPrioritizedHotspots,
@@ -69,6 +70,16 @@ export default async function HomePage() {
   ]);
 
   const focusHotspots = prioritized.slice(0, 5);
+  const packByHotspotId = new Map(
+    packs.map((pack) => [
+      pack.hotspotId,
+      {
+        packId: pack.id,
+        variantId: pack.variants[0]?.id,
+        platform: pack.variants[0]?.platforms[0]
+      }
+    ])
+  );
   const tasks = packs.flatMap((pack) =>
     pack.variants.map((variant) => ({
       id: variant.id,
@@ -166,6 +177,32 @@ export default async function HomePage() {
         </article>
       </section>
 
+      <section className="panel helperPanel">
+        <div className="panelHeader sectionTitle">
+          <div>
+            <p className="eyebrow">第一次试用</p>
+            <h3>先按这 3 步走，最快看到完整链路</h3>
+          </div>
+          <Link className="sectionLink" href="/hotspots">
+            从热点看板开始
+          </Link>
+        </div>
+        <div className="definitionList">
+          <div>
+            <span>第 1 步</span>
+            <strong>去热点看板，点“转成 4 条内容”，先生成一个选题任务。</strong>
+          </div>
+          <div>
+            <span>第 2 步</span>
+            <strong>进入选题库，在中间编辑区改稿，右侧完成审核通过。</strong>
+          </div>
+          <div>
+            <span>第 3 步</span>
+            <strong>到发布台把内容送进队列，再执行发布，确认出口跑通。</strong>
+          </div>
+        </div>
+      </section>
+
       <section className="panel">
         <div className="panelHeader sectionTitle">
           <div>
@@ -173,14 +210,17 @@ export default async function HomePage() {
             <h3>先选机会，再转成选题</h3>
           </div>
           <Link className="sectionLink" href="/hotspots">
-            查看全部机会
+            打开热点看板
           </Link>
         </div>
 
         <div className="opportunityRail">
           {focusHotspots.length > 0 ? (
-            focusHotspots.map((signal) => (
-              <article className="opportunityCard" key={signal.id}>
+            focusHotspots.map((signal) => {
+              const existingPack = packByHotspotId.get(signal.id);
+
+              return (
+                <article className="opportunityCard" key={signal.id}>
                 <div className="opportunityHeader">
                   <span className={`pill pill-${signal.recommendedAction === "ship-now" ? "positive" : "warning"}`}>
                     {signal.recommendedAction === "ship-now" ? "建议立刻跟进" : "建议继续观察"}
@@ -210,12 +250,21 @@ export default async function HomePage() {
 
                 <div className="opportunityFooter">
                   <span className="sourceLabel">{signal.source}</span>
-                  <Link className="buttonLike subtleButton" href="/hotspots">
-                    进入机会判断
-                  </Link>
+                  <div className="buttonRow">
+                    <HotspotActionButton
+                      hotspotId={signal.id}
+                      packId={existingPack?.packId}
+                      platform={existingPack?.platform}
+                      variantId={existingPack?.variantId}
+                    />
+                    <Link className="buttonLike subtleButton" href="/hotspots">
+                      进入机会判断
+                    </Link>
+                  </div>
                 </div>
-              </article>
-            ))
+                </article>
+              );
+            })
           ) : (
             <EmptyStateCard
               actionLabel="去品牌与规则补资料"
@@ -281,8 +330,8 @@ export default async function HomePage() {
           ) : (
             <div className="taskEmptyRow">
               <EmptyStateCard
-                actionLabel="去机会池挑题"
-                description="当前还没有选题任务进入生产。你可以先从热点机会池挑一个题，转进今天的生产流程。"
+                actionLabel="去热点看板挑题"
+                description="当前还没有选题任务进入生产。你可以先从热点看板挑一个题，转进今天的生产流程。"
                 eyebrow="选题任务"
                 href="/hotspots"
                 title="今天还没有正在推进的选题"

@@ -25,6 +25,31 @@ const reviewStatusLabels: Record<ReviewStatus, string> = {
   "needs-edit": "待改稿"
 };
 
+const statusFocusCopy: Record<
+  ReviewStatus,
+  {
+    eyebrow: string;
+    title: string;
+    description: string;
+  }
+> = {
+  pending: {
+    eyebrow: "当前重点",
+    title: "这条题已经有稿，下一步是审核通过",
+    description: "先确认内容是否达标，再决定是否进入发布台。"
+  },
+  approved: {
+    eyebrow: "当前重点",
+    title: "这条题已经通过，可以直接送进发布台",
+    description: "编辑主流程已经完成，接下来只需要处理发布和导出。"
+  },
+  "needs-edit": {
+    eyebrow: "当前重点",
+    title: "这条题先别急着审核，先把稿子改顺",
+    description: "先完成修改，再恢复到待审核，避免审核和发布动作同时抢注意力。"
+  }
+};
+
 function getPackStatusTone(status: ReviewStatus) {
   if (status === "approved") {
     return "positive";
@@ -46,30 +71,6 @@ type SearchParams = Promise<{
   owner?: string;
   sort?: "priority" | "deadline" | "owner";
 }>;
-
-interface TaskGroup {
-  key: ReviewStatus;
-  label: string;
-  description: string;
-}
-
-const taskGroups: TaskGroup[] = [
-  {
-    key: "pending",
-    label: "待审核",
-    description: "已经有稿，下一步是过审和决定是否进入发布。"
-  },
-  {
-    key: "needs-edit",
-    label: "待改稿",
-    description: "这些题已经卡在内容质量或表达方式上，适合先清掉。"
-  },
-  {
-    key: "approved",
-    label: "已通过",
-    description: "这些题已经可以进入发布台，不需要继续留在编辑主流程里。"
-  }
-];
 
 function getPublishWindowRank(value?: string) {
   if (!value) {
@@ -176,6 +177,7 @@ export default async function ReviewPage({
   const ownerOptions = [...new Set(packs.map((pack) => pack.reviewOwner))].sort((left, right) =>
     left.localeCompare(right, "zh-CN")
   );
+
   const filteredPacks = packs
     .filter((pack) => (statusFilter === "all" ? true : pack.status === statusFilter))
     .filter((pack) => {
@@ -229,8 +231,8 @@ export default async function ReviewPage({
         getPublishWindowRank(leftPrimary?.publishWindow) - getPublishWindowRank(rightPrimary?.publishWindow)
       );
     });
-  const visiblePacks = filteredPacks;
 
+  const visiblePacks = filteredPacks;
   const activePack =
     visiblePacks.find((pack) => pack.id === resolvedSearchParams?.pack) ??
     visiblePacks[0] ??
@@ -273,6 +275,12 @@ export default async function ReviewPage({
   const queuedCount = jobs.filter((job) => job.status === "queued").length;
   const publishedCount = jobs.filter((job) => job.status === "published").length;
   const failedCount = jobs.filter((job) => job.status === "failed").length;
+  const priorityLabel = getPriorityLevel({
+    status: activePack.status,
+    publishWindow: activeVariant?.publishWindow,
+    variantCount: activePack.variants.length
+  });
+
   const counts = {
     all: packs.length,
     pending: packs.filter((pack) => pack.status === "pending").length,
@@ -281,298 +289,242 @@ export default async function ReviewPage({
   };
 
   return (
-    <div className="page reviewWorkbenchPage">
-      <section className="reviewHero panel">
+    <div className="page reviewFlatPage">
+      <section className="reviewFlatHeader">
         <div>
           <p className="eyebrow">选题库</p>
-          <h2>先把题挑清楚、稿子改顺，再把它推进到可审可发。</h2>
-          <p className="muted">
-            这里是选题进入编辑和审核的主战场。你可以先选任务，再切平台版本，把内容改到可以出街的状态。
-          </p>
+          <h2>先选题，再改稿，再处理审核和发布。</h2>
+          <p className="muted">这一页只保留主流程，不再把信息摊成多列。</p>
         </div>
-        <div className="reviewHeroMeta">
-          <div className="metaPill">
-            <span>当前品牌</span>
-            <strong>{brand.name}</strong>
-          </div>
-          <div className="metaPill">
-            <span>当前状态</span>
-            <strong>{reviewStatusLabels[activePack.status]}</strong>
-          </div>
+        <div className="reviewFlatMeta">
+          <span className="reviewInlineMeta">当前品牌：{brand.name}</span>
+          <span className="reviewInlineMeta">当前状态：{reviewStatusLabels[activePack.status]}</span>
         </div>
       </section>
 
-      <section className="reviewToolbar panel">
-        <div className="toolbarFilters">
-          <Link
-            aria-current={statusFilter === "all" ? "page" : undefined}
-            className={`filterChip ${statusFilter === "all" ? "filterChipActive" : ""}`}
-            href={buildReviewHref({
-              status: "all",
-              q: searchQuery,
-              owner: ownerFilter,
-              sort: sortBy
-            })}
-          >
-            全部选题
-            <strong>{counts.all}</strong>
-          </Link>
-          <Link
-            aria-current={statusFilter === "pending" ? "page" : undefined}
-            className={`filterChip ${statusFilter === "pending" ? "filterChipActive" : ""}`}
-            href={buildReviewHref({
-              status: "pending",
-              q: searchQuery,
-              owner: ownerFilter,
-              sort: sortBy
-            })}
-          >
-            待审核
-            <strong>{counts.pending}</strong>
-          </Link>
-          <Link
-            aria-current={statusFilter === "needs-edit" ? "page" : undefined}
-            className={`filterChip ${statusFilter === "needs-edit" ? "filterChipActive" : ""}`}
-            href={buildReviewHref({
-              status: "needs-edit",
-              q: searchQuery,
-              owner: ownerFilter,
-              sort: sortBy
-            })}
-          >
-            待改稿
-            <strong>{counts["needs-edit"]}</strong>
-          </Link>
-          <Link
-            aria-current={statusFilter === "approved" ? "page" : undefined}
-            className={`filterChip ${statusFilter === "approved" ? "filterChipActive" : ""}`}
-            href={buildReviewHref({
-              status: "approved",
-              q: searchQuery,
-              owner: ownerFilter,
-              sort: sortBy
-            })}
-          >
-            已通过
-            <strong>{counts.approved}</strong>
-          </Link>
-        </div>
-        <div className="toolbarActions">
-          <Link className="buttonLike subtleButton" href="/hotspots">
-            去机会池补题
-          </Link>
-          <Link className="buttonLike" href="/publish">
-            进入发布台
-          </Link>
-        </div>
-      </section>
+      <nav className="reviewModuleBar" aria-label="review-modules">
+        <a className="reviewModuleChip" href="#review-tasks">1. 找题</a>
+        <a className="reviewModuleChip" href="#review-context">2. 看当前版本</a>
+        <a className="reviewModuleChip" href="#review-editor">3. 改稿</a>
+        <a className="reviewModuleChip" href="#review-actions">4. 审核 / 发布</a>
+        <Link className="reviewModuleChip" href="/hotspots">去热点看板补题</Link>
+        <Link className="reviewModuleChip" href="/publish">进入发布台</Link>
+      </nav>
 
-      <section className="panel reviewLibraryControls">
-        <form action="/review" className="reviewSearchForm" method="get">
-          <input name="status" type="hidden" value={statusFilter} />
-          <label className="field">
-            <span>搜索选题</span>
-            <input
-              defaultValue={searchQuery}
-              name="q"
-              placeholder="按标题、切入角度、负责人搜索"
-            />
-          </label>
-          <label className="field">
-            <span>负责人</span>
-            <select defaultValue={ownerFilter} name="owner">
-              <option value="all">全部负责人</option>
-              {ownerOptions.map((owner) => (
-                <option key={owner} value={owner}>
-                  {owner}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>排序方式</span>
-            <select defaultValue={sortBy} name="sort">
-              <option value="priority">按优先级</option>
-              <option value="deadline">按截止时间</option>
-              <option value="owner">按负责人</option>
-            </select>
-          </label>
-          <div className="buttonRow reviewSearchActions">
-            <button type="submit">应用筛选</button>
-            <Link className="buttonLike subtleButton" href={`/review?status=${statusFilter}`}>
-              清空条件
+      <div className="reviewSimpleSheet">
+        <section className="reviewSimpleSection" id="review-tasks">
+          <div className="reviewSimpleHeader">
+            <div>
+              <p className="eyebrow">找题</p>
+              <h3>先把要处理的题挑出来</h3>
+            </div>
+            <span className="muted">当前可见 {visiblePacks.length} 个任务</span>
+          </div>
+
+          <div className="reviewFilterRow">
+            <Link
+              aria-current={statusFilter === "all" ? "page" : undefined}
+              className={`filterChip ${statusFilter === "all" ? "filterChipActive" : ""}`}
+              href={buildReviewHref({
+                status: "all",
+                q: searchQuery,
+                owner: ownerFilter,
+                sort: sortBy
+              })}
+            >
+              全部选题
+              <strong>{counts.all}</strong>
+            </Link>
+            <Link
+              aria-current={statusFilter === "pending" ? "page" : undefined}
+              className={`filterChip ${statusFilter === "pending" ? "filterChipActive" : ""}`}
+              href={buildReviewHref({
+                status: "pending",
+                q: searchQuery,
+                owner: ownerFilter,
+                sort: sortBy
+              })}
+            >
+              待审核
+              <strong>{counts.pending}</strong>
+            </Link>
+            <Link
+              aria-current={statusFilter === "needs-edit" ? "page" : undefined}
+              className={`filterChip ${statusFilter === "needs-edit" ? "filterChipActive" : ""}`}
+              href={buildReviewHref({
+                status: "needs-edit",
+                q: searchQuery,
+                owner: ownerFilter,
+                sort: sortBy
+              })}
+            >
+              待改稿
+              <strong>{counts["needs-edit"]}</strong>
+            </Link>
+            <Link
+              aria-current={statusFilter === "approved" ? "page" : undefined}
+              className={`filterChip ${statusFilter === "approved" ? "filterChipActive" : ""}`}
+              href={buildReviewHref({
+                status: "approved",
+                q: searchQuery,
+                owner: ownerFilter,
+                sort: sortBy
+              })}
+            >
+              已通过
+              <strong>{counts.approved}</strong>
             </Link>
           </div>
-        </form>
-      </section>
 
-      <section className="summaryGrid">
-        <article className="panel summaryCard">
-          <p className="eyebrow">当前可见</p>
-          <h3>{visiblePacks.length} 个选题任务</h3>
-          <p className="muted">筛选后只保留你现在最需要处理的一组任务，避免在编辑台里来回找题。</p>
-        </article>
-        <article className="panel summaryCard">
-          <p className="eyebrow">筛选焦点</p>
-          <h3>{ownerFilter === "all" ? "全部负责人" : ownerFilter}</h3>
-          <p className="muted">{searchQuery ? `正在搜索：${searchQuery}` : "可以按负责人、标题和角度快速收窄任务范围。"}</p>
-        </article>
-        <article className="panel summaryCard">
-          <p className="eyebrow">当前排序</p>
-          <h3>{sortBy === "priority" ? "优先级优先" : sortBy === "deadline" ? "截止时间优先" : "负责人排序"}</h3>
-          <p className="muted">让库先回答“先处理谁、先处理哪条题”，而不是只做编辑入口。</p>
-        </article>
-      </section>
-
-      <div className="reviewWorkbenchLayout">
-        <aside className="reviewNavColumn">
-          <section className="panel reviewTaskNav">
-            <div className="panelHeader sectionTitle">
-              <div>
-                <p className="eyebrow">选题任务列表</p>
-                <h3>先按状态找到题，再进入平台版本</h3>
-              </div>
-              <Link className="sectionLink" href="/">
-                回到今日选题台
+          <form action="/review" className="reviewSearchFormSimple" method="get">
+            <input name="status" type="hidden" value={statusFilter} />
+            <label className="field">
+              <span>搜索选题</span>
+              <input
+                defaultValue={searchQuery}
+                name="q"
+                placeholder="按标题、切入角度、负责人搜索"
+              />
+            </label>
+            <label className="field">
+              <span>负责人</span>
+              <select defaultValue={ownerFilter} name="owner">
+                <option value="all">全部负责人</option>
+                {ownerOptions.map((owner) => (
+                  <option key={owner} value={owner}>
+                    {owner}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>排序方式</span>
+              <select defaultValue={sortBy} name="sort">
+                <option value="priority">按优先级</option>
+                <option value="deadline">按截止时间</option>
+                <option value="owner">按负责人</option>
+              </select>
+            </label>
+            <div className="buttonRow">
+              <button type="submit">应用筛选</button>
+              <Link className="buttonLike subtleButton" href={`/review?status=${statusFilter}`}>
+                清空条件
               </Link>
             </div>
+          </form>
 
-            {visiblePacks.length > 0 ? (
-              <div className="taskGroupStack">
-                {taskGroups.map((group) => {
-                  const groupPacks = visiblePacks.filter((pack) => pack.status === group.key);
-
-                  if (groupPacks.length === 0) {
-                    return null;
-                  }
-
-                  return (
-                    <section className="taskGroupSection" key={group.key}>
-                      <div className="taskGroupHeader">
-                        <div>
-                          <strong>{group.label}</strong>
-                          <p className="muted">{group.description}</p>
-                        </div>
-                        <span className={`pill pill-${getPackStatusTone(group.key)}`}>{groupPacks.length}</span>
-                      </div>
-
-                      <div className="taskNavList">
-                        {groupPacks.map((pack) => {
-                          const defaultVariant = pack.variants[0];
-                          const isActive = pack.id === activePack.id;
-
-                          return (
-                            <Link
-                              className={`taskNavItem ${isActive ? "taskNavItemActive" : ""}`}
-                              href={buildReviewHref({
-                                status: statusFilter,
-                                q: searchQuery,
-                                owner: ownerFilter,
-                                sort: sortBy,
-                                pack: pack.id,
-                                variant: defaultVariant?.id,
-                                platform: defaultVariant?.platforms[0]
-                              })}
-                              key={pack.id}
-                            >
-                              <div className="listItem">
-                                <strong>{defaultVariant?.title ?? pack.whyNow}</strong>
-                                <span className={`pill pill-${getPackStatusTone(pack.status)}`}>
-                                  {reviewStatusLabels[pack.status]}
-                                </span>
-                              </div>
-                              <div className="tagRow">
-                                <span className="tag">
-                                  优先级 {getPriorityLevel({
-                                    status: pack.status,
-                                    publishWindow: defaultVariant?.publishWindow,
-                                    variantCount: pack.variants.length
-                                  })}
-                                </span>
-                                <span className="tag">{defaultVariant?.publishWindow ?? "未设发布时间"}</span>
-                              </div>
-                              <p className="muted">{pack.whyUs}</p>
-                              <small className="muted">{pack.reviewOwner}</small>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  );
-                })}
-              </div>
-            ) : (
-              <EmptyStateCard
-                actionLabel="去机会池补题"
-                description="当前筛选条件下没有选题任务。你可以切换筛选条件，或者先回机会池把新题送进选题库。"
-                eyebrow="选题库"
-                href="/hotspots"
-                title="这里暂时没有符合条件的选题"
-              />
-            )}
-          </section>
-
-          <section className="panel taskDefinitionPanel">
-            <p className="eyebrow">任务定义</p>
-            <h3>{activeVariant?.title ?? activePack.whyNow}</h3>
-            <div className="definitionList">
-              <div>
-                <span>来源判断</span>
-                <strong>{activePack.whyNow}</strong>
-              </div>
-              <div>
-                <span>品牌关联</span>
-                <strong>{activePack.whyUs}</strong>
-              </div>
-              <div>
-                <span>负责人</span>
-                <strong>{activePack.reviewOwner}</strong>
-              </div>
-              <div>
-                <span>当前处理平台</span>
-                <strong>{activeDraft ? platformLabels[activeDraft.platform] : "未选择"}</strong>
-              </div>
-            </div>
-          </section>
-
-          <section className="panel platformTabsPanel">
-            <p className="eyebrow">平台版本</p>
-            <div className="platformTabsList">
-              {platformDrafts.map((draft) => {
-                const isActive =
-                  draft.variant.id === activeDraft?.variant.id &&
-                  draft.platform === activeDraft?.platform;
+          {visiblePacks.length > 0 ? (
+            <div className="reviewTaskListSimple">
+              {visiblePacks.map((pack) => {
+                const defaultVariant = pack.variants[0];
+                const isActive = pack.id === activePack.id;
 
                 return (
                   <Link
-                    className={`platformTab ${isActive ? "platformTabActive" : ""}`}
+                    className={`reviewTaskRow ${isActive ? "reviewTaskRowActive" : ""}`}
                     href={buildReviewHref({
                       status: statusFilter,
                       q: searchQuery,
                       owner: ownerFilter,
                       sort: sortBy,
-                      pack: activePack.id,
-                      variant: draft.variant.id,
-                      platform: draft.platform
+                      pack: pack.id,
+                      variant: defaultVariant?.id,
+                      platform: defaultVariant?.platforms[0]
                     })}
-                    key={draft.slotId}
+                    key={pack.id}
                   >
-                    <div>
-                      <strong>{platformLabels[draft.platform]}</strong>
-                      <p className="muted">{trackLabels[draft.variant.track]} · {draft.variant.publishWindow}</p>
-                      <small className="muted">{draft.variant.title}</small>
+                    <div className="reviewTaskRowMain">
+                      <strong>{defaultVariant?.title ?? pack.whyNow}</strong>
+                      <p className="muted">{pack.whyUs}</p>
                     </div>
-                    <span className={`pill pill-${getPackStatusTone(activePack.status)}`}>
-                      {reviewStatusLabels[activePack.status]}
-                    </span>
+                    <div className="reviewTaskRowMeta">
+                      <span className={`pill pill-${getPackStatusTone(pack.status)}`}>
+                        {reviewStatusLabels[pack.status]}
+                      </span>
+                      <span className="tag">
+                        优先级 {getPriorityLevel({
+                          status: pack.status,
+                          publishWindow: defaultVariant?.publishWindow,
+                          variantCount: pack.variants.length
+                        })}
+                      </span>
+                      <span className="tag">{defaultVariant?.publishWindow ?? "未设发布时间"}</span>
+                      <small className="muted">{pack.reviewOwner}</small>
+                    </div>
                   </Link>
                 );
               })}
             </div>
-          </section>
-        </aside>
+          ) : (
+            <EmptyStateCard
+              actionLabel="去热点看板补题"
+              description="当前筛选条件下没有选题任务。你可以切换筛选条件，或者先回热点看板把新题送进选题库。"
+              eyebrow="选题库"
+              href="/hotspots"
+              title="这里暂时没有符合条件的选题"
+            />
+          )}
+        </section>
 
-        <main className="reviewMainColumn">
+        <section className="reviewSimpleSection" id="review-context">
+          <div className="reviewSimpleHeader">
+            <div>
+              <p className="eyebrow">当前版本</p>
+              <h3>{activeVariant?.title ?? activePack.whyNow}</h3>
+            </div>
+            <span className={`pill pill-${getPackStatusTone(activePack.status)}`}>
+              {reviewStatusLabels[activePack.status]}
+            </span>
+          </div>
+
+          <div className="reviewContextLine">
+            <span>优先级：{priorityLabel}</span>
+            <span>负责人：{activePack.reviewOwner}</span>
+            <span>发布时间：{activeVariant?.publishWindow ?? "未设置"}</span>
+            <span>当前平台：{activeDraft ? platformLabels[activeDraft.platform] : "未选择"}</span>
+          </div>
+
+          <div className="reviewContextCopy">
+            <p><strong>为什么现在做：</strong>{activePack.whyNow}</p>
+            <p><strong>为什么和品牌相关：</strong>{activePack.whyUs}</p>
+          </div>
+
+          <div className="reviewPlatformStrip">
+            {platformDrafts.map((draft) => {
+              const isActive =
+                draft.variant.id === activeDraft?.variant.id &&
+                draft.platform === activeDraft?.platform;
+
+              return (
+                <Link
+                  className={`reviewPlatformChip ${isActive ? "reviewPlatformChipActive" : ""}`}
+                  href={buildReviewHref({
+                    status: statusFilter,
+                    q: searchQuery,
+                    owner: ownerFilter,
+                    sort: sortBy,
+                    pack: activePack.id,
+                    variant: draft.variant.id,
+                    platform: draft.platform
+                  })}
+                  key={draft.slotId}
+                >
+                  <strong>{platformLabels[draft.platform]}</strong>
+                  <small className="muted">{trackLabels[draft.variant.track]} · {draft.variant.publishWindow}</small>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="reviewSimpleSection" id="review-editor">
+          <div className="reviewSimpleHeader">
+            <div>
+              <p className="eyebrow">改稿</p>
+              <h3>先把当前平台这一版改顺</h3>
+            </div>
+          </div>
+
           {activeVariant ? (
             <ReviewEditor
               packId={activePack.id}
@@ -591,33 +543,68 @@ export default async function ReviewPage({
               whyUs={activePack.whyUs}
             />
           ) : null}
-        </main>
+        </section>
 
-        <aside className="reviewActionColumn">
-          <ReviewActions
-            packId={activePack.id}
-            currentStatus={activePack.status}
-            currentNote={activePack.reviewNote}
-            defaultReviewer={activePack.reviewedBy ?? activePack.reviewOwner}
-          />
+        <section className="reviewSimpleSection" id="review-actions">
+          <div className="reviewSimpleHeader">
+            <div>
+              <p className="eyebrow">审核 / 发布</p>
+              <h3>最后只处理当前这一步该做的动作</h3>
+            </div>
+          </div>
 
-          <PublishActions
-            packId={activePack.id}
-            failedCount={failedCount}
-            publishedCount={publishedCount}
-            queuedCount={queuedCount}
-          />
+          <section className="actionFocusPanel reviewActionBlock">
+            <p className="eyebrow">{statusFocusCopy[activePack.status].eyebrow}</p>
+            <h3>{statusFocusCopy[activePack.status].title}</h3>
+            <p className="muted">{statusFocusCopy[activePack.status].description}</p>
+          </section>
 
-          <section className="panel helperPanel">
+          {activePack.status === "approved" ? (
+            <PublishActions
+              packId={activePack.id}
+              failedCount={failedCount}
+              publishedCount={publishedCount}
+              queuedCount={queuedCount}
+            />
+          ) : (
+            <ReviewActions
+              packId={activePack.id}
+              currentStatus={activePack.status}
+              currentNote={activePack.reviewNote}
+              defaultReviewer={activePack.reviewedBy ?? activePack.reviewOwner}
+            />
+          )}
+
+          {activePack.status !== "approved" ? (
+            <section className="helperPanel reviewNextStepBlock">
+              <strong>编辑完成后的下一步</strong>
+              <p className="muted">
+                {activePack.status === "needs-edit"
+                  ? "先把这一版改顺，再恢复到待审核，最后再进入发布台。"
+                  : "如果内容已经达标，就在这里完成审核；通过后再进入发布台统一处理出口。"}
+              </p>
+            </section>
+          ) : null}
+
+          {activePack.status !== "approved" ? (
+            <PublishActions
+              compact
+              packId={activePack.id}
+              failedCount={failedCount}
+              publishedCount={publishedCount}
+              queuedCount={queuedCount}
+            />
+          ) : null}
+
+          <section className="helperPanel reviewNextStepBlock">
             <strong>当前出口状态</strong>
-            <p className="muted">先在中间稿件区把内容改顺，再在右侧完成审核和发布动作。</p>
             <ul className="simpleList">
               <li>待排队：{queuedCount} 条</li>
               <li>已发布：{publishedCount} 条</li>
               <li>失败：{failedCount} 条</li>
             </ul>
           </section>
-        </aside>
+        </section>
       </div>
     </div>
   );

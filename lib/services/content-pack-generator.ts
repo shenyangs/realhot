@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { updateLocalDataStore } from "@/lib/data/local-store";
 import { getBrandStrategyPack, getHotspotSignals } from "@/lib/data";
 import { ContentVariant, HotspotPack, HotspotSignal, Platform } from "@/lib/domain/types";
 import { getChinaMarketPromptLines } from "@/lib/services/china-market";
@@ -161,8 +162,13 @@ async function persistGeneratedPack(pack: HotspotPack): Promise<{
   const supabase = getSupabaseServerClient();
 
   if (!supabase) {
+    await updateLocalDataStore((store) => ({
+      ...store,
+      packs: [pack, ...store.packs.filter((item) => item.id !== pack.id)]
+    }));
+
     return {
-      persisted: false,
+      persisted: true,
       usedMockStorage: true
     };
   }

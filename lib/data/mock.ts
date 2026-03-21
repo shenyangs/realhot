@@ -34,52 +34,52 @@ export const dashboardMetrics: DashboardMetric[] = [
 
 export const brandStrategyPack: BrandStrategyPack = {
   id: "brand-1",
-  name: "SignalStack",
-  slogan: "让 AI 团队更快跑到市场前面",
-  sector: "AI / SaaS",
-  audiences: ["市场负责人", "增长负责人", "产品营销团队"],
+  name: "WPS 365",
+  slogan: "一站式 AI 办公",
+  sector: "办公软件 / 企业协同 / AI 办公",
+  audiences: ["企业管理者", "信息化负责人", "行政与协同办公团队"],
   positioning: [
-    "帮助 AI 与 SaaS 品牌把分散信号转成连续对外传播",
-    "强调规模化、时效性和品牌表达一致性"
+    "面向中国企业提供文档、协作、会议、邮箱等一体化办公体验",
+    "强调 AI 能力、协同效率与企业级安全管理并行"
   ],
-  topics: ["AI 生产力", "品牌规模化传播", "热点快反", "B2B 内容系统"],
-  tone: ["专业", "直接", "有判断", "不过度营销"],
+  topics: ["AI 办公", "组织协同", "文档与知识管理", "企业数字化"],
+  tone: ["专业", "清晰", "可信", "不过度夸张"],
   redLines: [
-    "不虚构客户案例",
-    "不碰瓷竞品",
-    "不夸大模型能力",
-    "行业新闻必须标明事实边界"
+    "不夸大 AI 效果，不承诺替代人工决策",
+    "不虚构客户案例和政企落地成果",
+    "不直接贬低竞品，避免碰瓷式对比",
+    "涉及数据安全与隐私时必须表述谨慎"
   ],
-  competitors: ["HubSpot", "Jasper", "Writer", "自建内容团队"],
+  competitors: ["飞书", "钉钉", "企业微信", "Microsoft 365"],
   recentMoves: [
-    "上周发布了热点内容审核工作台 beta",
-    "两周前在上海参加 AI 增长峰会",
-    "本月发布品牌传播自动化白皮书"
+    "最近持续强化 AI 办公相关对外表达",
+    "近期围绕企业协同和组织效率展开传播",
+    "最近一个月适合补充产品更新、客户案例和活动信息"
   ],
   sources: [
     {
       label: "官网产品页",
       type: "website",
       freshness: "stable",
-      value: "产品定位、功能和核心卖点"
+      value: "WPS 365 的产品定位、AI 办公能力与一体化协同卖点"
     },
     {
       label: "公众号历史文章",
       type: "wechat-history",
       freshness: "stable",
-      value: "过去 30 篇文章的观点与语气"
+      value: "历史内容中的企业办公、协同和 AI 表达方式"
     },
     {
-      label: "AI 增长峰会演讲稿",
+      label: "近期行业活动资料",
       type: "event",
       freshness: "timely",
-      value: "最近一个月高管对热点传播的公开观点"
+      value: "最近一个月活动、论坛或发布会素材"
     },
     {
       label: "本月媒体新闻稿",
       type: "press",
       freshness: "timely",
-      value: "新功能与合作动态"
+      value: "近期媒体稿、产品更新和合作动态"
     }
   ]
 };
@@ -87,47 +87,47 @@ export const brandStrategyPack: BrandStrategyPack = {
 export const hotspotSignals: HotspotSignal[] = [
   {
     id: "hotspot-1",
-    title: "多家大模型厂商同时上线 Agent 工作流能力",
+    title: "多家企业开始把 AI 办公助手接入日常文档与协同流程",
     summary:
-      "行业在过去 12 小时内密集发布 Agent 工作流新能力，讨论点集中在落地效率和企业可控性。",
+      "过去 24 小时内，围绕 AI 办公、智能写作、会议纪要和知识整理的讨论明显升温，企业关注点集中在落地效率与可控性。",
     kind: "industry",
-    source: "行业媒体聚合",
+    source: "行业媒体 + 企业服务讨论",
     detectedAt: "2026-03-21 08:20",
     relevanceScore: 92,
-    industryScore: 90,
+    industryScore: 91,
     velocityScore: 85,
     riskScore: 28,
     recommendedAction: "ship-now",
     reasons: [
-      "和品牌的 AI 传播自动化定位强相关",
-      "适合借势讨论企业如何把 Agent 能力变成稳定产出"
+      "和 WPS 365 的 AI 办公定位高度相关",
+      "适合借势讨论企业真正需要的是可落地、可协作、可管理的 AI 办公"
     ]
   },
   {
     id: "hotspot-2",
-    title: "某头部平台调整内容推荐权重，强调原创深度",
+    title: "越来越多企业把协同、会议、邮箱、文档放到一体化办公入口",
     summary:
-      "平台算法开始降低同质化短内容曝光，增加对深度解读内容和原创表达的扶持力度。",
-    kind: "mass",
-    source: "平台公告 + 社媒发酵",
+      "市场讨论从单点工具效率，转向组织级协同体验，关注入口统一、流程衔接和多角色协作成本。",
+    kind: "industry",
+    source: "企业服务观察 + 社媒发酵",
     detectedAt: "2026-03-21 09:05",
-    relevanceScore: 84,
-    industryScore: 78,
+    relevanceScore: 89,
+    industryScore: 87,
     velocityScore: 81,
-    riskScore: 35,
+    riskScore: 24,
     recommendedAction: "ship-now",
     reasons: [
-      "直接影响品牌内容分发策略",
-      "有利于输出 SignalStack 关于快反与观点并行的产品方法"
+      "直接对应 WPS 365 的一体化办公价值主张",
+      "适合讲清楚企业为什么要从单点提效走向整套协同体验"
     ]
   },
   {
     id: "hotspot-3",
-    title: "竞品发布热点营销 Copilot",
+    title: "企业用户再次把数据权限、内容沉淀和办公安全放到采购前排",
     summary:
-      "竞品在发布会上展示了一套热点发现与文案生成助手，但未覆盖审核和品牌知识层。",
+      "在 AI 办公热度提升的同时，市场对数据权限、文件管理、组织边界和安全合规的讨论重新升温。",
     kind: "brand",
-    source: "竞品发布会",
+    source: "行业讨论 + 竞品动态",
     detectedAt: "2026-03-21 10:10",
     relevanceScore: 88,
     industryScore: 72,
@@ -135,8 +135,8 @@ export const hotspotSignals: HotspotSignal[] = [
     riskScore: 46,
     recommendedAction: "watch",
     reasons: [
-      "适合做产品对比视角，但需要严格控制竞品表述",
-      "可转化为品牌差异化观点内容"
+      "适合转成企业办公安全与治理视角的内容",
+      "能帮助 WPS 365 强化企业级能力，而不是只讲表层 AI 功能"
     ]
   }
 ];
@@ -147,57 +147,57 @@ export const hotspotPacks: HotspotPack[] = [
     brandId: "brand-1",
     hotspotId: "hotspot-1",
     status: "pending",
-    whyNow: "过去 12 小时行业发布密度异常高，讨论仍在上升。",
-    whyUs: "品牌最近刚发布审核工作台 beta，可以自然接到“从 Agent 到可控传播”的观点。",
-    reviewOwner: "品牌市场负责人",
+    whyNow: "过去 24 小时里，AI 办公从概念讨论转向真实工作流场景，热度还在继续上升。",
+    whyUs: "WPS 365 本身就在 AI 办公和组织协同场景里，适合把热点讲成具体办公价值，而不是泛泛追热点。",
+    reviewOwner: "品牌传播负责人",
     reviewNote: "",
     variants: [
       {
         id: "variant-1",
         track: "rapid-response",
-        title: "Agent 爆发之后，品牌传播团队最先该补的不是模型，而是流程",
-        angle: "抢速度，但不牺牲品牌控制权",
+        title: "AI 办公热起来之后，企业真正要补的不是新概念，而是完整协同链路",
+        angle: "抢热点，但落在真实办公场景",
         platforms: ["xiaohongshu", "wechat"],
         format: "post",
         body:
-          "今天大家都在聊 Agent 工作流，但对品牌团队来说，真正的分水岭不是谁先接模型，而是谁能把热点捕捉、内容策划、审核发布串成一条可复用链路。没有品牌策略层和审核层，再快也只是更快地产生噪音。",
-        coverHook: "Agent 热起来了，品牌团队先别急着上",
+          "大家都在聊 AI 办公，但对企业来说，真正决定体验的不是单点功能，而是文档、协作、会议、沟通能不能真正连起来。热点之下，用户更关心的不是多一个按钮，而是能不能少切几个系统、少走几段流程。",
+        coverHook: "AI 办公火了，企业先别只看新功能",
         publishWindow: "10:30-11:00"
       },
       {
         id: "variant-2",
         track: "rapid-response",
-        title: "大模型都在做 Agent，品牌内容为什么还是发不快",
-        angle: "问题拆解式快评",
+        title: "为什么大家都在讲 AI 办公，很多团队却还没真正提效",
+        angle: "问题拆解式短视频口播",
         platforms: ["video-channel", "douyin"],
         format: "video-script",
         body:
-          "开头先抛问题：为什么模型更强了，内容团队还是追不上热点？接着点出三个断点，监测不连续、品牌知识分散、审核靠人肉。最后抛出结论：Agent 不是替代人，而是缩短热点到内容之间的链路。",
-        coverHook: "模型更强了，为什么内容还发不快？",
+          "开头直接抛问题：为什么 AI 办公工具越来越多，团队协同还是很累？第二段讲清三个断点，入口分散、协作断层、内容沉淀不连续。最后收束一句：真正有效的 AI 办公，不是功能堆叠，而是把日常工作流接起来。",
+        coverHook: "工具越来越多，为什么办公还没变轻？",
         publishWindow: "11:30-12:00"
       },
       {
         id: "variant-3",
         track: "point-of-view",
-        title: "企业级 Agent 进入实用期后，品牌传播系统要重做一遍",
-        angle: "中短篇观点文",
+        title: "当 AI 办公进入实用期，企业会重新定义什么叫一体化协同",
+        angle: "公众号观点文",
         platforms: ["wechat"],
         format: "article",
         body:
-          "企业采用 Agent 的下一步，不是再多接几个模型，而是把品牌策略包、热点引擎、内容生成和审核分层。品牌传播的价值正在从单次创意转向持续稳定输出，这才是 AI 进入运营系统的标志。",
-        coverHook: "Agent 真进入实用期，品牌传播会先重构",
+          "如果只把 AI 办公理解成写作、总结和生成，那还只是第一步。更值得关注的是，企业会开始重新审视文档、会议、沟通、知识沉淀和权限管理之间的关系。一体化办公的价值，不在于把工具放在一起，而在于让组织协同真正连续起来。",
+        coverHook: "AI 办公进入实用期后，协同会先重做",
         publishWindow: "14:00-15:00"
       },
       {
         id: "variant-4",
         track: "point-of-view",
-        title: "快反不该和深度内容对立，真正成熟的系统一定双轨运行",
+        title: "别把 AI 办公只理解成提效，它也在重塑组织的协同方式",
         angle: "方法论输出",
         platforms: ["xiaohongshu", "video-channel"],
         format: "post",
         body:
-          "市场团队经常被迫二选一，要么抢速度，要么做深度。更合理的方式是双引擎：先用快反抢窗口，再把高价值热点沉淀成观点内容。只有这样，热点才不会只换来一次性曝光。",
-        coverHook: "别再把快反和深度内容对立起来",
+          "很多团队讲 AI 办公时只盯着效率提升，但真正重要的变化，是组织协同方式开始重排。谁来创建内容，谁来共享知识，谁来保证权限边界，都会被重新定义。真正成熟的产品，不只是让个人更快，而是让团队协同更顺。",
+        coverHook: "AI 办公不只是提效，它在重塑协同",
         publishWindow: "19:00-20:00"
       }
     ]
