@@ -69,7 +69,7 @@
 
 同步服务会抓取公开新闻条目，按品牌主题、竞品命中、发布时间和风险词做基础打分，再把结果写入 `hotspots` 和 `hotspot_scores`。如果配置了 `HOTSPOT_SYNC_SECRET`，调用 `POST /api/hotspots/sync` 时需要带 `Authorization: Bearer <secret>` 或 `x-sync-secret`。
 
-同步器会优先把“直连平台/API 信源”与“聚合型信源”一起拉取，再按标题进行跨源合并。若同一热点被多个来源同时命中，会在 `reasons` 中增加“多源交叉命中”提示，并给予轻微优先级加权。
+同步器会优先把“直连平台/API 信源”与“聚合型信源”一起拉取，再按标题进行跨源合并。若同一热点被多个来源同时命中，会在 `reasons` 中增加“多源交叉命中”提示，并给予轻微优先级加权。同步结果里的 `providers` 还会附带网页校验信息，例如页面是否可达、是否命中静态标题、是否被访客系统/门禁页拦截。
 
 ### Experimental Aggregator Source
 

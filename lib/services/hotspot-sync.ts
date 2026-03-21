@@ -18,6 +18,7 @@ interface HotspotProvider {
   kind: HotspotKind;
   source: string;
   market: "china" | "global";
+  pageUrl?: string;
   buildUrl?: (brand: BrandStrategyPack) => string;
   fetchItems?: (brand: BrandStrategyPack) => Promise<FeedItem[]>;
 }
@@ -29,12 +30,25 @@ interface SyncedHotspot extends HotspotSignal {
   priorityScore: number;
 }
 
+interface ProviderPageObservation {
+  checked: boolean;
+  reachable: boolean;
+  matchedTitles: number;
+  gated: boolean;
+  note: string;
+}
+
 export interface HotspotSyncResult {
   providers: Array<{
     id: string;
     label: string;
     fetched: number;
     persisted: number;
+    pageChecked?: boolean;
+    pageReachable?: boolean;
+    pageMatchedTitles?: number;
+    pageGated?: boolean;
+    pageNote?: string;
   }>;
   hotspots: SyncedHotspot[];
   generatedPacks: Array<{
@@ -59,6 +73,7 @@ interface JsonHotspotProviderConfig {
   kind: HotspotKind;
   source: string;
   market: "china" | "global";
+  pageUrl?: string;
   url: string;
   isEnabled: () => boolean;
   mapItems: (payload: unknown) => FeedItem[];
@@ -169,6 +184,7 @@ const auxiliaryJsonProviderConfigs: JsonHotspotProviderConfig[] = [
     kind: "mass",
     source: "AA1 Baidu Hot",
     market: "china",
+    pageUrl: "https://top.baidu.com/board?tab=realtime",
     url: "https://zj.v.api.aa1.cn/api/baidu-rs/",
     isEnabled: () => (process.env.ENABLE_AA1_BAIDU_HOT_SEARCH ?? "true").toLowerCase() !== "false",
     mapItems: mapAa1BaiduItems
@@ -179,6 +195,7 @@ const auxiliaryJsonProviderConfigs: JsonHotspotProviderConfig[] = [
     kind: "mass",
     source: "AA1 Weibo Hot",
     market: "china",
+    pageUrl: "https://s.weibo.com/top/summary",
     url: "https://zj.v.api.aa1.cn/api/weibo-rs/",
     isEnabled: () => (process.env.ENABLE_AA1_WEIBO_HOT_SEARCH ?? "true").toLowerCase() !== "false",
     mapItems: mapAa1WeiboItems
@@ -189,6 +206,7 @@ const auxiliaryJsonProviderConfigs: JsonHotspotProviderConfig[] = [
     kind: "mass",
     source: "Zhihu Hot API",
     market: "china",
+    pageUrl: "https://www.zhihu.com/hot",
     url: "https://api.zhihu.com/topstory/hot-list?limit=10&reverse_order=0",
     isEnabled: () => (process.env.ENABLE_ZHIHU_HOT_SEARCH ?? "true").toLowerCase() !== "false",
     mapItems: mapZhihuHotItems
@@ -248,6 +266,7 @@ function getProviderConfigs(): HotspotProvider[] {
               kind: config.kind,
               source: config.source,
               market: config.market,
+              pageUrl: config.pageUrl,
               fetchItems: () => fetchJsonProviderItems(config)
             }) satisfies HotspotProvider
         )
@@ -269,6 +288,7 @@ function getProviderConfigs(): HotspotProvider[] {
           kind: config.kind,
           source: "Entobit Hot Search",
           market: "china",
+          pageUrl: "https://www.entobit.cn/hot-search/desktop",
           fetchItems: () => fetchEntobitItems(config)
         });
 
@@ -633,6 +653,60 @@ function normalizeHotspotTitle(title: string): string {
     .trim();
 }
 
+async function observeProviderPage(provider: HotspotProvider, items: FeedItem[]): Promise<ProviderPageObservation | null> {
+  if (!provider.pageUrl) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(provider.pageUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0"
+      },
+      next: {
+        revalidate: 0
+      }
+    });
+
+    if (!response.ok) {
+      return {
+        checked: true,
+        reachable: false,
+        matchedTitles: 0,
+        gated: false,
+        note: `网页返回 ${response.status}`
+      };
+    }
+
+    const html = await response.text();
+    const normalizedHtml = normalizeHotspotTitle(stripHtml(html));
+    const candidateTitles = items.slice(0, 5).map((item) => normalizeHotspotTitle(item.title));
+    const matchedTitles = candidateTitles.filter((title) => title && normalizedHtml.includes(title)).length;
+    const gated = /sina visitor system|请登录|安全验证|访问受限/i.test(html);
+    const note = gated
+      ? "网页可达，但被门禁/访客系统拦截"
+      : matchedTitles > 0
+        ? `网页命中 ${matchedTitles} 个标题`
+        : "网页可达，但未在静态 HTML 中命中标题";
+
+    return {
+      checked: true,
+      reachable: true,
+      matchedTitles,
+      gated,
+      note
+    };
+  } catch (error) {
+    return {
+      checked: true,
+      reachable: false,
+      matchedTitles: 0,
+      gated: false,
+      note: error instanceof Error ? error.message : "网页校验失败"
+    };
+  }
+}
+
 function computeVelocityScore(publishedAt: string): number {
   const timestamp = Date.parse(publishedAt);
 
@@ -889,6 +963,7 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
   const providerResults = await Promise.all(
     getProviderConfigs().map(async (provider) => {
       const items = await fetchProviderItems(provider, brand);
+      const pageObservation = await observeProviderPage(provider, items);
 
       const hotspots = items.slice(0, 10).map((item) => {
         const scores = scoreAgainstBrand(brand, item, provider.kind);
@@ -920,7 +995,8 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
 
       return {
         provider,
-        hotspots
+        hotspots,
+        pageObservation
       };
     })
   );
@@ -935,7 +1011,12 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
       id: result.provider.id,
       label: result.provider.label,
       fetched: result.hotspots.length,
-      persisted: storage.persisted ? result.hotspots.length : 0
+      persisted: storage.persisted ? result.hotspots.length : 0,
+      pageChecked: result.pageObservation?.checked,
+      pageReachable: result.pageObservation?.reachable,
+      pageMatchedTitles: result.pageObservation?.matchedTitles,
+      pageGated: result.pageObservation?.gated,
+      pageNote: result.pageObservation?.note
     })),
     hotspots: deduped,
     generatedPacks: generatedPacks.map((result) => ({

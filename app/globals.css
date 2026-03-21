@@ -325,7 +325,8 @@ pre {
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -642,6 +643,23 @@ pre {
   justify-content: space-between;
   gap: 1rem;
   align-items: center;
+}
+
+.reviewLibraryControls {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.reviewSearchForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(180px, 0.8fr)) auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+.reviewSearchActions {
+  justify-content: flex-end;
 }
 
 .reviewHero {
@@ -1470,6 +1488,7 @@ pre {
   .workbenchHero,
   .workbenchToolbar,
   .reviewToolbar,
+  .reviewSearchForm,
   .brandHero,
   .hotspotHero,
   .publishHero,

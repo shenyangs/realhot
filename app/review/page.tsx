@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { PublishActions } from "@/components/publish-actions";
 import { ReviewActions } from "@/components/review-actions";
@@ -40,6 +41,9 @@ type SearchParams = Promise<{
   variant?: string;
   platform?: Platform;
   status?: ReviewStatus | "all";
+  q?: string;
+  owner?: string;
+  sort?: "priority" | "deadline" | "owner";
 }>;
 
 interface TaskGroup {
@@ -66,6 +70,97 @@ const taskGroups: TaskGroup[] = [
   }
 ];
 
+function getPublishWindowRank(value?: string) {
+  if (!value) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const match = value.match(/(\d{1,2}):(\d{2})/);
+
+  if (!match) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function getPriorityLevel(input: {
+  status: ReviewStatus;
+  publishWindow?: string;
+  variantCount: number;
+}) {
+  const deadlineScore = getPublishWindowRank(input.publishWindow);
+
+  if (input.status === "needs-edit") {
+    return "高";
+  }
+
+  if (input.status === "pending" && deadlineScore <= 12 * 60) {
+    return "高";
+  }
+
+  if (input.status === "pending" || input.variantCount >= 4) {
+    return "中";
+  }
+
+  return "低";
+}
+
+function getPriorityWeight(label: string) {
+  if (label === "高") {
+    return 0;
+  }
+
+  if (label === "中") {
+    return 1;
+  }
+
+  return 2;
+}
+
+function buildReviewHref(input: {
+  status?: string;
+  q?: string;
+  owner?: string;
+  sort?: string;
+  pack?: string;
+  variant?: string;
+  platform?: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (input.status && input.status !== "all") {
+    params.set("status", input.status);
+  }
+
+  if (input.q) {
+    params.set("q", input.q);
+  }
+
+  if (input.owner && input.owner !== "all") {
+    params.set("owner", input.owner);
+  }
+
+  if (input.sort && input.sort !== "priority") {
+    params.set("sort", input.sort);
+  }
+
+  if (input.pack) {
+    params.set("pack", input.pack);
+  }
+
+  if (input.variant) {
+    params.set("variant", input.variant);
+  }
+
+  if (input.platform) {
+    params.set("platform", input.platform);
+  }
+
+  const query = params.toString();
+  return (query ? `/review?${query}` : "/review") as Route;
+}
+
 export default async function ReviewPage({
   searchParams
 }: {
@@ -74,8 +169,66 @@ export default async function ReviewPage({
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const [brand, packs] = await Promise.all([getBrandStrategyPack(), getReviewQueue()]);
   const statusFilter = resolvedSearchParams?.status ?? "all";
-  const visiblePacks =
-    statusFilter === "all" ? packs : packs.filter((pack) => pack.status === statusFilter);
+  const searchQuery = resolvedSearchParams?.q?.trim() ?? "";
+  const ownerFilter = resolvedSearchParams?.owner?.trim() ?? "all";
+  const sortBy = resolvedSearchParams?.sort ?? "priority";
+  const ownerOptions = [...new Set(packs.map((pack) => pack.reviewOwner))].sort((left, right) =>
+    left.localeCompare(right, "zh-CN")
+  );
+  const filteredPacks = packs
+    .filter((pack) => (statusFilter === "all" ? true : pack.status === statusFilter))
+    .filter((pack) => {
+      if (ownerFilter === "all") {
+        return true;
+      }
+
+      return pack.reviewOwner === ownerFilter;
+    })
+    .filter((pack) => {
+      if (!searchQuery) {
+        return true;
+      }
+
+      const haystack = [
+        pack.whyNow,
+        pack.whyUs,
+        pack.reviewOwner,
+        ...pack.variants.map((variant) => variant.title),
+        ...pack.variants.map((variant) => variant.angle)
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(searchQuery.toLowerCase());
+    })
+    .sort((left, right) => {
+      const leftPrimary = left.variants[0];
+      const rightPrimary = right.variants[0];
+      const leftPriority = getPriorityLevel({
+        status: left.status,
+        publishWindow: leftPrimary?.publishWindow,
+        variantCount: left.variants.length
+      });
+      const rightPriority = getPriorityLevel({
+        status: right.status,
+        publishWindow: rightPrimary?.publishWindow,
+        variantCount: right.variants.length
+      });
+
+      if (sortBy === "deadline") {
+        return getPublishWindowRank(leftPrimary?.publishWindow) - getPublishWindowRank(rightPrimary?.publishWindow);
+      }
+
+      if (sortBy === "owner") {
+        return left.reviewOwner.localeCompare(right.reviewOwner, "zh-CN");
+      }
+
+      return (
+        getPriorityWeight(leftPriority) - getPriorityWeight(rightPriority) ||
+        getPublishWindowRank(leftPrimary?.publishWindow) - getPublishWindowRank(rightPrimary?.publishWindow)
+      );
+    });
+  const visiblePacks = filteredPacks;
 
   const activePack =
     visiblePacks.find((pack) => pack.id === resolvedSearchParams?.pack) ??
@@ -153,7 +306,12 @@ export default async function ReviewPage({
           <Link
             aria-current={statusFilter === "all" ? "page" : undefined}
             className={`filterChip ${statusFilter === "all" ? "filterChipActive" : ""}`}
-            href="/review"
+            href={buildReviewHref({
+              status: "all",
+              q: searchQuery,
+              owner: ownerFilter,
+              sort: sortBy
+            })}
           >
             全部选题
             <strong>{counts.all}</strong>
@@ -161,7 +319,12 @@ export default async function ReviewPage({
           <Link
             aria-current={statusFilter === "pending" ? "page" : undefined}
             className={`filterChip ${statusFilter === "pending" ? "filterChipActive" : ""}`}
-            href="/review?status=pending"
+            href={buildReviewHref({
+              status: "pending",
+              q: searchQuery,
+              owner: ownerFilter,
+              sort: sortBy
+            })}
           >
             待审核
             <strong>{counts.pending}</strong>
@@ -169,7 +332,12 @@ export default async function ReviewPage({
           <Link
             aria-current={statusFilter === "needs-edit" ? "page" : undefined}
             className={`filterChip ${statusFilter === "needs-edit" ? "filterChipActive" : ""}`}
-            href="/review?status=needs-edit"
+            href={buildReviewHref({
+              status: "needs-edit",
+              q: searchQuery,
+              owner: ownerFilter,
+              sort: sortBy
+            })}
           >
             待改稿
             <strong>{counts["needs-edit"]}</strong>
@@ -177,7 +345,12 @@ export default async function ReviewPage({
           <Link
             aria-current={statusFilter === "approved" ? "page" : undefined}
             className={`filterChip ${statusFilter === "approved" ? "filterChipActive" : ""}`}
-            href="/review?status=approved"
+            href={buildReviewHref({
+              status: "approved",
+              q: searchQuery,
+              owner: ownerFilter,
+              sort: sortBy
+            })}
           >
             已通过
             <strong>{counts.approved}</strong>
@@ -193,6 +366,45 @@ export default async function ReviewPage({
         </div>
       </section>
 
+      <section className="panel reviewLibraryControls">
+        <form action="/review" className="reviewSearchForm" method="get">
+          <input name="status" type="hidden" value={statusFilter} />
+          <label className="field">
+            <span>搜索选题</span>
+            <input
+              defaultValue={searchQuery}
+              name="q"
+              placeholder="按标题、切入角度、负责人搜索"
+            />
+          </label>
+          <label className="field">
+            <span>负责人</span>
+            <select defaultValue={ownerFilter} name="owner">
+              <option value="all">全部负责人</option>
+              {ownerOptions.map((owner) => (
+                <option key={owner} value={owner}>
+                  {owner}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>排序方式</span>
+            <select defaultValue={sortBy} name="sort">
+              <option value="priority">按优先级</option>
+              <option value="deadline">按截止时间</option>
+              <option value="owner">按负责人</option>
+            </select>
+          </label>
+          <div className="buttonRow reviewSearchActions">
+            <button type="submit">应用筛选</button>
+            <Link className="buttonLike subtleButton" href={`/review?status=${statusFilter}`}>
+              清空条件
+            </Link>
+          </div>
+        </form>
+      </section>
+
       <section className="summaryGrid">
         <article className="panel summaryCard">
           <p className="eyebrow">当前可见</p>
@@ -200,14 +412,14 @@ export default async function ReviewPage({
           <p className="muted">筛选后只保留你现在最需要处理的一组任务，避免在编辑台里来回找题。</p>
         </article>
         <article className="panel summaryCard">
-          <p className="eyebrow">优先清理</p>
-          <h3>{counts["needs-edit"]} 个待改稿</h3>
-          <p className="muted">这些题最容易卡住团队节奏，通常应该先于新选题处理。</p>
+          <p className="eyebrow">筛选焦点</p>
+          <h3>{ownerFilter === "all" ? "全部负责人" : ownerFilter}</h3>
+          <p className="muted">{searchQuery ? `正在搜索：${searchQuery}` : "可以按负责人、标题和角度快速收窄任务范围。"}</p>
         </article>
         <article className="panel summaryCard">
-          <p className="eyebrow">可进入发布</p>
-          <h3>{counts.approved} 个已通过</h3>
-          <p className="muted">已经通过的题尽量尽快进入发布台，不要继续占据编辑注意力。</p>
+          <p className="eyebrow">当前排序</p>
+          <h3>{sortBy === "priority" ? "优先级优先" : sortBy === "deadline" ? "截止时间优先" : "负责人排序"}</h3>
+          <p className="muted">让库先回答“先处理谁、先处理哪条题”，而不是只做编辑入口。</p>
         </article>
       </section>
 
@@ -251,7 +463,15 @@ export default async function ReviewPage({
                           return (
                             <Link
                               className={`taskNavItem ${isActive ? "taskNavItemActive" : ""}`}
-                              href={`/review?status=${statusFilter}&pack=${pack.id}${defaultVariant ? `&variant=${defaultVariant.id}&platform=${defaultVariant.platforms[0]}` : ""}`}
+                              href={buildReviewHref({
+                                status: statusFilter,
+                                q: searchQuery,
+                                owner: ownerFilter,
+                                sort: sortBy,
+                                pack: pack.id,
+                                variant: defaultVariant?.id,
+                                platform: defaultVariant?.platforms[0]
+                              })}
                               key={pack.id}
                             >
                               <div className="listItem">
@@ -259,6 +479,16 @@ export default async function ReviewPage({
                                 <span className={`pill pill-${getPackStatusTone(pack.status)}`}>
                                   {reviewStatusLabels[pack.status]}
                                 </span>
+                              </div>
+                              <div className="tagRow">
+                                <span className="tag">
+                                  优先级 {getPriorityLevel({
+                                    status: pack.status,
+                                    publishWindow: defaultVariant?.publishWindow,
+                                    variantCount: pack.variants.length
+                                  })}
+                                </span>
+                                <span className="tag">{defaultVariant?.publishWindow ?? "未设发布时间"}</span>
                               </div>
                               <p className="muted">{pack.whyUs}</p>
                               <small className="muted">{pack.reviewOwner}</small>
@@ -309,7 +539,15 @@ export default async function ReviewPage({
                 return (
                   <Link
                     className={`platformTab ${isActive ? "platformTabActive" : ""}`}
-                    href={`/review?pack=${activePack.id}&variant=${draft.variant.id}&platform=${draft.platform}`}
+                    href={buildReviewHref({
+                      status: statusFilter,
+                      q: searchQuery,
+                      owner: ownerFilter,
+                      sort: sortBy,
+                      pack: activePack.id,
+                      variant: draft.variant.id,
+                      platform: draft.platform
+                    })}
                     key={draft.slotId}
                   >
                     <div>
