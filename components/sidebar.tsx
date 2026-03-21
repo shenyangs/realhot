@@ -18,14 +18,14 @@ const navItems: NavItem[] = [
     description: "先判断今天该做什么，再推进选题生产"
   },
   {
-    href: "/hotspots",
-    label: "热点机会池",
-    description: "集中看热点机会、时效窗口和切入角度"
+    href: "/review",
+    label: "选题库",
+    description: "查看选题、进入编辑、提交审核"
   },
   {
-    href: "/review",
-    label: "选题与审核",
-    description: "查看草稿、改稿、提交审核与发布链路"
+    href: "/publish",
+    label: "发布台",
+    description: "统一查看待发布、队列状态和发布结果"
   },
   {
     href: "/brands",

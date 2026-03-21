@@ -18,7 +18,8 @@ interface HotspotProvider {
   kind: HotspotKind;
   source: string;
   market: "china" | "global";
-  buildUrl: (brand: BrandStrategyPack) => string;
+  buildUrl?: (brand: BrandStrategyPack) => string;
+  fetchItems?: (brand: BrandStrategyPack) => Promise<FeedItem[]>;
 }
 
 interface SyncedHotspot extends HotspotSignal {
@@ -46,7 +47,24 @@ export interface HotspotSyncResult {
   usedMockStorage: boolean;
 }
 
-const providerConfigs: HotspotProvider[] = [
+interface EntobitRankConfig {
+  kind: HotspotKind;
+  label: string;
+  rankType: string;
+}
+
+interface JsonHotspotProviderConfig {
+  id: string;
+  label: string;
+  kind: HotspotKind;
+  source: string;
+  market: "china" | "global";
+  url: string;
+  isEnabled: () => boolean;
+  mapItems: (payload: unknown) => FeedItem[];
+}
+
+const baseProviderConfigs: HotspotProvider[] = [
   {
     id: "rss-36kr",
     label: "36Kr / China Tech",
@@ -119,6 +137,64 @@ const providerConfigs: HotspotProvider[] = [
   }
 ];
 
+const entobitRankConfigs: Record<string, EntobitRankConfig> = {
+  realTimeHotSearchList: {
+    kind: "mass",
+    label: "微博热搜榜",
+    rankType: "realTimeHotSearchList"
+  },
+  douyin: {
+    kind: "mass",
+    label: "抖音热点榜",
+    rankType: "douyin"
+  },
+  baidu: {
+    kind: "mass",
+    label: "百度热搜榜",
+    rankType: "baidu"
+  },
+  xiaohongshu: {
+    kind: "mass",
+    label: "小红书热点榜",
+    rankType: "xiaohongshu"
+  }
+};
+
+const entobitDefaultRankTypes = ["realTimeHotSearchList", "douyin", "baidu", "xiaohongshu"];
+
+const auxiliaryJsonProviderConfigs: JsonHotspotProviderConfig[] = [
+  {
+    id: "aa1-baidu-hot",
+    label: "AA1 / 百度热搜",
+    kind: "mass",
+    source: "AA1 Baidu Hot",
+    market: "china",
+    url: "https://zj.v.api.aa1.cn/api/baidu-rs/",
+    isEnabled: () => (process.env.ENABLE_AA1_BAIDU_HOT_SEARCH ?? "true").toLowerCase() !== "false",
+    mapItems: mapAa1BaiduItems
+  },
+  {
+    id: "aa1-weibo-hot",
+    label: "AA1 / 微博热搜",
+    kind: "mass",
+    source: "AA1 Weibo Hot",
+    market: "china",
+    url: "https://zj.v.api.aa1.cn/api/weibo-rs/",
+    isEnabled: () => (process.env.ENABLE_AA1_WEIBO_HOT_SEARCH ?? "true").toLowerCase() !== "false",
+    mapItems: mapAa1WeiboItems
+  },
+  {
+    id: "zhihu-hot-list",
+    label: "Zhihu / Hot List",
+    kind: "mass",
+    source: "Zhihu Hot API",
+    market: "china",
+    url: "https://api.zhihu.com/topstory/hot-list?limit=10&reverse_order=0",
+    isEnabled: () => (process.env.ENABLE_ZHIHU_HOT_SEARCH ?? "true").toLowerCase() !== "false",
+    mapItems: mapZhihuHotItems
+  }
+];
+
 function buildGoogleNewsUrl(
   query: string,
   options?: {
@@ -140,9 +216,82 @@ function buildGoogleNewsUrl(
   return `https://news.google.com/rss/search?${search.toString()}`;
 }
 
+function isEntobitEnabled(): boolean {
+  return (process.env.ENABLE_ENTOBIT_HOT_SEARCH ?? "false").toLowerCase() === "true";
+}
+
+function getEntobitRankTypes(): string[] {
+  const configured = (process.env.ENTOBIT_HOT_SEARCH_RANK_TYPES ?? entobitDefaultRankTypes.join(","))
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return configured.filter((rankType, index) => configured.indexOf(rankType) === index);
+}
+
+function isAuxiliaryJsonSourcesEnabled(): boolean {
+  return (process.env.ENABLE_AUXILIARY_HOT_SOURCES ?? "true").toLowerCase() !== "false";
+}
+
+function getProviderConfigs(): HotspotProvider[] {
+  const providers = [...baseProviderConfigs];
+
+  if (isAuxiliaryJsonSourcesEnabled()) {
+    providers.push(
+      ...auxiliaryJsonProviderConfigs
+        .filter((config) => config.isEnabled())
+        .map(
+          (config) =>
+            ({
+              id: config.id,
+              label: config.label,
+              kind: config.kind,
+              source: config.source,
+              market: config.market,
+              fetchItems: () => fetchJsonProviderItems(config)
+            }) satisfies HotspotProvider
+        )
+    );
+  }
+
+  if (isEntobitEnabled()) {
+    providers.push(
+      ...getEntobitRankTypes().reduce<HotspotProvider[]>((items, rankType) => {
+        const config = entobitRankConfigs[rankType];
+
+        if (!config) {
+          return items;
+        }
+
+        items.push({
+          id: `entobit-${rankType}`,
+          label: `Entobit / ${config.label}`,
+          kind: config.kind,
+          source: "Entobit Hot Search",
+          market: "china",
+          fetchItems: () => fetchEntobitItems(config)
+        });
+
+        return items;
+      }, [])
+    );
+  }
+
+  return providers;
+}
+
 function createDeterministicId(value: string): string {
   const hash = createHash("sha256").update(value).digest("hex");
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
+
+function buildEntobitItemUrl(rankType: string, keyword: string): string {
+  const search = new URLSearchParams({
+    rankType,
+    keyword
+  });
+
+  return `https://www.entobit.cn/hot-search/desktop?${search.toString()}`;
 }
 
 function stripHtml(value: string): string {
@@ -189,6 +338,299 @@ function parseFeedItems(xml: string): FeedItem[] {
       };
     })
     .filter((item): item is FeedItem => item !== null);
+}
+
+function parseLooseJson(text: string): unknown {
+  const trimmed = text.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const firstBrace = trimmed.search(/[\[{]/);
+
+  if (firstBrace === -1) {
+    return null;
+  }
+
+  const candidate = trimmed.slice(firstBrace);
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeTimestamp(value: number | string | null | undefined): string {
+  if (typeof value === "number") {
+    const timestamp = value > 1_000_000_000_000 ? value : value * 1000;
+    return new Date(timestamp).toISOString();
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const numeric = Number(value);
+
+    if (!Number.isNaN(numeric)) {
+      return normalizeTimestamp(numeric);
+    }
+
+    const parsed = Date.parse(value);
+
+    if (!Number.isNaN(parsed)) {
+      return new Date(parsed).toISOString();
+    }
+  }
+
+  return new Date().toISOString();
+}
+
+function readArrayPayload(payload: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(payload)) {
+    return payload.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null);
+  }
+
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+
+  const objectPayload = payload as Record<string, unknown>;
+
+  for (const key of ["data", "list", "rows", "result"]) {
+    const value = objectPayload[key];
+
+    if (Array.isArray(value)) {
+      return value.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null);
+    }
+  }
+
+  return [];
+}
+
+function readRecordPayload(payload: unknown): Record<string, unknown> | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+
+  return payload as Record<string, unknown>;
+}
+
+function stringifyMetricLabel(label: string, value: unknown): string | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  return `${label}: ${String(value)}`;
+}
+
+function trimText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function mapAa1BaiduItems(payload: unknown): FeedItem[] {
+  const record = readRecordPayload(payload);
+  const items = readArrayPayload(record);
+
+  return items
+    .map((item) => {
+      const title = trimText(item.title);
+      const url = trimText(item.url) ?? trimText(item.mobilUrl);
+
+      if (!title || !url) {
+        return null;
+      }
+
+      const summaryParts = [
+        trimText(item.desc),
+        stringifyMetricLabel("平台", "百度热搜"),
+        stringifyMetricLabel("热度", item.hot),
+        stringifyMetricLabel("排名", item.index)
+      ].filter((value): value is string => Boolean(value));
+
+      return {
+        title,
+        summary: summaryParts.join(" | ") || "百度热搜聚合词",
+        url,
+        publishedAt: new Date().toISOString()
+      } satisfies FeedItem;
+    })
+    .filter((item): item is FeedItem => item !== null);
+}
+
+function mapAa1WeiboItems(payload: unknown): FeedItem[] {
+  const record = readRecordPayload(payload);
+  const items = readArrayPayload(record);
+
+  return items
+    .map((item) => {
+      const title = trimText(item.title) ?? trimText(item.keyword);
+      const url = trimText(item.url) ?? (title ? buildEntobitItemUrl("realTimeHotSearchList", title) : null);
+
+      if (!title || !url) {
+        return null;
+      }
+
+      const summaryParts = [
+        trimText(item.desc),
+        stringifyMetricLabel("平台", "微博热搜"),
+        stringifyMetricLabel("热度", item.hot ?? item.num),
+        stringifyMetricLabel("排名", item.index)
+      ].filter((value): value is string => Boolean(value));
+
+      return {
+        title,
+        summary: summaryParts.join(" | ") || "微博热搜聚合词",
+        url,
+        publishedAt: new Date().toISOString()
+      } satisfies FeedItem;
+    })
+    .filter((item): item is FeedItem => item !== null);
+}
+
+function mapZhihuHotItems(payload: unknown): FeedItem[] {
+  const record = readRecordPayload(payload);
+  const items = readArrayPayload(record?.data);
+
+  return items
+    .map((item) => {
+      const target = readRecordPayload(item.target);
+      const title = trimText(target?.title);
+      const url = trimText(target?.url);
+
+      if (!title || !url) {
+        return null;
+      }
+
+      const summaryParts = [
+        trimText(target?.excerpt),
+        stringifyMetricLabel("平台", "知乎热榜"),
+        stringifyMetricLabel("热度", item.detail_text),
+        stringifyMetricLabel("回答数", target?.answer_count)
+      ].filter((value): value is string => Boolean(value));
+
+      return {
+        title,
+        summary: summaryParts.join(" | ") || "知乎热榜问题",
+        url,
+        publishedAt: normalizeTimestamp(target?.created as number | string | undefined)
+      } satisfies FeedItem;
+    })
+    .filter((item): item is FeedItem => item !== null);
+}
+
+function mapEntobitItem(item: Record<string, unknown>, config: EntobitRankConfig): FeedItem | null {
+  const title = [item.keywords, item.keyword, item.title].find(
+    (value): value is string => typeof value === "string" && value.trim().length > 0
+  );
+
+  if (!title) {
+    return null;
+  }
+
+  const summaryParts = [
+    typeof item.lead === "string" && item.lead.trim() ? item.lead.trim() : null,
+    stringifyMetricLabel("榜单", config.label),
+    stringifyMetricLabel("热度", item.searchNums ?? item.hotValue ?? item.heat),
+    stringifyMetricLabel("在榜时长", item.durationToday ?? item.duration)
+  ].filter((value): value is string => Boolean(value));
+
+  return {
+    title: title.trim(),
+    summary: summaryParts.join(" | ") || `${config.label} 聚合热搜词`,
+    url:
+      (typeof item.url === "string" && item.url.trim()) ||
+      buildEntobitItemUrl(config.rankType, title.trim()),
+    publishedAt: normalizeTimestamp(
+      (item.updateTime as number | string | undefined) ?? (item.timestamp as number | string | undefined)
+    )
+  };
+}
+
+async function fetchEntobitItems(config: EntobitRankConfig): Promise<FeedItem[]> {
+  const body = new URLSearchParams({
+    type: config.rankType,
+    accessToken: ""
+  });
+
+  const response = await fetch("https://www.entobit.cn/trending/hsa/getHotSearchKeywords.do", {
+    method: "POST",
+    headers: {
+      Accept: "application/json, text/plain, */*",
+      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      Origin: "https://www.entobit.cn",
+      Referer: "https://www.entobit.cn/hot-search/desktop",
+      "User-Agent": "BrandHotspotStudio/0.1",
+      "X-Requested-With": "XMLHttpRequest",
+      type: "restful"
+    },
+    body: body.toString(),
+    next: {
+      revalidate: 0
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Entobit ${config.rankType} responded with ${response.status}`);
+  }
+
+  const text = (await response.text()).trim();
+
+  if (!text) {
+    return [];
+  }
+
+  let payload: unknown;
+
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    return [];
+  }
+
+  const maxItems = Number.parseInt(process.env.ENTOBIT_HOT_SEARCH_MAX_ITEMS ?? "10", 10);
+  const limit = Number.isNaN(maxItems) ? 10 : maxItems;
+
+  return readArrayPayload(payload)
+    .map((item) => mapEntobitItem(item, config))
+    .filter((item): item is FeedItem => item !== null)
+    .slice(0, limit);
+}
+
+async function fetchJsonProviderItems(config: JsonHotspotProviderConfig): Promise<FeedItem[]> {
+  const response = await fetch(config.url, {
+    headers: {
+      Accept: "application/json, text/plain, */*",
+      "User-Agent": "BrandHotspotStudio/0.1"
+    },
+    next: {
+      revalidate: 0
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`${config.id} responded with ${response.status}`);
+  }
+
+  const payload = parseLooseJson(await response.text());
+
+  if (payload === null) {
+    return [];
+  }
+
+  const items = config.mapItems(payload);
+  const maxItems = Number.parseInt(process.env.AUXILIARY_HOT_SOURCE_MAX_ITEMS ?? "10", 10);
+  const limit = Number.isNaN(maxItems) ? 10 : maxItems;
+
+  return items.slice(0, limit);
+}
+
+function normalizeHotspotTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[“”"']/g, "")
+    .replace(/[：:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function computeVelocityScore(publishedAt: string): number {
@@ -265,6 +707,14 @@ function scoreAgainstBrand(brand: BrandStrategyPack, item: FeedItem, kind: Hotsp
 }
 
 async function fetchProviderItems(provider: HotspotProvider, brand: BrandStrategyPack): Promise<FeedItem[]> {
+  if (provider.fetchItems) {
+    return provider.fetchItems(brand);
+  }
+
+  if (!provider.buildUrl) {
+    throw new Error(`Provider ${provider.id} is missing buildUrl`);
+  }
+
   const response = await fetch(provider.buildUrl(brand), {
     headers: {
       "User-Agent": "BrandHotspotStudio/0.1"
@@ -365,10 +815,79 @@ async function autoGeneratePacks(
   return Promise.all(candidates.map((hotspot) => generateContentPackForEntities(brand, hotspot)));
 }
 
+function mergeHotspotsByTitle(hotspots: SyncedHotspot[]): SyncedHotspot[] {
+  const merged = new Map<string, SyncedHotspot>();
+
+  for (const hotspot of hotspots) {
+    const key = `${hotspot.kind}:${normalizeHotspotTitle(hotspot.title)}`;
+    const existing = merged.get(key);
+
+    if (!existing) {
+      merged.set(key, hotspot);
+      continue;
+    }
+
+    const mergedSources = Array.from(
+      new Set(
+        `${existing.source}|${hotspot.source}`
+          .split("|")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    );
+    const mergedProviderIds = Array.from(
+      new Set(
+        `${existing.providerId},${hotspot.providerId}`
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    );
+    const evidenceCount = mergedProviderIds.length;
+    const mergedReasons = Array.from(
+      new Set([
+        ...existing.reasons,
+        ...hotspot.reasons,
+        evidenceCount > 1 ? `多源交叉命中 ${evidenceCount} 个信源` : null
+      ].filter((item): item is string => Boolean(item)))
+    );
+
+    const preferred = hotspot.priorityScore > existing.priorityScore ? hotspot : existing;
+    const mergedPriorityScore = Math.min(99, Math.max(existing.priorityScore, hotspot.priorityScore) + (evidenceCount > 1 ? 4 : 0));
+    const mergedRiskScore = Math.min(existing.riskScore, hotspot.riskScore);
+    const mergedRecommendedAction =
+      mergedPriorityScore >= 75 && mergedRiskScore < 55
+        ? "ship-now"
+        : mergedPriorityScore >= 58
+          ? "watch"
+          : "discard";
+
+    merged.set(key, {
+      ...preferred,
+      id: createDeterministicId(`merged:${key}`),
+      providerId: mergedProviderIds.join(","),
+      source: mergedSources.join(" | "),
+      summary: preferred.summary.length >= existing.summary.length ? preferred.summary : existing.summary,
+      detectedAt: new Date(
+        Math.max(Date.parse(existing.detectedAt) || 0, Date.parse(hotspot.detectedAt) || 0, Date.now())
+      ).toISOString(),
+      reasons: mergedReasons,
+      priorityScore: mergedPriorityScore,
+      relevanceScore: Math.max(existing.relevanceScore, hotspot.relevanceScore),
+      industryScore: Math.max(existing.industryScore, hotspot.industryScore),
+      velocityScore: Math.max(existing.velocityScore, hotspot.velocityScore),
+      riskScore: mergedRiskScore,
+      recommendedAction: mergedRecommendedAction
+    });
+  }
+
+  return Array.from(merged.values()).sort((left, right) => right.priorityScore - left.priorityScore);
+}
+
 export async function syncHotspots(): Promise<HotspotSyncResult> {
   const brand = await getBrandStrategyPack();
   const providerResults = await Promise.all(
-    providerConfigs.map(async (provider) => {
+    getProviderConfigs().map(async (provider) => {
       const items = await fetchProviderItems(provider, brand);
 
       const hotspots = items.slice(0, 10).map((item) => {
@@ -406,13 +925,7 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
     })
   );
 
-  const deduped = Array.from(
-    new Map(
-      providerResults
-        .flatMap((result) => result.hotspots)
-        .map((hotspot) => [hotspot.id, hotspot] as const)
-    ).values()
-  ).sort((left, right) => right.priorityScore - left.priorityScore);
+  const deduped = mergeHotspotsByTitle(providerResults.flatMap((result) => result.hotspots));
 
   const storage = await persistHotspots(brand, deduped);
   const generatedPacks = await autoGeneratePacks(brand, deduped);

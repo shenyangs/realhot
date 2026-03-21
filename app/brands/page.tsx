@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandOnboardingStatus } from "@/components/brand-onboarding-status";
 import { getBrandStrategyPack } from "@/lib/data";
 import { getBrandBrainSummary } from "@/lib/services/brand-brain";
 
@@ -82,6 +83,9 @@ export default async function BrandsPage() {
             <Link className="buttonLike primaryButton" href="/">
               进入今日选题台
             </Link>
+            <Link className="buttonLike subtleButton" href="/onboarding">
+              重新走接入流程
+            </Link>
             <a className="buttonLike subtleButton" href="#material-library">
               继续补资料
             </a>
@@ -97,8 +101,9 @@ export default async function BrandsPage() {
             <span>所属行业</span>
             <strong>{brandStrategyPack.sector}</strong>
           </div>
+          <BrandOnboardingStatus brandName={brandStrategyPack.name} />
           <div className="metaPill">
-            <span>当前状态</span>
+            <span>资料状态</span>
             <strong>{materialsMissing.length === 0 ? "已具备完整接入条件" : "已具备基础运行条件"}</strong>
           </div>
         </div>

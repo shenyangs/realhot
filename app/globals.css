@@ -436,6 +436,19 @@ pre {
   line-height: 1.4;
 }
 
+.metaPill small {
+  line-height: 1.5;
+}
+
+.metaPillAction {
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+
+.metaPillAction:hover {
+  transform: translateY(-1px);
+  border-color: rgba(181, 90, 51, 0.3);
+}
+
 .workbenchToolbar {
   display: flex;
   align-items: center;
@@ -624,6 +637,13 @@ pre {
   gap: 1rem;
 }
 
+.reviewToolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
 .reviewHero {
   display: flex;
   justify-content: space-between;
@@ -664,12 +684,28 @@ pre {
 }
 
 .taskNavList,
+.taskGroupStack,
 .platformTabsList,
 .definitionList,
 .changeLogList {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.taskGroupSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.taskGroupHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px dashed var(--line-strong);
 }
 
 .taskNavItem,
@@ -739,6 +775,20 @@ pre {
   gap: 1rem;
 }
 
+.editorStatusBar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding-bottom: 0.2rem;
+}
+
+.editorStatusMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
 .editorBodyHeader {
   display: flex;
   justify-content: space-between;
@@ -770,6 +820,25 @@ pre {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+}
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.72rem 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 252, 247, 0.82);
+}
+
+.filterChip strong {
+  color: var(--accent-strong);
+}
+
+.filterChipActive {
+  border-color: rgba(181, 90, 51, 0.3);
+  background: linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(249, 240, 230, 0.94));
 }
 
 .modeSwitch {
@@ -963,6 +1032,411 @@ pre {
   padding-bottom: 0;
 }
 
+.hotspotPoolPage {
+  gap: 1rem;
+}
+
+.hotspotHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.hotspotHeroCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.hotspotHeroCopy h2 {
+  margin: 0;
+  max-width: 15ch;
+  font-family:
+    "Songti SC",
+    "STSong",
+    "Noto Serif CJK SC",
+    serif;
+  font-size: clamp(1.9rem, 2.8vw, 3rem);
+  line-height: 1.08;
+}
+
+.hotspotHeroMeta,
+.hotspotPoolLayout,
+.hotspotFactsGrid,
+.hotspotCardList {
+  display: grid;
+  gap: 1rem;
+}
+
+.hotspotHeroMeta {
+  grid-template-columns: 1fr;
+}
+
+.hotspotPoolLayout {
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr);
+  align-items: flex-start;
+}
+
+.hotspotMainColumn,
+.hotspotAsideColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.hotspotCardList {
+  margin-top: 1rem;
+}
+
+.hotspotCard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 252, 247, 0.96), rgba(249, 242, 234, 0.95));
+  box-shadow: var(--shadow-soft);
+}
+
+.hotspotCardHeader,
+.hotspotCardFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.hotspotCardTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.hotspotCardTitle h3,
+.helperPanel h3 {
+  margin: 0;
+}
+
+.scorePanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-end;
+  min-width: 84px;
+}
+
+.scorePanel span,
+.hotspotMetricRow,
+.hotspotDecisionNote strong {
+  font-size: 0.84rem;
+}
+
+.scorePanel strong {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.hotspotFactsGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 0.3rem;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.hotspotFactsGrid div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.hotspotFactsGrid span,
+.definitionList span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.hotspotMetricRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  color: var(--muted);
+}
+
+.hotspotDecisionNote {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 40ch;
+}
+
+.hotspotDecisionNote p {
+  margin: 0;
+}
+
+.watchList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.watchItem {
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 252, 247, 0.78);
+}
+
+.watchItem p {
+  margin: 0.35rem 0 0;
+}
+
+.publishDeskPage {
+  gap: 1rem;
+}
+
+.publishHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.publishHeroCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.publishHeroCopy h2 {
+  margin: 0;
+  max-width: 16ch;
+  font-family:
+    "Songti SC",
+    "STSong",
+    "Noto Serif CJK SC",
+    serif;
+  font-size: clamp(1.9rem, 2.8vw, 3rem);
+  line-height: 1.08;
+}
+
+.publishHeroMeta,
+.publishDeskLayout,
+.publishPackMeta {
+  display: grid;
+  gap: 1rem;
+}
+
+.publishHeroMeta {
+  grid-template-columns: 1fr;
+}
+
+.publishDeskLayout {
+  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
+  align-items: flex-start;
+}
+
+.publishMainColumn,
+.publishAsideColumn,
+.publishPackList,
+.publishJobList,
+.publishVariantList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.publishPackCard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255, 252, 247, 0.96), rgba(249, 242, 234, 0.95));
+  box-shadow: var(--shadow-soft);
+}
+
+.publishPackMeta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.publishPackMeta div,
+.publishVariantItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.publishPackMeta span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.publishVariantList {
+  gap: 0.75rem;
+}
+
+.publishVariantItem {
+  padding: 0.95rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.publishVariantItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.publishJobItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 0.95rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.publishJobItem:first-child {
+  padding-top: 0;
+}
+
+.publishJobItem:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.onboardingPage {
+  gap: 1rem;
+}
+
+.onboardingHero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.onboardingHero h2 {
+  margin: 0.2rem 0 0.6rem;
+  max-width: 15ch;
+  font-family:
+    "Songti SC",
+    "STSong",
+    "Noto Serif CJK SC",
+    serif;
+  font-size: clamp(1.9rem, 2.8vw, 3rem);
+  line-height: 1.08;
+}
+
+.onboardingLayout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.onboardingSidebar,
+.onboardingMain,
+.onboardingPanel,
+.onboardingStepList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.progressPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.progressTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(36, 28, 21, 0.08);
+  overflow: hidden;
+}
+
+.progressTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), #d48658);
+}
+
+.onboardingStepItem {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  width: 100%;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 252, 247, 0.82);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.onboardingStepItemActive {
+  border-color: rgba(181, 90, 51, 0.32);
+  background: linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(249, 240, 230, 0.94));
+}
+
+.materialToggleGrid,
+.completionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.materialToggle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 252, 247, 0.84);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.materialToggle span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.materialToggleActive {
+  border-color: rgba(23, 107, 85, 0.25);
+  background: rgba(245, 252, 249, 0.96);
+}
+
+.onboardingActions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.onboardingActions button {
+  border: 1px solid rgba(36, 28, 21, 0.14);
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+  background: var(--panel-strong);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.onboardingActions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .publishActions {
   display: flex;
   flex-direction: column;
@@ -995,7 +1469,11 @@ pre {
   .queueGrid,
   .workbenchHero,
   .workbenchToolbar,
+  .reviewToolbar,
   .brandHero,
+  .hotspotHero,
+  .publishHero,
+  .onboardingLayout,
   .reviewHeroMeta,
   .reviewWorkbenchLayout,
   .editorWorkbench,
@@ -1003,7 +1481,13 @@ pre {
   .brandInfoGrid,
   .sourceLibraryGrid,
   .materialHintGrid,
-  .onboardingGrid {
+  .onboardingGrid,
+  .hotspotPoolLayout,
+  .hotspotFactsGrid,
+  .publishDeskLayout,
+  .publishPackMeta,
+  .completionGrid,
+  .materialToggleGrid {
     grid-template-columns: 1fr;
   }
 
@@ -1054,7 +1538,16 @@ pre {
   }
 
   .taskNavItem,
-  .platformTab {
+  .platformTab,
+  .hotspotCardHeader,
+  .hotspotCardFooter,
+  .publishVariantItem,
+  .publishJobItem,
+  .onboardingHero {
     flex-direction: column;
+  }
+
+  .onboardingHero h2 {
+    max-width: none;
   }
 }

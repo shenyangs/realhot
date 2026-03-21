@@ -63,8 +63,28 @@
 - `Google News / SaaS & B2B`
 - `Google News / Platform Signals`
 - `Google News / Brand & Competitors`
+- `AA1 / 百度热搜`
+- `AA1 / 微博热搜`
+- `Zhihu / Hot List`
 
 同步服务会抓取公开新闻条目，按品牌主题、竞品命中、发布时间和风险词做基础打分，再把结果写入 `hotspots` 和 `hotspot_scores`。如果配置了 `HOTSPOT_SYNC_SECRET`，调用 `POST /api/hotspots/sync` 时需要带 `Authorization: Bearer <secret>` 或 `x-sync-secret`。
+
+同步器会优先把“直连平台/API 信源”与“聚合型信源”一起拉取，再按标题进行跨源合并。若同一热点被多个来源同时命中，会在 `reasons` 中增加“多源交叉命中”提示，并给予轻微优先级加权。
+
+### Experimental Aggregator Source
+
+同步器现在也支持实验性自定义适配器源。当前已加上 `Entobit / 热搜神器 Pro` 的 spike 适配入口，但默认关闭，因为该站点使用未文档化私有接口，匿名服务端抓取是否稳定会受站点风控策略影响。
+
+- `ENABLE_AUXILIARY_HOT_SOURCES=true`
+- `ENABLE_AA1_BAIDU_HOT_SEARCH=true`
+- `ENABLE_AA1_WEIBO_HOT_SEARCH=true`
+- `ENABLE_ZHIHU_HOT_SEARCH=true`
+- `AUXILIARY_HOT_SOURCE_MAX_ITEMS=10`
+- `ENABLE_ENTOBIT_HOT_SEARCH=true`
+- `ENTOBIT_HOT_SEARCH_RANK_TYPES=realTimeHotSearchList,douyin,baidu,xiaohongshu`
+- `ENTOBIT_HOT_SEARCH_MAX_ITEMS=10`
+
+如果某个实验源抓不到数据，同步流程会继续跑其他源；此时需要进一步补浏览器态采集、Cookie/session 维持或更细的接口参数适配。当前实测中，AA1 百度热搜与知乎热榜可直接返回结构化数据；AA1 微博热搜存在返回空数组的情况，因此只作为补充信源。
 
 默认情况下，同步完成后会自动对 `ship-now` 热点生成内容包，并写入 `hotspot_packs` 与 `content_variants`。相关开关：
 

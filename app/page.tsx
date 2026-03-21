@@ -111,6 +111,10 @@ export default async function HomePage() {
             <span>今日节奏</span>
             <strong>{focusHotspots.length} 个机会，{tasks.length} 个选题在推进</strong>
           </div>
+          <Link className="metaPill metaPillAction" href="/onboarding">
+            <span>新品牌接入</span>
+            <strong>先走品牌接入流程，再进入日常工作台</strong>
+          </Link>
         </div>
       </section>
 
@@ -300,7 +304,7 @@ export default async function HomePage() {
               <p className="eyebrow">待发布</p>
               <h3>只看今天真正能出街的内容</h3>
             </div>
-            <Link className="sectionLink" href={publishItems[0] ? `/review?pack=${publishItems[0].packId}&variant=${publishItems[0].id}` : "/review"}>
+            <Link className="sectionLink" href="/publish">
               去发布链路
             </Link>
           </div>
