@@ -1,17 +1,9 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { promisify } from "node:util";
 import { getBrandStrategyPack } from "@/lib/data";
 import { BrandStrategyPack, HotspotKind, HotspotSignal } from "@/lib/domain/types";
 import { getChinaHotspotRules } from "@/lib/services/china-market";
 import { GeneratedPackResult, generateContentPackForEntities } from "@/lib/services/content-pack-generator";
 import { getSupabaseServerClient } from "@/lib/supabase/client";
-
-const execFileAsync = promisify(execFile);
 
 interface FeedItem {
   title: string;
@@ -580,48 +572,49 @@ async function fetchEntobitItems(config: EntobitRankConfig): Promise<FeedItem[]>
     accessToken: ""
   });
 
-  const response = await fetch("https://www.entobit.cn/trending/hsa/getHotSearchKeywords.do", {
-    method: "POST",
-    headers: {
-      Accept: "application/json, text/plain, */*",
-      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-      Origin: "https://www.entobit.cn",
-      Referer: "https://www.entobit.cn/hot-search/desktop",
-      "User-Agent": "BrandHotspotStudio/0.1",
-      "X-Requested-With": "XMLHttpRequest",
-      type: "restful"
-    },
-    body: body.toString(),
-    next: {
-      revalidate: 0
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`Entobit ${config.rankType} responded with ${response.status}`);
-  }
-
-  const text = (await response.text()).trim();
-
-  if (!text) {
-    return [];
-  }
-
-  let payload: unknown;
-
-  try {
-    payload = JSON.parse(text);
-  } catch {
-    return [];
-  }
-
   const maxItems = Number.parseInt(process.env.ENTOBIT_HOT_SEARCH_MAX_ITEMS ?? "10", 10);
   const limit = Number.isNaN(maxItems) ? 10 : maxItems;
+  let apiItems: FeedItem[] = [];
 
-  return readArrayPayload(payload)
-    .map((item) => mapEntobitItem(item, config))
-    .filter((item): item is FeedItem => item !== null)
-    .slice(0, limit);
+  try {
+    const response = await fetch("https://www.entobit.cn/trending/hsa/getHotSearchKeywords.do", {
+      method: "POST",
+      headers: {
+        Accept: "application/json, text/plain, */*",
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        Origin: "https://www.entobit.cn",
+        Referer: "https://www.entobit.cn/hot-search/desktop",
+        "User-Agent": "BrandHotspotStudio/0.1",
+        "X-Requested-With": "XMLHttpRequest",
+        type: "restful"
+      },
+      body: body.toString(),
+      next: {
+        revalidate: 0
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Entobit ${config.rankType} responded with ${response.status}`);
+    }
+
+    const text = (await response.text()).trim();
+
+    if (text) {
+      const payload = parseLooseJson(text);
+
+      if (payload !== null) {
+        apiItems = readArrayPayload(payload)
+          .map((item) => mapEntobitItem(item, config))
+          .filter((item): item is FeedItem => item !== null)
+          .slice(0, limit);
+      }
+    }
+  } catch (error) {
+    throw error;
+  }
+
+  return apiItems;
 }
 
 async function fetchJsonProviderItems(config: JsonHotspotProviderConfig): Promise<FeedItem[]> {
@@ -687,10 +680,11 @@ async function observeProviderPage(provider: HotspotProvider, items: FeedItem[])
     }
 
     const html = await response.text();
-    const normalizedHtml = normalizeHotspotTitle(stripHtml(html));
     const candidateTitles = items.slice(0, 5).map((item) => normalizeHotspotTitle(item.title));
+    const normalizedHtml = normalizeHotspotTitle(stripHtml(html));
     const matchedTitles = candidateTitles.filter((title) => title && normalizedHtml.includes(title)).length;
     const gated = /sina visitor system|请登录|安全验证|访问受限/i.test(html);
+
     const note = gated
       ? "网页可达，但被门禁/访客系统拦截"
       : matchedTitles > 0
@@ -970,42 +964,56 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
   const brand = await getBrandStrategyPack();
   const providerResults = await Promise.all(
     getProviderConfigs().map(async (provider) => {
-      const items = await fetchProviderItems(provider, brand);
-      const pageObservation = await observeProviderPage(provider, items);
+      try {
+        const items = await fetchProviderItems(provider, brand);
+        const pageObservation = await observeProviderPage(provider, items);
 
-      const hotspots = items.slice(0, 10).map((item) => {
-        const scores = scoreAgainstBrand(brand, item, provider.kind);
-        const localizedBoost = provider.market === "china" ? 6 : 0;
-        const priorityScore = Math.min(98, scores.priorityScore + localizedBoost);
-        const reasons = [...scores.reasons, ...getChinaHotspotRules().slice(0, 1)];
-        const recommendedAction =
-          priorityScore >= 75 && scores.riskScore < 55
-            ? "ship-now"
-            : priorityScore >= 58
-              ? "watch"
-              : "discard";
+        const hotspots = items.slice(0, 10).map((item) => {
+          const scores = scoreAgainstBrand(brand, item, provider.kind);
+          const localizedBoost = provider.market === "china" ? 6 : 0;
+          const priorityScore = Math.min(98, scores.priorityScore + localizedBoost);
+          const reasons = [...scores.reasons, ...getChinaHotspotRules().slice(0, 1)];
+          const recommendedAction =
+            priorityScore >= 75 && scores.riskScore < 55
+              ? "ship-now"
+              : priorityScore >= 58
+                ? "watch"
+                : "discard";
+
+          return {
+            id: createDeterministicId(`${provider.id}:${item.url}`),
+            providerId: provider.id,
+            url: item.url,
+            title: item.title,
+            summary: item.summary || item.title,
+            kind: provider.kind,
+            source: `${provider.source} / ${provider.market === "china" ? "CN-first" : "Global-core"}`,
+            detectedAt: item.publishedAt ? new Date(item.publishedAt).toISOString() : new Date().toISOString(),
+            ...scores,
+            priorityScore,
+            reasons,
+            recommendedAction
+          } satisfies SyncedHotspot;
+        });
 
         return {
-          id: createDeterministicId(`${provider.id}:${item.url}`),
-          providerId: provider.id,
-          url: item.url,
-          title: item.title,
-          summary: item.summary || item.title,
-          kind: provider.kind,
-          source: `${provider.source} / ${provider.market === "china" ? "CN-first" : "Global-core"}`,
-          detectedAt: item.publishedAt ? new Date(item.publishedAt).toISOString() : new Date().toISOString(),
-          ...scores,
-          priorityScore,
-          reasons,
-          recommendedAction
-        } satisfies SyncedHotspot;
-      });
-
-      return {
-        provider,
-        hotspots,
-        pageObservation
-      };
+          provider,
+          hotspots,
+          pageObservation
+        };
+      } catch (error) {
+        return {
+          provider,
+          hotspots: [],
+          pageObservation: {
+            checked: false,
+            reachable: false,
+            matchedTitles: 0,
+            gated: false,
+            note: `抓取失败: ${error instanceof Error ? error.message : "未知错误"}`
+          } satisfies ProviderPageObservation
+        };
+      }
     })
   );
 

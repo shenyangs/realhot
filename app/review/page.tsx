@@ -1,5 +1,6 @@
 import type { Route } from "next";
 import Link from "next/link";
+import { EmptyStateCard } from "@/components/empty-state-card";
 import { PublishActions } from "@/components/publish-actions";
 import { ReviewActions } from "@/components/review-actions";
 import { ReviewEditor } from "@/components/review-editor";
@@ -501,7 +502,13 @@ export default async function ReviewPage({
                 })}
               </div>
             ) : (
-              <p className="emptyState">当前筛选条件下没有选题任务。可以切换状态，或者回热点机会池补充新题。</p>
+              <EmptyStateCard
+                actionLabel="去机会池补题"
+                description="当前筛选条件下没有选题任务。你可以切换筛选条件，或者先回机会池把新题送进选题库。"
+                eyebrow="选题库"
+                href="/hotspots"
+                title="这里暂时没有符合条件的选题"
+              />
             )}
           </section>
 

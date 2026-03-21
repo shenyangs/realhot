@@ -634,6 +634,25 @@ pre {
   line-height: 1.7;
 }
 
+.emptyStateCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 1.2rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 20px;
+  background: rgba(255, 252, 247, 0.72);
+}
+
+.emptyStateCard h3 {
+  margin: 0;
+}
+
+.taskEmptyRow {
+  padding: 1rem 0 0;
+}
+
 .reviewWorkbenchPage {
   gap: 1rem;
 }

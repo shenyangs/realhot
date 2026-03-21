@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EmptyStateCard } from "@/components/empty-state-card";
 import { PublishActions } from "@/components/publish-actions";
 import { getBrandStrategyPack, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
 import type { Platform } from "@/lib/domain/types";
@@ -168,9 +169,13 @@ export default async function PublishPage() {
                   );
                 })
               ) : (
-                <p className="emptyState">
-                  当前还没有已通过审核的热点包进入发布台。你可以先去选题库把内容改到可审、可发状态。
-                </p>
+                <EmptyStateCard
+                  actionLabel="去选题库推进内容"
+                  description="当前还没有已通过审核的选题任务进入发布台。先把内容改到可审、可发，再回来统一处理出口。"
+                  eyebrow="发布台"
+                  href="/review"
+                  title="现在还没有可以进入发布的内容"
+                />
               )}
             </div>
           </section>
@@ -192,7 +197,13 @@ export default async function PublishPage() {
                   </div>
                 ))
               ) : (
-                <p className="emptyState">当前没有排队中的发布任务，可以先把已通过选题送进发布台。</p>
+                <EmptyStateCard
+                  actionLabel="去看待发布内容"
+                  description="当前没有排队中的发布任务。你可以先把已通过选题送进发布台，或者继续推进审核。"
+                  eyebrow="队列中任务"
+                  href="/publish"
+                  title="发布队列现在是空的"
+                />
               )}
             </div>
           </section>
@@ -214,7 +225,11 @@ export default async function PublishPage() {
                   </div>
                 ))
               ) : (
-                <p className="emptyState">当前还没有发布成功的记录。</p>
+                <EmptyStateCard
+                  description="这里会显示已经成功发布到各个平台的内容记录，方便你确认出口是否真正完成。"
+                  eyebrow="已发布记录"
+                  title="还没有成功发布的内容"
+                />
               )}
             </div>
           </section>
@@ -263,7 +278,11 @@ export default async function PublishPage() {
                   </div>
                 ))
               ) : (
-                <p className="emptyState">当前没有失败任务，发布出口比较干净。</p>
+                <EmptyStateCard
+                  description="当前没有失败任务，说明发布出口比较干净。接下来重点盯住待发布和队列中的任务即可。"
+                  eyebrow="失败反馈"
+                  title="当前没有需要人工处理的失败任务"
+                />
               )}
             </div>
           </section>

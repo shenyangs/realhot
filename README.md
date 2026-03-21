@@ -84,7 +84,7 @@
 - `ENTOBIT_HOT_SEARCH_RANK_TYPES=realTimeHotSearchList,douyin,baidu,xiaohongshu`
 - `ENTOBIT_HOT_SEARCH_MAX_ITEMS=10`
 
-如果某个实验源抓不到数据，同步流程会继续跑其他源；此时需要进一步补浏览器态采集、Cookie/session 维持或更细的接口参数适配。当前实测中，AA1 百度热搜与知乎热榜可直接返回结构化数据；AA1 微博热搜存在返回空数组的情况，因此只作为补充信源。
+如果某个实验源抓不到数据，同步流程会继续跑其他源，不会阻塞主链路。当前正式部署策略不依赖本地浏览器渲染，而是优先使用公开 API、可直连页面校验和多源交叉合并。当前实测中，AA1 百度热搜与知乎热榜可直接返回结构化数据；AA1 微博热搜存在返回空数组的情况，因此只作为补充信源；Entobit 也保持在“补充聚合信源”位置，而不是唯一来源。
 
 默认情况下，同步完成后会自动对 `ship-now` 热点生成内容包，并写入 `hotspot_packs` 与 `content_variants`。相关开关：
 

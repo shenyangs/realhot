@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EmptyStateCard } from "@/components/empty-state-card";
 import {
   getBrandStrategyPack,
   getPrioritizedHotspots,
@@ -177,43 +178,53 @@ export default async function HomePage() {
         </div>
 
         <div className="opportunityRail">
-          {focusHotspots.map((signal) => (
-            <article className="opportunityCard" key={signal.id}>
-              <div className="opportunityHeader">
-                <span className={`pill pill-${signal.recommendedAction === "ship-now" ? "positive" : "warning"}`}>
-                  {signal.recommendedAction === "ship-now" ? "建议立刻跟进" : "建议继续观察"}
-                </span>
-                <small className="muted">{signal.detectedAt}</small>
-              </div>
-
-              <div className="stack compactStack">
-                <h3>{signal.title}</h3>
-                <p className="muted">{signal.summary}</p>
-              </div>
-
-              <div className="opportunityFacts">
-                <div>
-                  <span>为什么相关</span>
-                  <strong>{signal.reasons[0] ?? "已命中品牌主题词与近期传播方向"}</strong>
+          {focusHotspots.length > 0 ? (
+            focusHotspots.map((signal) => (
+              <article className="opportunityCard" key={signal.id}>
+                <div className="opportunityHeader">
+                  <span className={`pill pill-${signal.recommendedAction === "ship-now" ? "positive" : "warning"}`}>
+                    {signal.recommendedAction === "ship-now" ? "建议立刻跟进" : "建议继续观察"}
+                  </span>
+                  <small className="muted">{signal.detectedAt}</small>
                 </div>
-                <div>
-                  <span>建议角度</span>
-                  <strong>{getRecommendedAngle(signal.kind)}</strong>
-                </div>
-                <div>
-                  <span>时效窗口</span>
-                  <strong>{getOpportunityWindow(signal.velocityScore)}</strong>
-                </div>
-              </div>
 
-              <div className="opportunityFooter">
-                <span className="sourceLabel">{signal.source}</span>
-                <Link className="buttonLike subtleButton" href="/hotspots">
-                  进入机会判断
-                </Link>
-              </div>
-            </article>
-          ))}
+                <div className="stack compactStack">
+                  <h3>{signal.title}</h3>
+                  <p className="muted">{signal.summary}</p>
+                </div>
+
+                <div className="opportunityFacts">
+                  <div>
+                    <span>为什么相关</span>
+                    <strong>{signal.reasons[0] ?? "已命中品牌主题词与近期传播方向"}</strong>
+                  </div>
+                  <div>
+                    <span>建议角度</span>
+                    <strong>{getRecommendedAngle(signal.kind)}</strong>
+                  </div>
+                  <div>
+                    <span>时效窗口</span>
+                    <strong>{getOpportunityWindow(signal.velocityScore)}</strong>
+                  </div>
+                </div>
+
+                <div className="opportunityFooter">
+                  <span className="sourceLabel">{signal.source}</span>
+                  <Link className="buttonLike subtleButton" href="/hotspots">
+                    进入机会判断
+                  </Link>
+                </div>
+              </article>
+            ))
+          ) : (
+            <EmptyStateCard
+              actionLabel="去品牌与规则补资料"
+              description="还没有抓到适合今天处理的热点。先补品牌资料或刷新热点机会，再回来决定今天做什么。"
+              eyebrow="热点机会"
+              href="/brands"
+              title="今天还没有可立刻处理的热点机会"
+            />
+          )}
         </div>
       </section>
 
@@ -240,32 +251,44 @@ export default async function HomePage() {
             <span>负责人</span>
             <span>操作</span>
           </div>
-          {tasks.map((task) => (
-            <div className="taskRow" key={task.id}>
-              <div className="taskTitleCell">
-                <strong>{task.title}</strong>
-              </div>
-              <span className="muted">{task.source}</span>
-              <span>{task.platforms}</span>
-              <span>{task.type}</span>
-              <span>
-                <span className={`pill pill-${task.packStatus === "approved" ? "positive" : task.packStatus === "needs-edit" ? "warning" : "neutral"}`}>
-                  {task.status}
+          {tasks.length > 0 ? (
+            tasks.map((task) => (
+              <div className="taskRow" key={task.id}>
+                <div className="taskTitleCell">
+                  <strong>{task.title}</strong>
+                </div>
+                <span className="muted">{task.source}</span>
+                <span>{task.platforms}</span>
+                <span>{task.type}</span>
+                <span>
+                  <span className={`pill pill-${task.packStatus === "approved" ? "positive" : task.packStatus === "needs-edit" ? "warning" : "neutral"}`}>
+                    {task.status}
+                  </span>
                 </span>
-              </span>
-              <span>{task.progress}</span>
-              <span>{task.publishWindow}</span>
-              <span>{task.owner}</span>
-              <div className="taskActions">
-                <Link className="tableAction" href={`/review?pack=${task.packId}&variant=${task.id}`}>
-                  进入编辑
-                </Link>
-                <Link className="tableAction mutedAction" href="/brands">
-                  查看品牌规则
-                </Link>
+                <span>{task.progress}</span>
+                <span>{task.publishWindow}</span>
+                <span>{task.owner}</span>
+                <div className="taskActions">
+                  <Link className="tableAction" href={`/review?pack=${task.packId}&variant=${task.id}`}>
+                    进入编辑
+                  </Link>
+                  <Link className="tableAction mutedAction" href="/brands">
+                    查看品牌规则
+                  </Link>
+                </div>
               </div>
+            ))
+          ) : (
+            <div className="taskEmptyRow">
+              <EmptyStateCard
+                actionLabel="去机会池挑题"
+                description="当前还没有选题任务进入生产。你可以先从热点机会池挑一个题，转进今天的生产流程。"
+                eyebrow="选题任务"
+                href="/hotspots"
+                title="今天还没有正在推进的选题"
+              />
             </div>
-          ))}
+          )}
         </div>
       </section>
 

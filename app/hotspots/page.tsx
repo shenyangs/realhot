@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EmptyStateCard } from "@/components/empty-state-card";
 import { getBrandStrategyPack, getPrioritizedHotspots, getReviewQueue } from "@/lib/data";
 
 function getActionLabel(action: "ship-now" | "watch" | "discard") {
@@ -125,7 +126,7 @@ export default async function HotspotsPage() {
             </div>
 
             <div className="hotspotCardList">
-              {prioritized.map((signal) => {
+              {prioritized.length > 0 ? prioritized.map((signal) => {
                 const alreadyInProduction = activeHotspotIds.has(signal.id);
 
                 return (
@@ -200,7 +201,15 @@ export default async function HotspotsPage() {
                     </div>
                   </article>
                 );
-              })}
+              }) : (
+                <EmptyStateCard
+                  actionLabel="去品牌与规则补资料"
+                  description="当前还没有符合品牌方向的热点机会。先补品牌主题、近期动态或来源资料，再回来刷新机会池。"
+                  eyebrow="热点机会池"
+                  href="/brands"
+                  title="现在还没有值得进入判断的热点"
+                />
+              )}
             </div>
           </section>
         </main>
