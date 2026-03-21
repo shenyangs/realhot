@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "baoyu-xhs-images": {
+      "source": "JimLiu/baoyu-skills",
+      "sourceType": "github",
+      "computedHash": "8c2fbb8dc2c614997d4b03934b6e721e32352be930d7af2bdc88f5245aa32ebc"
+    },
+    "canvas-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "computedHash": "a2fe47d24b3fd8e52faef731fff099c557e698083cd644b2e5695cc4dd8c7715"
+    },
+    "daily-ai-news": {
+      "source": "YYH211/Claude-meta-skill",
+      "sourceType": "github",
+      "computedHash": "e98e0d29ff4b5425e7a422108082671f5ccca2208ea1ce86673137959a0a4d88"
+    },
+    "news-extractor": {
+      "source": "NanmiCoder/NewsCrawler",
+      "sourceType": "github",
+      "computedHash": "ec340832a783ea0a29c6c5796048e48fd792c07644eb19e979663da7ca233c87"
+    },
+    "tech-logos": {
+      "source": "crafter-station/elements",
+      "sourceType": "github",
+      "computedHash": "ca694c639a242fc347cafc3759f83f3f294fd2464d6039509e8977c6941d4d6a"
+    },
+    "wechat-article-writer": {
+      "source": "iamzhihuix/happy-claude-skills",
+      "sourceType": "github",
+      "computedHash": "8dc010602abc29f8c45fd0fa2ba5b2f46c5a058dc860a18f1f1a87a73cf96134"
+    }
+  }
+}

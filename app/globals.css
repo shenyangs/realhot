@@ -1,0 +1,695 @@
+:root {
+  --bg: #f3ede2;
+  --bg-soft: #fbf7f1;
+  --panel: rgba(255, 251, 246, 0.88);
+  --panel-strong: #fffdf9;
+  --line: rgba(72, 60, 47, 0.12);
+  --line-strong: rgba(72, 60, 47, 0.2);
+  --text: #221c17;
+  --muted: #6b5e52;
+  --accent: #b55a33;
+  --accent-soft: rgba(181, 90, 51, 0.12);
+  --accent-strong: #8a3f20;
+  --positive: #176b55;
+  --positive-soft: rgba(23, 107, 85, 0.12);
+  --warning: #a16207;
+  --warning-soft: rgba(161, 98, 7, 0.14);
+  --neutral: #36556f;
+  --neutral-soft: rgba(54, 85, 111, 0.14);
+  --shadow: 0 18px 48px rgba(36, 28, 21, 0.08);
+  --shadow-soft: 0 10px 30px rgba(36, 28, 21, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  margin: 0;
+  font-family:
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(181, 90, 51, 0.16), transparent 28%),
+    radial-gradient(circle at top right, rgba(54, 85, 111, 0.12), transparent 26%),
+    linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 48%, #eee4d6 100%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.appShell {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  border-right: 1px solid var(--line);
+  background: rgba(255, 251, 246, 0.74);
+  backdrop-filter: blur(18px);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.sidebarTop {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.brandBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mainContent {
+  padding: 2rem;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 1320px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sectionHeader h2,
+.sidebar h1,
+.panel h3 {
+  margin: 0;
+  line-height: 1.1;
+}
+
+.sidebar h1 {
+  font-family:
+    "Songti SC",
+    "STSong",
+    "Noto Serif CJK SC",
+    serif;
+  font-size: 1.95rem;
+  letter-spacing: 0.01em;
+}
+
+.eyebrow {
+  margin: 0 0 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.nav {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.navCard,
+.panel,
+.subPanel {
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.navCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.05rem;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.navCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(192, 90, 43, 0.4);
+}
+
+.navCardActive {
+  border-color: rgba(181, 90, 51, 0.28);
+  background: linear-gradient(180deg, rgba(255, 252, 248, 0.98), rgba(248, 240, 231, 0.96));
+}
+
+.statusCard {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 0.8rem;
+  padding: 1rem 1rem 1rem 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 248, 241, 0.72);
+  box-shadow: var(--shadow-soft);
+}
+
+.statusDot {
+  width: 10px;
+  height: 10px;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 6px rgba(181, 90, 51, 0.12);
+}
+
+.panel {
+  padding: 1.25rem;
+}
+
+.subPanel {
+  padding: 1rem;
+  background: var(--panel-strong);
+}
+
+.compact {
+  padding: 1rem;
+}
+
+.panelHeader,
+.listItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.compactStack {
+  gap: 0.35rem;
+}
+
+.statCard h3 {
+  font-size: 2rem;
+  margin: 0.7rem 0 0.35rem;
+}
+
+.pill,
+.tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.72rem;
+  font-size: 0.82rem;
+}
+
+.pill-positive {
+  background: var(--positive-soft);
+  color: var(--positive);
+}
+
+.pill-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.pill-neutral {
+  background: var(--neutral-soft);
+  color: var(--neutral);
+}
+
+.tag {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tagRow,
+.scoreGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.scoreBlock {
+  text-align: right;
+  min-width: 88px;
+}
+
+.table {
+  display: grid;
+}
+
+.tableRow {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr 0.8fr 1fr;
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.tableHead {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.reviewMeta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.simpleList {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.reviewActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.92rem;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.75rem 0.9rem;
+  background: var(--panel-strong);
+  color: var(--text);
+  font: inherit;
+}
+
+.buttonRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.buttonRow button {
+  border: 1px solid rgba(36, 28, 21, 0.14);
+  border-radius: 999px;
+  padding: 0.6rem 1rem;
+  background: var(--panel-strong);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.buttonRow button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.buttonLike {
+  border: 1px solid rgba(36, 28, 21, 0.14);
+  border-radius: 999px;
+  padding: 0.6rem 1rem;
+  background: var(--panel-strong);
+  color: var(--text);
+}
+
+.workbenchPage {
+  gap: 1rem;
+}
+
+.workbenchHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.9fr);
+  gap: 1rem;
+  padding: 1.4rem;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background:
+    linear-gradient(135deg, rgba(255, 252, 247, 0.96), rgba(248, 239, 228, 0.94)),
+    linear-gradient(180deg, rgba(181, 90, 51, 0.08), transparent);
+  box-shadow: var(--shadow);
+}
+
+.heroCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.heroCopy h2 {
+  margin: 0;
+  max-width: 16ch;
+  font-family:
+    "Songti SC",
+    "STSong",
+    "Noto Serif CJK SC",
+    serif;
+  font-size: clamp(2rem, 3.2vw, 3.3rem);
+  line-height: 1.05;
+}
+
+.heroText {
+  max-width: 54ch;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.heroMeta {
+  display: grid;
+  gap: 0.75rem;
+  align-content: stretch;
+}
+
+.metaPill {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  justify-content: center;
+  padding: 1rem 1.05rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 253, 250, 0.76);
+  box-shadow: var(--shadow-soft);
+}
+
+.metaPill span,
+.toolbarLabel,
+.opportunityFacts span,
+.sourceLabel {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.metaPill strong {
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.workbenchToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.toolbarFilters,
+.toolbarActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.toolbarGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 110px;
+  padding: 0.25rem 0.1rem;
+}
+
+.primaryButton {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fffaf6;
+}
+
+.subtleButton {
+  background: rgba(255, 251, 246, 0.92);
+}
+
+.summaryGrid,
+.queueGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.queueGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.summaryCard {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.summaryCard h3 {
+  font-family:
+    "Songti SC",
+    "STSong",
+    "Noto Serif CJK SC",
+    serif;
+  font-size: 1.5rem;
+  line-height: 1.25;
+}
+
+.sectionTitle {
+  align-items: center;
+}
+
+.sectionLink {
+  color: var(--accent-strong);
+  font-size: 0.94rem;
+  white-space: nowrap;
+}
+
+.opportunityRail {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(240px, 1fr));
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 0.3rem;
+}
+
+.opportunityCard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 240px;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 252, 247, 0.96), rgba(249, 242, 234, 0.96));
+  box-shadow: var(--shadow-soft);
+}
+
+.opportunityHeader,
+.opportunityFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.opportunityFacts {
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 0.2rem;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.opportunityFacts div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.opportunityFacts strong {
+  line-height: 1.5;
+}
+
+.taskTable {
+  display: grid;
+  margin-top: 1rem;
+}
+
+.taskRow {
+  display: grid;
+  grid-template-columns: 1.8fr 1.5fr 1fr 0.7fr 0.8fr 1fr 0.9fr 0.9fr 1.2fr;
+  gap: 0.9rem;
+  align-items: start;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.taskHead {
+  padding-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.taskTitleCell strong {
+  line-height: 1.5;
+}
+
+.taskActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.tableAction {
+  color: var(--accent-strong);
+  font-size: 0.92rem;
+}
+
+.mutedAction {
+  color: var(--muted);
+}
+
+.queuePanel {
+  min-height: 280px;
+}
+
+.queueList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.queueItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 0.95rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.emptyState {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.publishActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.publishStats {
+  display: flex;
+  gap: 1rem;
+  color: var(--muted);
+}
+
+@media (max-width: 1100px) {
+  .appShell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .grid-4,
+  .grid-3,
+  .grid-2,
+  .reviewMeta,
+  .summaryGrid,
+  .queueGrid,
+  .workbenchHero,
+  .workbenchToolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .workbenchToolbar {
+    align-items: stretch;
+  }
+
+  .opportunityRail {
+    grid-template-columns: repeat(2, minmax(240px, 1fr));
+  }
+
+  .taskRow {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+  }
+
+  .taskHead {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .mainContent,
+  .sidebar {
+    padding: 1rem;
+  }
+
+  .workbenchHero,
+  .panel,
+  .subPanel {
+    border-radius: 20px;
+  }
+
+  .heroCopy h2 {
+    max-width: none;
+  }
+
+  .opportunityRail {
+    grid-template-columns: 1fr;
+  }
+}
