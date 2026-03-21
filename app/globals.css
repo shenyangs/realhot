@@ -1324,6 +1324,24 @@ pre {
   border-bottom: none;
 }
 
+.publishFailureCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 251, 246, 0.82);
+}
+
+.compactPublishList {
+  gap: 0.4rem;
+}
+
+.compactPublishItem {
+  padding: 0.65rem 0;
+}
+
 .onboardingPage {
   gap: 1rem;
 }

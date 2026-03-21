@@ -1,9 +1,17 @@
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { getBrandStrategyPack } from "@/lib/data";
 import { BrandStrategyPack, HotspotKind, HotspotSignal } from "@/lib/domain/types";
 import { getChinaHotspotRules } from "@/lib/services/china-market";
 import { GeneratedPackResult, generateContentPackForEntities } from "@/lib/services/content-pack-generator";
 import { getSupabaseServerClient } from "@/lib/supabase/client";
+
+const execFileAsync = promisify(execFile);
 
 interface FeedItem {
   title: string;

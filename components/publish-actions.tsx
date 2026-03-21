@@ -7,12 +7,14 @@ export function PublishActions({
   packId,
   queuedCount,
   publishedCount,
-  failedCount
+  failedCount,
+  compact = false
 }: {
   packId: string;
   queuedCount: number;
   publishedCount: number;
   failedCount: number;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [scheduledAt, setScheduledAt] = useState("");
@@ -42,12 +44,12 @@ export function PublishActions({
         | null;
 
       if (!response.ok || !payload?.ok) {
-        setMessage(payload?.error ?? "加入发布队列失败");
+        setMessage(payload?.error ?? "送入发布台失败");
         return;
       }
 
       const queued = payload.jobs?.length ?? 0;
-      setMessage(`已加入发布队列，共 ${queued} 条任务`);
+      setMessage(`已送入发布台，共 ${queued} 条任务`);
       router.refresh();
     });
   }
@@ -76,7 +78,7 @@ export function PublishActions({
         | null;
 
       if (!response.ok || !payload?.ok) {
-        setMessage(payload?.error ?? "执行发布失败");
+        setMessage(payload?.error ?? "执行发布动作失败");
         return;
       }
 
@@ -88,8 +90,8 @@ export function PublishActions({
   return (
     <div className="subPanel publishActions">
       <div className="listItem">
-        <strong>发布/导出</strong>
-        <span className="pill pill-neutral">已排队 {queuedCount}</span>
+        <strong>{compact ? "发布处理" : "发布与导出"}</strong>
+        <span className="pill pill-neutral">{queuedCount > 0 ? `已排队 ${queuedCount}` : "待进入发布台"}</span>
       </div>
 
       <div className="publishStats">
@@ -97,28 +99,32 @@ export function PublishActions({
         <small>失败 {failedCount}</small>
       </div>
 
-      <label className="field">
-        <span>计划发布时间（可选）</span>
-        <input
-          type="datetime-local"
-          value={scheduledAt}
-          onChange={(event) => setScheduledAt(event.target.value)}
-        />
-      </label>
+      {!compact ? (
+        <label className="field">
+          <span>计划发布时间（可选）</span>
+          <input
+            type="datetime-local"
+            value={scheduledAt}
+            onChange={(event) => setScheduledAt(event.target.value)}
+          />
+        </label>
+      ) : null}
 
       <div className="buttonRow">
         <button disabled={isPending} onClick={queuePublish} type="button">
-          加入发布队列
+          {failedCount > 0 ? "重新排入发布" : "加入发布台"}
         </button>
         <button disabled={isPending} onClick={runPublishNow} type="button">
-          立即执行发布
+          {failedCount > 0 ? "立即重试" : "立即执行发布"}
         </button>
         <a className="buttonLike" href={`/api/content-packs/${packId}/export?format=markdown`}>
-          导出 Markdown
+          {compact ? "导出内容" : "导出 Markdown"}
         </a>
-        <a className="buttonLike" href={`/api/content-packs/${packId}/export?format=json`} target="_blank">
-          导出 JSON
-        </a>
+        {!compact ? (
+          <a className="buttonLike" href={`/api/content-packs/${packId}/export?format=json`} target="_blank">
+            导出 JSON
+          </a>
+        ) : null}
       </div>
 
       {message ? <p className="muted">{message}</p> : null}

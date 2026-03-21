@@ -37,6 +37,16 @@ export default async function PublishPage() {
   const queuedJobs = allJobs.filter((job) => job.status === "queued");
   const publishedJobs = allJobs.filter((job) => job.status === "published");
   const failedJobs = allJobs.filter((job) => job.status === "failed");
+  const failedPacks = packJobs
+    .map(({ pack, jobs }) => ({
+      pack,
+      jobs,
+      failedJobs: jobs.filter((job) => job.status === "failed"),
+      queuedCount: jobs.filter((job) => job.status === "queued").length,
+      publishedCount: jobs.filter((job) => job.status === "published").length,
+      failedCount: jobs.filter((job) => job.status === "failed").length
+    }))
+    .filter((item) => item.failedJobs.length > 0);
 
   return (
     <div className="page publishDeskPage">
@@ -94,12 +104,12 @@ export default async function PublishPage() {
       <div className="publishDeskLayout">
         <main className="publishMainColumn">
           <section className="panel">
-            <div className="panelHeader sectionTitle">
-              <div>
-                <p className="eyebrow">待发布内容</p>
-                <h3>这些热点包已经可以进入发布动作</h3>
-              </div>
+          <div className="panelHeader sectionTitle">
+            <div>
+              <p className="eyebrow">待发布内容</p>
+              <h3>这些选题任务已经可以进入发布台</h3>
             </div>
+          </div>
 
             <div className="publishPackList">
               {readyPacks.length > 0 ? (
@@ -117,7 +127,7 @@ export default async function PublishPage() {
                           <p className="muted">{pack.whyUs}</p>
                         </div>
                         <Link className="sectionLink" href={`/review?pack=${pack.id}&variant=${pack.variants[0]?.id ?? ""}`}>
-                          回到编辑台
+                          进入选题编辑
                         </Link>
                       </div>
 
@@ -182,7 +192,7 @@ export default async function PublishPage() {
                   </div>
                 ))
               ) : (
-                <p className="emptyState">当前没有排队中的发布任务。</p>
+                <p className="emptyState">当前没有排队中的发布任务，可以先把已通过选题送进发布台。</p>
               )}
             </div>
           </section>
@@ -211,18 +221,45 @@ export default async function PublishPage() {
 
           <section className="panel helperPanel">
             <p className="eyebrow">失败反馈</p>
-            <h3>需要人工处理的异常</h3>
+            <h3>失败后下一步该怎么处理</h3>
             <div className="publishJobList">
-              {failedJobs.length > 0 ? (
-                failedJobs.map((job) => (
-                  <div className="publishJobItem" key={job.id}>
-                    <div>
-                      <strong>{job.variantTitle}</strong>
-                      <p className="muted">
-                        {platformLabels[job.platform]} · {job.failureReason ?? "未知失败原因"}
-                      </p>
+              {failedPacks.length > 0 ? (
+                failedPacks.map(({ pack, failedJobs: items, queuedCount, publishedCount, failedCount }) => (
+                  <div className="publishFailureCard" key={pack.id}>
+                    <div className="listItem">
+                      <strong>{pack.variants[0]?.title ?? pack.whyNow}</strong>
+                      <span className="pill pill-warning">失败 {failedCount} 条</span>
                     </div>
-                    <span className="pill pill-warning">失败</span>
+                    <p className="muted">
+                      {items[0]?.failureReason ?? "发布执行失败"} · 负责人 {pack.reviewOwner}
+                    </p>
+                    <div className="publishJobList compactPublishList">
+                      {items.slice(0, 2).map((job) => {
+                        const variant = pack.variants.find((item) => item.id === job.variantId);
+                        return (
+                          <div className="publishJobItem compactPublishItem" key={job.id}>
+                            <div>
+                              <strong>{variant?.title ?? "未命名内容"}</strong>
+                              <p className="muted">
+                                {platformLabels[job.platform]} · {job.failureReason ?? "未知失败原因"}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="buttonRow">
+                      <Link className="buttonLike subtleButton" href={`/review?pack=${pack.id}&variant=${pack.variants[0]?.id ?? ""}`}>
+                        回到选题编辑
+                      </Link>
+                    </div>
+                    <PublishActions
+                      compact
+                      failedCount={failedCount}
+                      packId={pack.id}
+                      publishedCount={publishedCount}
+                      queuedCount={queuedCount}
+                    />
                   </div>
                 ))
               ) : (

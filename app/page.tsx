@@ -139,10 +139,10 @@ export default async function HomePage() {
         </div>
         <div className="toolbarActions">
           <Link className="buttonLike subtleButton" href="/hotspots">
-            同步热点
+            刷新热点机会
           </Link>
           <Link className="buttonLike primaryButton" href="/review">
-            批量生成
+            进入选题库
           </Link>
         </div>
       </section>
@@ -172,7 +172,7 @@ export default async function HomePage() {
             <h3>先选机会，再转成选题</h3>
           </div>
           <Link className="sectionLink" href="/hotspots">
-            进入热点机会池
+            查看全部机会
           </Link>
         </div>
 
@@ -209,7 +209,7 @@ export default async function HomePage() {
               <div className="opportunityFooter">
                 <span className="sourceLabel">{signal.source}</span>
                 <Link className="buttonLike subtleButton" href="/hotspots">
-                  去处理这个机会
+                  进入机会判断
                 </Link>
               </div>
             </article>
@@ -224,7 +224,7 @@ export default async function HomePage() {
             <h3>把今天该做的题推进到可审、可发</h3>
           </div>
           <Link className="sectionLink" href="/review">
-            进入选题与审核
+            进入选题库
           </Link>
         </div>
 
@@ -258,10 +258,10 @@ export default async function HomePage() {
               <span>{task.owner}</span>
               <div className="taskActions">
                 <Link className="tableAction" href={`/review?pack=${task.packId}&variant=${task.id}`}>
-                  查看草稿
+                  进入编辑
                 </Link>
                 <Link className="tableAction mutedAction" href="/brands">
-                  看品牌规则
+                  查看品牌规则
                 </Link>
               </div>
             </div>
@@ -272,13 +272,13 @@ export default async function HomePage() {
       <section className="queueGrid">
         <article className="panel queuePanel">
           <div className="panelHeader sectionTitle">
-            <div>
-              <p className="eyebrow">待审核</p>
-              <h3>先清会影响今天节奏的稿件</h3>
-            </div>
-            <Link className="sectionLink" href={reviewItems[0] ? `/review?pack=${reviewItems[0].packId}&variant=${reviewItems[0].id}` : "/review"}>
-              去审核
-            </Link>
+          <div>
+            <p className="eyebrow">待审核</p>
+            <h3>先清会影响今天节奏的稿件</h3>
+          </div>
+          <Link className="sectionLink" href={reviewItems[0] ? `/review?pack=${reviewItems[0].packId}&variant=${reviewItems[0].id}` : "/review"}>
+            进入选题库
+          </Link>
           </div>
 
           <div className="queueList">
@@ -300,13 +300,13 @@ export default async function HomePage() {
 
         <article className="panel queuePanel">
           <div className="panelHeader sectionTitle">
-            <div>
-              <p className="eyebrow">待发布</p>
-              <h3>只看今天真正能出街的内容</h3>
-            </div>
-            <Link className="sectionLink" href="/publish">
-              去发布链路
-            </Link>
+          <div>
+            <p className="eyebrow">待发布</p>
+            <h3>只看今天真正能出街的内容</h3>
+          </div>
+          <Link className="sectionLink" href="/publish">
+            进入发布台
+          </Link>
           </div>
 
           <div className="queueList">

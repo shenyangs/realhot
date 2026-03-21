@@ -358,10 +358,10 @@ export default async function ReviewPage({
         </div>
         <div className="toolbarActions">
           <Link className="buttonLike subtleButton" href="/hotspots">
-            去热点机会池补题
+            去机会池补题
           </Link>
           <Link className="buttonLike" href="/publish">
-            去发布台看出口
+            进入发布台
           </Link>
         </div>
       </section>
