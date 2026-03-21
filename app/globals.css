@@ -562,7 +562,7 @@ pre {
   display: grid;
   grid-template-columns: 1.8fr 1.5fr 1fr 0.7fr 0.8fr 1fr 0.9fr 0.9fr 1.2fr;
   gap: 0.9rem;
-  align-items: start;
+  align-items: flex-start;
   padding: 1rem 0;
   border-bottom: 1px solid var(--line);
 }
@@ -620,6 +620,349 @@ pre {
   line-height: 1.7;
 }
 
+.reviewWorkbenchPage {
+  gap: 1rem;
+}
+
+.reviewHero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.reviewHero h2 {
+  margin: 0.2rem 0 0.6rem;
+  font-family:
+    "Songti SC",
+    "STSong",
+    "Noto Serif CJK SC",
+    serif;
+  font-size: clamp(1.7rem, 2.2vw, 2.5rem);
+}
+
+.reviewHeroMeta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+.reviewWorkbenchLayout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr) 320px;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.reviewNavColumn,
+.reviewMainColumn,
+.reviewActionColumn,
+.editorAside {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.taskNavList,
+.platformTabsList,
+.definitionList,
+.changeLogList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.taskNavItem,
+.platformTab {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 253, 249, 0.84);
+  transition: border-color 180ms ease, transform 180ms ease, background 180ms ease;
+}
+
+.taskNavItem:hover,
+.platformTab:hover {
+  transform: translateY(-1px);
+  border-color: rgba(181, 90, 51, 0.3);
+}
+
+.taskNavItemActive,
+.platformTabActive {
+  border-color: rgba(181, 90, 51, 0.32);
+  background: linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(249, 240, 230, 0.94));
+}
+
+.taskDefinitionPanel h3 {
+  margin-bottom: 1rem;
+}
+
+.definitionList div,
+.editorBriefGrid div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.definitionList span,
+.editorBriefGrid span,
+.editorBodyHeader span {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.editorWorkbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.editorMain {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.editorBriefGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.editorPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.editorBodyHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.editorBody {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 1rem 1rem 1.1rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.8;
+  resize: vertical;
+  min-height: 460px;
+}
+
+.assistantPanel,
+.changeLogPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.assistantHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.modeSwitch {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.modeButton,
+.promptChip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem;
+  background: rgba(255, 252, 247, 0.9);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.activeModeButton {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fffaf6;
+}
+
+.promptChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.suggestionPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.suggestionPreview {
+  padding: 0.95rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 18px;
+  background: rgba(255, 252, 247, 0.7);
+}
+
+.suggestionPreview p {
+  margin-bottom: 0;
+  line-height: 1.8;
+}
+
+.helperPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.changeLogItem {
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 252, 247, 0.78);
+}
+
+.brandsPage {
+  gap: 1rem;
+}
+
+.brandHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.brandHeroCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.brandHeroCopy h2 {
+  margin: 0;
+  max-width: 16ch;
+  font-family:
+    "Songti SC",
+    "STSong",
+    "Noto Serif CJK SC",
+    serif;
+  font-size: clamp(1.9rem, 2.8vw, 3rem);
+  line-height: 1.08;
+}
+
+.brandHeroMeta,
+.brandInfoGrid,
+.sourceLibraryGrid,
+.materialHintGrid,
+.onboardingGrid {
+  display: grid;
+  gap: 1rem;
+}
+
+.brandHeroMeta {
+  grid-template-columns: 1fr;
+}
+
+.brandInfoGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.materialSection {
+  align-items: flex-start;
+}
+
+.onboardingGrid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.onboardingCard,
+.materialHintCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 253, 249, 0.82);
+  box-shadow: var(--shadow-soft);
+}
+
+.stepBadge {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 0.28rem 0.68rem;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.8rem;
+}
+
+.timelineList,
+.sourceList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.timelineItem {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 0.8rem;
+  align-items: flex-start;
+}
+
+.timelineItem p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.timelineDot {
+  width: 10px;
+  height: 10px;
+  margin-top: 0.45rem;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 5px rgba(181, 90, 51, 0.12);
+}
+
+.materialHintGrid,
+.sourceLibraryGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.materialHealthPanel {
+  min-height: 100%;
+}
+
+.sourceItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: flex-start;
+  padding: 0.95rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.sourceItem:first-child {
+  padding-top: 0;
+}
+
+.sourceItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
 .publishActions {
   display: flex;
   flex-direction: column;
@@ -651,8 +994,21 @@ pre {
   .summaryGrid,
   .queueGrid,
   .workbenchHero,
-  .workbenchToolbar {
+  .workbenchToolbar,
+  .brandHero,
+  .reviewHeroMeta,
+  .reviewWorkbenchLayout,
+  .editorWorkbench,
+  .editorBriefGrid,
+  .brandInfoGrid,
+  .sourceLibraryGrid,
+  .materialHintGrid,
+  .onboardingGrid {
     grid-template-columns: 1fr;
+  }
+
+  .reviewHero {
+    display: grid;
   }
 
   .workbenchToolbar {
@@ -670,6 +1026,10 @@ pre {
 
   .taskHead {
     display: none;
+  }
+
+  .reviewWorkbenchLayout {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -691,5 +1051,10 @@ pre {
 
   .opportunityRail {
     grid-template-columns: 1fr;
+  }
+
+  .taskNavItem,
+  .platformTab {
+    flex-direction: column;
   }
 }

@@ -71,6 +71,7 @@ export default async function HomePage() {
   const tasks = packs.flatMap((pack) =>
     pack.variants.map((variant) => ({
       id: variant.id,
+      packId: pack.id,
       title: variant.title,
       source: focusHotspots.find((signal) => signal.id === pack.hotspotId)?.title ?? pack.whyNow,
       platforms: variant.platforms.map((platform) => platformLabels[platform]).join(" / "),
@@ -252,7 +253,7 @@ export default async function HomePage() {
               <span>{task.publishWindow}</span>
               <span>{task.owner}</span>
               <div className="taskActions">
-                <Link className="tableAction" href="/review">
+                <Link className="tableAction" href={`/review?pack=${task.packId}&variant=${task.id}`}>
                   查看草稿
                 </Link>
                 <Link className="tableAction mutedAction" href="/brands">
@@ -271,7 +272,7 @@ export default async function HomePage() {
               <p className="eyebrow">待审核</p>
               <h3>先清会影响今天节奏的稿件</h3>
             </div>
-            <Link className="sectionLink" href="/review">
+            <Link className="sectionLink" href={reviewItems[0] ? `/review?pack=${reviewItems[0].packId}&variant=${reviewItems[0].id}` : "/review"}>
               去审核
             </Link>
           </div>
@@ -299,7 +300,7 @@ export default async function HomePage() {
               <p className="eyebrow">待发布</p>
               <h3>只看今天真正能出街的内容</h3>
             </div>
-            <Link className="sectionLink" href="/review">
+            <Link className="sectionLink" href={publishItems[0] ? `/review?pack=${publishItems[0].packId}&variant=${publishItems[0].id}` : "/review"}>
               去发布链路
             </Link>
           </div>
