@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canApproveContent, requireApiViewer } from "@/lib/auth";
 import { deleteHotspotPack, updateHotspotPackReview } from "@/lib/data";
 
 export async function POST(
@@ -6,6 +7,18 @@ export async function POST(
   { params }: { params: Promise<{ packId: string }> }
 ) {
   try {
+    const auth = await requireApiViewer({
+      allowedRoles: ["org_admin", "approver"]
+    });
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    if (!canApproveContent(auth.viewer)) {
+      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+    }
+
     const { packId } = await params;
     const payload = (await request.json()) as {
       status?: "pending" | "approved" | "needs-edit";
@@ -52,6 +65,18 @@ export async function DELETE(
   { params }: { params: Promise<{ packId: string }> }
 ) {
   try {
+    const auth = await requireApiViewer({
+      allowedRoles: ["org_admin", "approver"]
+    });
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    if (!canApproveContent(auth.viewer)) {
+      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+    }
+
     const { packId } = await params;
     const removed = await deleteHotspotPack(packId);
 

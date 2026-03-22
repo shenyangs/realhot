@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiViewer } from "@/lib/auth";
 import { syncHotspots } from "@/lib/services/hotspot-sync";
 
 function getErrorMessage(error: unknown): string {
@@ -22,11 +23,11 @@ function getErrorMessage(error: unknown): string {
   return "Hotspot sync failed";
 }
 
-function isAuthorized(request: NextRequest): boolean {
+function hasValidSyncSecret(request: NextRequest): boolean {
   const expected = process.env.HOTSPOT_SYNC_SECRET;
 
   if (!expected) {
-    return true;
+    return false;
   }
 
   const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
@@ -35,16 +36,29 @@ function isAuthorized(request: NextRequest): boolean {
   return bearer === expected || headerSecret === expected;
 }
 
+async function resolveAuthorizationError(request: NextRequest) {
+  if (!process.env.HOTSPOT_SYNC_SECRET) {
+    return null;
+  }
+
+  if (hasValidSyncSecret(request)) {
+    return null;
+  }
+
+  const auth = await requireApiViewer();
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json(
-      {
-        error: "Unauthorized"
-      },
-      {
-        status: 401
-      }
-    );
+  const authError = await resolveAuthorizationError(request);
+
+  if (authError) {
+    return authError;
   }
 
   try {

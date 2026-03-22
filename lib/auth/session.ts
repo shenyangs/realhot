@@ -290,12 +290,6 @@ export async function getCurrentViewer(): Promise<ViewerContext> {
   }
 
   if (userId) {
-    const viewer = await resolveViewerFromSupabase(userId, workspaceSlug);
-
-    if (viewer) {
-      return viewer;
-    }
-
     const localViewer = await buildLocalViewerFromUserId(userId, workspaceSlug);
 
     if (localViewer) {

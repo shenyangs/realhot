@@ -2066,6 +2066,22 @@ strong {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.hotspotSyncHeaderActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.45rem;
+}
+
+.hotspotSyncHeaderActions .inlineActions {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.hotspotSyncHeaderActions .muted {
+  text-align: right;
+}
+
 .hotspotMetaWarning {
   color: var(--warning);
   border-color: rgba(155, 107, 0, 0.16);
@@ -2466,6 +2482,17 @@ strong {
 
   .hotspotLinkRow {
     align-items: flex-start;
+  }
+
+  .hotspotSyncHeaderActions,
+  .hotspotSyncHeaderActions .inlineActions {
+    width: 100%;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .hotspotSyncHeaderActions .muted {
+    text-align: left;
   }
 
   .buttonRow {

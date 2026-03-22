@@ -1,12 +1,11 @@
-import { canManageMembers } from "@/lib/auth";
+import { canManageMembers, requireWorkspacePageViewer } from "@/lib/auth";
 import { listWorkspaceInvites, listWorkspaceMembers } from "@/lib/auth/repository";
-import { getCurrentViewer } from "@/lib/auth/session";
 import { InviteList } from "@/components/invite-list";
 import { TeamMemberManager } from "@/components/team-member-manager";
 import { TeamInviteForm } from "@/components/team-invite-form";
 
 export default async function TeamPage() {
-  const viewer = await getCurrentViewer();
+  const viewer = await requireWorkspacePageViewer();
   const [members, invites] = await Promise.all([listWorkspaceMembers(), listWorkspaceInvites()]);
   const canManage = canManageMembers(viewer);
 

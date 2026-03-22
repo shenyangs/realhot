@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BrandAutofillPanel } from "@/components/brand-autofill-panel";
 import { BrandOnboardingStatus } from "@/components/brand-onboarding-status";
 import { PageHero } from "@/components/page-hero";
+import { requireWorkspacePageViewer } from "@/lib/auth";
 import { getBrandStrategyPack } from "@/lib/data";
 import { getBrandBrainSummary } from "@/lib/services/brand-brain";
 
@@ -61,6 +62,7 @@ const recommendedAssets = [
 ];
 
 export default async function BrandsPage() {
+  await requireWorkspacePageViewer();
   const brandStrategyPack = await getBrandStrategyPack();
   const summary = getBrandBrainSummary(brandStrategyPack);
   const stableSources = brandStrategyPack.sources.filter((source) => source.freshness === "stable");

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { EmptyStateCard } from "@/components/empty-state-card";
+import { OneClickProductionButton } from "@/components/one-click-production-button";
 import { PackDeleteButton } from "@/components/pack-delete-button";
 import { PageHero } from "@/components/page-hero";
 import { PublishActions } from "@/components/publish-actions";
 import { PublishJobDeleteButton } from "@/components/publish-job-delete-button";
 import { PublishQueueClearButton } from "@/components/publish-queue-clear-button";
+import { requireWorkspacePageViewer } from "@/lib/auth";
 import { getBrandStrategyPack, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
 import type { Platform } from "@/lib/domain/types";
 
@@ -16,6 +18,7 @@ const platformLabels: Record<Platform, string> = {
 };
 
 export default async function PublishPage() {
+  await requireWorkspacePageViewer();
   const [brand, packs] = await Promise.all([getBrandStrategyPack(), getReviewQueue()]);
 
   const packJobs = await Promise.all(
@@ -159,6 +162,7 @@ export default async function PublishPage() {
                         publishedCount={publishedCount}
                         queuedCount={queuedCount}
                       />
+                      <OneClickProductionButton compact packId={pack.id} />
                       <PackDeleteButton label="删除这题" packId={pack.id} redirectHref="/publish" />
                     </article>
                   );

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { getCurrentViewer } from "@/lib/auth/session";
 import { updateLocalDataStore } from "@/lib/data/local-store";
 import { getBrandStrategyPack, getHotspotSignals } from "@/lib/data";
 import { BrandStrategyPack, ContentVariant, HotspotPack, HotspotSignal, Platform } from "@/lib/domain/types";
@@ -12,6 +13,11 @@ export interface GeneratedPackResult {
   persisted: boolean;
   usedMockStorage: boolean;
   modelOutput?: string;
+}
+
+interface GenerationContext {
+  workspaceId?: string;
+  actorUserId?: string;
 }
 
 type VariantSlot = "rapid-1" | "rapid-2" | "pov-1" | "pov-2";
@@ -499,11 +505,28 @@ async function tryModelGeneration(
   }
 }
 
-async function persistGeneratedPack(pack: HotspotPack): Promise<{
+async function resolveGenerationContext(input?: GenerationContext): Promise<GenerationContext> {
+  if (input?.workspaceId || input?.actorUserId) {
+    return input;
+  }
+
+  try {
+    const viewer = await getCurrentViewer();
+    return {
+      workspaceId: viewer.currentWorkspace?.id,
+      actorUserId: viewer.isAuthenticated ? viewer.user.id : undefined
+    };
+  } catch {
+    return {};
+  }
+}
+
+async function persistGeneratedPack(pack: HotspotPack, context?: GenerationContext): Promise<{
   persisted: boolean;
   usedMockStorage: boolean;
 }> {
   const supabase = getSupabaseServerClient();
+  const resolved = await resolveGenerationContext(context);
 
   if (!supabase) {
     await updateLocalDataStore((store) => ({
@@ -517,26 +540,33 @@ async function persistGeneratedPack(pack: HotspotPack): Promise<{
     };
   }
 
-  const { data: workspace, error: workspaceError } = await supabase
-    .from("workspaces")
-    .select("id")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle<{ id: string }>();
+  let workspaceId = resolved.workspaceId;
 
-  if (workspaceError || !workspace?.id) {
-    throw workspaceError ?? new Error("No workspace available for content pack persistence");
+  if (!workspaceId) {
+    const { data: workspace, error: workspaceError } = await supabase
+      .from("workspaces")
+      .select("id")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+
+    if (workspaceError || !workspace?.id) {
+      throw workspaceError ?? new Error("No workspace available for content pack persistence");
+    }
+
+    workspaceId = workspace.id;
   }
 
   const packRow = {
     id: pack.id,
-    workspace_id: workspace.id,
+    workspace_id: workspaceId,
     brand_id: pack.brandId,
     hotspot_id: pack.hotspotId,
     status: pack.status,
     why_now: pack.whyNow,
     why_us: pack.whyUs,
-    review_owner: pack.reviewOwner
+    review_owner: pack.reviewOwner,
+    created_by: resolved.actorUserId ?? null
   };
 
   const { error: packError } = await supabase
@@ -585,7 +615,8 @@ async function persistGeneratedPack(pack: HotspotPack): Promise<{
 
 export async function generateContentPackForEntities(
   brand: BrandStrategyPack,
-  hotspot: HotspotSignal
+  hotspot: HotspotSignal,
+  context?: GenerationContext
 ): Promise<GeneratedPackResult> {
   const blueprints = resolveVariantBlueprints(hotspot);
   const fallbackVariants = createTemplateVariants(brand, hotspot, blueprints);
@@ -593,6 +624,7 @@ export async function generateContentPackForEntities(
   const merged = mergeModelVariants(brand, hotspot, blueprints, fallbackVariants, modelGenerated.payload);
   const pack: HotspotPack = {
     id: deterministicId(`${brand.id}:${hotspot.id}:pack`),
+    workspaceId: context?.workspaceId,
     brandId: brand.id,
     hotspotId: hotspot.id,
     status: "pending",
@@ -602,7 +634,7 @@ export async function generateContentPackForEntities(
     variants: merged.variants
   };
 
-  const storage = await persistGeneratedPack(pack);
+  const storage = await persistGeneratedPack(pack, context);
 
   return {
     pack,
@@ -612,7 +644,10 @@ export async function generateContentPackForEntities(
   };
 }
 
-export async function generateContentPackForHotspot(hotspotId: string): Promise<GeneratedPackResult> {
+export async function generateContentPackForHotspot(
+  hotspotId: string,
+  context?: GenerationContext
+): Promise<GeneratedPackResult> {
   const [brand, hotspots] = await Promise.all([getBrandStrategyPack(), getHotspotSignals()]);
   const hotspot = hotspots.find((item) => item.id === hotspotId);
 
@@ -620,5 +655,5 @@ export async function generateContentPackForHotspot(hotspotId: string): Promise<
     throw new Error(`Unknown hotspot: ${hotspotId}`);
   }
 
-  return generateContentPackForEntities(brand, hotspot);
+  return generateContentPackForEntities(brand, hotspot, context);
 }

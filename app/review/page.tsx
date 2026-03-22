@@ -1,11 +1,13 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { EmptyStateCard } from "@/components/empty-state-card";
+import { OneClickProductionButton } from "@/components/one-click-production-button";
 import { PackDeleteButton } from "@/components/pack-delete-button";
 import { PageHero } from "@/components/page-hero";
 import { PublishActions } from "@/components/publish-actions";
 import { ReviewActions } from "@/components/review-actions";
 import { ReviewEditor } from "@/components/review-editor";
+import { requireWorkspacePageViewer } from "@/lib/auth";
 import { getBrandStrategyPack, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
 import type { ContentTrack, Platform, ReviewStatus } from "@/lib/domain/types";
 
@@ -170,6 +172,7 @@ export default async function ReviewPage({
 }: {
   searchParams?: SearchParams;
 }) {
+  await requireWorkspacePageViewer();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const [brand, packs] = await Promise.all([getBrandStrategyPack(), getReviewQueue()]);
   const statusFilter = resolvedSearchParams?.status ?? "all";
@@ -584,12 +587,22 @@ export default async function ReviewPage({
           </section>
 
           {activePack.status === "approved" ? (
-            <PublishActions
-              failedCount={failedCount}
-              packId={activePack.id}
-              publishedCount={publishedCount}
-              queuedCount={queuedCount}
-            />
+            <>
+              <section className="panel helperPanel reviewNextStepBlock">
+                <div className="listItem">
+                  <strong>一键制作</strong>
+                  <span className="pill pill-positive">已就绪</span>
+                </div>
+                <p className="muted">通过后可直接触发图文、视频、口播、字幕的自动生产流程。</p>
+                <OneClickProductionButton packId={activePack.id} />
+              </section>
+              <PublishActions
+                failedCount={failedCount}
+                packId={activePack.id}
+                publishedCount={publishedCount}
+                queuedCount={queuedCount}
+              />
+            </>
           ) : (
             <ReviewActions
               currentNote={activePack.reviewNote}

@@ -36,6 +36,8 @@ export function RegisterForm() {
           const result = (await response.json().catch(() => ({}))) as {
             ok?: boolean;
             error?: string;
+            needsEmailConfirm?: boolean;
+            requiresWorkspaceSelection?: boolean;
           };
 
           if (!response.ok || !result.ok) {
@@ -43,7 +45,12 @@ export function RegisterForm() {
             return;
           }
 
-          router.push("/select-workspace");
+          if (result.needsEmailConfirm) {
+            setMessage("注册成功，请先完成邮箱确认后再登录。");
+            return;
+          }
+
+          router.push(result.requiresWorkspaceSelection ? "/select-workspace" : "/");
           router.refresh();
         });
       }}
@@ -80,4 +87,3 @@ export function RegisterForm() {
     </form>
   );
 }
-

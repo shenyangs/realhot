@@ -18,6 +18,7 @@ import {
   Platform,
   PublishJob
 } from "@/lib/domain/types";
+import { getCurrentViewer } from "@/lib/auth/session";
 import { prioritizeHotspots } from "@/lib/services/hotspot-engine";
 import { enforceBodyMinimumWithContext, resolveMinimumCharsForVariant } from "@/lib/services/content-quality";
 import { getSupabaseServerClient } from "@/lib/supabase/client";
@@ -73,6 +74,7 @@ interface ContentVariantRow {
 
 interface HotspotPackRow {
   id: string;
+  workspace_id: string | null;
   brand_id: string;
   hotspot_id: string;
   status: "pending" | "approved" | "needs-edit";
@@ -87,6 +89,7 @@ interface HotspotPackRow {
 
 interface PublishJobRow {
   id: string;
+  workspace_id?: string | null;
   pack_id: string;
   variant_id: string;
   platform: Platform;
@@ -119,6 +122,12 @@ export interface QueuedPublishJob extends PublishJob {
   variantTitle: string;
   variantBody: string;
   variantFormat: ContentVariant["format"];
+}
+
+interface WorkspaceScope {
+  workspaceId?: string;
+  userId?: string;
+  isPlatformAdmin: boolean;
 }
 
 function mapBrand(row: BrandRow, sources: BrandSourceRow[]): BrandStrategyPack {
@@ -168,6 +177,7 @@ function mapHotspot(row: HotspotRow): HotspotSignal {
 function mapPack(row: HotspotPackRow): HotspotPack {
   return {
     id: row.id,
+    workspaceId: row.workspace_id ?? undefined,
     brandId: row.brand_id,
     hotspotId: row.hotspot_id,
     status: row.status,
@@ -194,6 +204,7 @@ function mapPack(row: HotspotPackRow): HotspotPack {
 function mapPublishJob(row: PublishJobRow): PublishJob {
   return {
     id: row.id,
+    workspaceId: row.workspace_id ?? undefined,
     packId: row.pack_id,
     variantId: row.variant_id,
     platform: row.platform,
@@ -219,6 +230,41 @@ function mapQueuedPublishJob(row: PublishJobRow): QueuedPublishJob {
 function deterministicId(input: string): string {
   const hash = createHash("sha256").update(input).digest("hex");
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
+
+async function resolveWorkspaceScope(): Promise<WorkspaceScope> {
+  try {
+    const viewer = await getCurrentViewer();
+
+    return {
+      workspaceId: viewer.currentWorkspace?.id,
+      userId: viewer.isAuthenticated ? viewer.user.id : undefined,
+      isPlatformAdmin: viewer.isPlatformAdmin
+    };
+  } catch {
+    return {
+      workspaceId: undefined,
+      userId: undefined,
+      isPlatformAdmin: false
+    };
+  }
+}
+
+function isWorkspaceVisible(recordWorkspaceId: string | undefined, scope: WorkspaceScope): boolean {
+  if (scope.isPlatformAdmin) {
+    return true;
+  }
+
+  if (!scope.workspaceId) {
+    return true;
+  }
+
+  // Legacy local records may not carry workspace id yet.
+  return !recordWorkspaceId || recordWorkspaceId === scope.workspaceId;
+}
+
+function resolveWorkspaceForWrite(recordWorkspaceId: string | undefined, scope: WorkspaceScope): string | undefined {
+  return recordWorkspaceId ?? scope.workspaceId;
 }
 
 const platformLabels: Record<Platform, string> = {
@@ -282,16 +328,23 @@ function normalizeQueueBodies(packs: HotspotPack[]): HotspotPack[] {
 
 export async function getBrandStrategyPack(): Promise<BrandStrategyPack> {
   const supabase = getSupabaseServerClient();
+  const scope = await resolveWorkspaceScope();
 
   if (!supabase) {
     const store = await readLocalDataStore();
     return store.brand;
   }
 
-  const { data: brand, error: brandError } = await supabase
+  let brandQuery = supabase
     .from("brands")
     .select("*")
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (scope.workspaceId) {
+    brandQuery = brandQuery.eq("workspace_id", scope.workspaceId);
+  }
+
+  const { data: brand, error: brandError } = await brandQuery
     .limit(1)
     .maybeSingle<BrandRow>();
 
@@ -339,6 +392,7 @@ export async function updateBrandStrategyPack(
   };
 
   const supabase = getSupabaseServerClient();
+  const scope = await resolveWorkspaceScope();
 
   if (!supabase) {
     const store = await updateLocalDataStore((current) => ({
@@ -349,10 +403,16 @@ export async function updateBrandStrategyPack(
     return store.brand;
   }
 
-  const { data: existingBrand, error: existingBrandError } = await supabase
+  let existingBrandQuery = supabase
     .from("brands")
     .select("id")
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (scope.workspaceId) {
+    existingBrandQuery = existingBrandQuery.eq("workspace_id", scope.workspaceId);
+  }
+
+  const { data: existingBrand, error: existingBrandError } = await existingBrandQuery
     .limit(1)
     .maybeSingle<{ id: string }>();
 
@@ -441,19 +501,26 @@ export async function getHotspotSignals(): Promise<HotspotSignal[]> {
 
 export async function getReviewQueue(): Promise<HotspotPack[]> {
   const supabase = getSupabaseServerClient();
+  const scope = await resolveWorkspaceScope();
 
   if (!supabase) {
     const store = await readLocalDataStore();
-    return normalizeQueueBodies(store.packs);
+    const scopedPacks = store.packs.filter((pack) => isWorkspaceVisible(pack.workspaceId, scope));
+    return normalizeQueueBodies(scopedPacks);
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("hotspot_packs")
     .select(
-      "id, brand_id, hotspot_id, status, why_now, why_us, review_owner, review_note, reviewed_by, reviewed_at, content_variants (id, track, title, angle, format, body, cover_hook, publish_window, platforms)"
+      "id, workspace_id, brand_id, hotspot_id, status, why_now, why_us, review_owner, review_note, reviewed_by, reviewed_at, content_variants (id, track, title, angle, format, body, cover_hook, publish_window, platforms)"
     )
-    .order("created_at", { ascending: false })
-    .returns<HotspotPackRow[]>();
+    .order("created_at", { ascending: false });
+
+  if (scope.workspaceId) {
+    query = query.eq("workspace_id", scope.workspaceId);
+  }
+
+  const { data, error } = await query.returns<HotspotPackRow[]>();
 
   if (error || !data || data.length === 0) {
     return normalizeQueueBodies(mockHotspotPacks);
@@ -537,6 +604,7 @@ export async function updateHotspotPackReview(
   }
 ): Promise<HotspotPack | null> {
   const supabase = getSupabaseServerClient();
+  const scope = await resolveWorkspaceScope();
 
   if (!supabase) {
     const note = input.note?.trim() ? input.note.trim() : undefined;
@@ -550,8 +618,13 @@ export async function updateHotspotPackReview(
           return pack;
         }
 
+        if (!isWorkspaceVisible(pack.workspaceId, scope)) {
+          return pack;
+        }
+
         updatedPack = {
           ...pack,
+          workspaceId: resolveWorkspaceForWrite(pack.workspaceId, scope),
           status: input.status,
           reviewNote: note,
           reviewedBy: reviewer,
@@ -578,10 +651,16 @@ export async function updateHotspotPackReview(
     updated_at: new Date().toISOString()
   };
 
-  const { error } = await supabase
+  let query = supabase
     .from("hotspot_packs")
     .update(payload)
     .eq("id", packId);
+
+  if (scope.workspaceId) {
+    query = query.eq("workspace_id", scope.workspaceId);
+  }
+
+  const { error } = await query;
 
   if (error) {
     throw error;
@@ -592,33 +671,51 @@ export async function updateHotspotPackReview(
 
 export async function deleteHotspotPack(packId: string): Promise<boolean> {
   const supabase = getSupabaseServerClient();
+  const scope = await resolveWorkspaceScope();
 
   if (!supabase) {
     let removed = false;
+    let removedPackWorkspaceId: string | undefined;
 
     await updateLocalDataStore((store) => ({
       ...store,
       packs: store.packs.filter((pack) => {
-        const shouldKeep = pack.id !== packId;
-
-        if (!shouldKeep) {
-          removed = true;
+        if (pack.id !== packId) {
+          return true;
         }
 
-        return shouldKeep;
+        if (!isWorkspaceVisible(pack.workspaceId, scope)) {
+          return true;
+        }
+
+        removed = true;
+        removedPackWorkspaceId = resolveWorkspaceForWrite(pack.workspaceId, scope);
+        return false;
       }),
-      publishJobs: store.publishJobs.filter((job) => job.packId !== packId)
+      publishJobs: store.publishJobs.filter((job) => {
+        if (job.packId !== packId) {
+          return true;
+        }
+
+        const effectiveWorkspaceId = resolveWorkspaceForWrite(job.workspaceId, scope);
+
+        return !removed || effectiveWorkspaceId !== removedPackWorkspaceId;
+      })
     }));
 
     return removed;
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("hotspot_packs")
     .delete()
-    .eq("id", packId)
-    .select("id")
-    .returns<Array<{ id: string }>>();
+    .eq("id", packId);
+
+  if (scope.workspaceId) {
+    query = query.eq("workspace_id", scope.workspaceId);
+  }
+
+  const { data, error } = await query.select("id").returns<Array<{ id: string }>>();
 
   if (error) {
     throw error;
@@ -629,20 +726,27 @@ export async function deleteHotspotPack(packId: string): Promise<boolean> {
 
 export async function getPublishJobsForPack(packId: string): Promise<PublishJob[]> {
   const supabase = getSupabaseServerClient();
+  const scope = await resolveWorkspaceScope();
 
   if (!supabase) {
     const store = await readLocalDataStore();
     return store.publishJobs
       .filter((job) => job.packId === packId)
+      .filter((job) => isWorkspaceVisible(job.workspaceId, scope))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("publish_jobs")
     .select("*")
     .eq("pack_id", packId)
-    .order("created_at", { ascending: false })
-    .returns<PublishJobRow[]>();
+    .order("created_at", { ascending: false });
+
+  if (scope.workspaceId) {
+    query = query.eq("workspace_id", scope.workspaceId);
+  }
+
+  const { data, error } = await query.returns<PublishJobRow[]>();
 
   if (error || !data) {
     return [];
@@ -658,6 +762,7 @@ export async function queuePublishJobs(
     queueSource?: PublishJob["queueSource"];
   }
 ): Promise<QueuePublishJobsResult> {
+  const scope = await resolveWorkspaceScope();
   const queueSource = input?.queueSource ?? "manual";
   const scheduledAt = input?.scheduledAt?.trim() ? input.scheduledAt.trim() : null;
   const pack = await getHotspotPack(packId);
@@ -673,6 +778,7 @@ export async function queuePublishJobs(
   const supabase = getSupabaseServerClient();
 
   if (!supabase) {
+    const workspaceId = resolveWorkspaceForWrite(pack.workspaceId, scope);
     const now = new Date().toISOString();
     const store = await updateLocalDataStore((current) => {
       const nextJobs = [...current.publishJobs];
@@ -684,6 +790,7 @@ export async function queuePublishJobs(
           const existing = existingIndex >= 0 ? nextJobs[existingIndex] : undefined;
           const job: PublishJob = {
             id: jobId,
+            workspaceId,
             packId: pack.id,
             variantId: variant.id,
             platform,
@@ -710,6 +817,7 @@ export async function queuePublishJobs(
 
     const jobs = store.publishJobs
       .filter((job) => job.packId === pack.id)
+      .filter((job) => isWorkspaceVisible(job.workspaceId, scope))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
     return {
@@ -719,14 +827,22 @@ export async function queuePublishJobs(
     };
   }
 
+  const workspaceId = pack.workspaceId ?? scope.workspaceId;
+
+  if (!workspaceId) {
+    throw new Error("workspace_context_required");
+  }
+
   const rows = pack.variants.flatMap((variant) =>
     variant.platforms.map((platform) => ({
       id: deterministicId(`${pack.id}:${variant.id}:${platform}`),
+      workspace_id: workspaceId,
       pack_id: pack.id,
       variant_id: variant.id,
       platform,
       status: "queued",
       queue_source: queueSource,
+      requested_by: scope.userId ?? null,
       scheduled_at: scheduledAt,
       published_at: null,
       failure_reason: null,
@@ -764,12 +880,14 @@ export async function getQueuedPublishJobs(input?: {
   limit?: number;
 }): Promise<QueuedPublishJob[]> {
   const supabase = getSupabaseServerClient();
+  const scope = await resolveWorkspaceScope();
 
   if (!supabase) {
     const store = await readLocalDataStore();
     const now = Date.now();
     const queued = store.publishJobs
       .filter((job) => job.status === "queued")
+      .filter((job) => isWorkspaceVisible(job.workspaceId, scope))
       .filter((job) => (input?.packId ? job.packId === input.packId : true))
       .filter((job) => {
         if (!job.scheduledAt) {
@@ -809,6 +927,10 @@ export async function getQueuedPublishJobs(input?: {
     .eq("status", "queued")
     .order("created_at", { ascending: true });
 
+  if (scope.workspaceId) {
+    query.eq("workspace_id", scope.workspaceId);
+  }
+
   if (input?.packId) {
     query.eq("pack_id", input.packId);
   }
@@ -846,6 +968,7 @@ export async function updatePublishJobStatus(
   }
 ): Promise<PublishJob | null> {
   const supabase = getSupabaseServerClient();
+  const scope = await resolveWorkspaceScope();
 
   if (!supabase) {
     let updatedJob: PublishJob | null = null;
@@ -856,8 +979,13 @@ export async function updatePublishJobStatus(
           return job;
         }
 
+        if (!isWorkspaceVisible(job.workspaceId, scope)) {
+          return job;
+        }
+
         updatedJob = {
           ...job,
+          workspaceId: resolveWorkspaceForWrite(job.workspaceId, scope),
           status: input.status,
           publishedAt: input.publishedAt,
           failureReason: input.failureReason,
@@ -883,20 +1011,31 @@ export async function updatePublishJobStatus(
     updated_at: new Date().toISOString()
   };
 
-  const { error } = await supabase
+  let updateQuery = supabase
     .from("publish_jobs")
     .update(payload)
     .eq("id", jobId);
+
+  if (scope.workspaceId) {
+    updateQuery = updateQuery.eq("workspace_id", scope.workspaceId);
+  }
+
+  const { error } = await updateQuery;
 
   if (error) {
     throw error;
   }
 
-  const { data, error: fetchError } = await supabase
+  let fetchQuery = supabase
     .from("publish_jobs")
     .select("*")
-    .eq("id", jobId)
-    .maybeSingle<PublishJobRow>();
+    .eq("id", jobId);
+
+  if (scope.workspaceId) {
+    fetchQuery = fetchQuery.eq("workspace_id", scope.workspaceId);
+  }
+
+  const { data, error: fetchError } = await fetchQuery.maybeSingle<PublishJobRow>();
 
   if (fetchError || !data) {
     return null;
@@ -907,6 +1046,7 @@ export async function updatePublishJobStatus(
 
 export async function deletePublishJob(jobId: string): Promise<boolean> {
   const supabase = getSupabaseServerClient();
+  const scope = await resolveWorkspaceScope();
 
   if (!supabase) {
     let removed = false;
@@ -914,25 +1054,35 @@ export async function deletePublishJob(jobId: string): Promise<boolean> {
     await updateLocalDataStore((store) => ({
       ...store,
       publishJobs: store.publishJobs.filter((job) => {
-        const shouldKeep = job.id !== jobId;
+        if (job.id !== jobId) {
+          return true;
+        }
 
-        if (!shouldKeep) {
+        if (!isWorkspaceVisible(job.workspaceId, scope)) {
+          return true;
+        }
+
+        if (job.id === jobId) {
           removed = true;
         }
 
-        return shouldKeep;
+        return false;
       })
     }));
 
     return removed;
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("publish_jobs")
     .delete()
-    .eq("id", jobId)
-    .select("id")
-    .returns<Array<{ id: string }>>();
+    .eq("id", jobId);
+
+  if (scope.workspaceId) {
+    query = query.eq("workspace_id", scope.workspaceId);
+  }
+
+  const { data, error } = await query.select("id").returns<Array<{ id: string }>>();
 
   if (error) {
     throw error;
@@ -945,6 +1095,7 @@ export async function clearQueuedPublishJobs(input?: {
   packId?: string;
 }): Promise<ClearPublishJobsResult> {
   const supabase = getSupabaseServerClient();
+  const scope = await resolveWorkspaceScope();
 
   if (!supabase) {
     let removedCount = 0;
@@ -952,7 +1103,10 @@ export async function clearQueuedPublishJobs(input?: {
     await updateLocalDataStore((store) => ({
       ...store,
       publishJobs: store.publishJobs.filter((job) => {
-        const shouldRemove = job.status === "queued" && (input?.packId ? job.packId === input.packId : true);
+        const shouldRemove =
+          job.status === "queued" &&
+          isWorkspaceVisible(job.workspaceId, scope) &&
+          (input?.packId ? job.packId === input.packId : true);
 
         if (shouldRemove) {
           removedCount += 1;
@@ -970,6 +1124,10 @@ export async function clearQueuedPublishJobs(input?: {
   }
 
   let query = supabase.from("publish_jobs").delete().eq("status", "queued");
+
+  if (scope.workspaceId) {
+    query = query.eq("workspace_id", scope.workspaceId);
+  }
 
   if (input?.packId) {
     query = query.eq("pack_id", input.packId);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canGenerateContent, requireApiViewer } from "@/lib/auth";
 import { generateContentPackForHotspot } from "@/lib/services/content-pack-generator";
 
 function getErrorMessage(error: unknown): string {
@@ -24,6 +25,18 @@ function getErrorMessage(error: unknown): string {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiViewer({
+      allowedRoles: ["org_admin", "operator"]
+    });
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    if (!canGenerateContent(auth.viewer)) {
+      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+    }
+
     const payload = (await request.json()) as {
       hotspotId?: string;
     };
@@ -39,7 +52,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await generateContentPackForHotspot(payload.hotspotId);
+    const result = await generateContentPackForHotspot(payload.hotspotId, {
+      workspaceId: auth.viewer.currentWorkspace?.id,
+      actorUserId: auth.viewer.user.id
+    });
 
     return NextResponse.json({
       ok: true,

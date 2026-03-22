@@ -1,10 +1,23 @@
 import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
+import { canManageBrands, requireApiViewer } from "@/lib/auth";
 import { updateBrandStrategyPack } from "@/lib/data";
 import { autofillBrandStrategy } from "@/lib/services/brand-autofill";
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireApiViewer({
+      allowedRoles: ["org_admin"]
+    });
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    if (!canManageBrands(auth.viewer)) {
+      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+    }
+
     const body = (await request.json()) as {
       brandName?: string;
     };

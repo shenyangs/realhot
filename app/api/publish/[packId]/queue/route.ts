@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canExportContent, requireApiViewer } from "@/lib/auth";
 import { clearQueuedPublishJobs, queuePublishJobs } from "@/lib/data";
 
 export async function POST(
@@ -6,6 +7,18 @@ export async function POST(
   { params }: { params: Promise<{ packId: string }> }
 ) {
   try {
+    const auth = await requireApiViewer({
+      allowedRoles: ["org_admin", "approver"]
+    });
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    if (!canExportContent(auth.viewer)) {
+      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+    }
+
     const { packId } = await params;
     const payload = (await request.json().catch(() => ({}))) as {
       scheduledAt?: string;
@@ -38,6 +51,18 @@ export async function DELETE(
   { params }: { params: Promise<{ packId: string }> }
 ) {
   try {
+    const auth = await requireApiViewer({
+      allowedRoles: ["org_admin", "approver"]
+    });
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    if (!canExportContent(auth.viewer)) {
+      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+    }
+
     const { packId } = await params;
     const result = await clearQueuedPublishJobs({
       packId

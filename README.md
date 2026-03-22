@@ -21,6 +21,8 @@
 - `/brands` 品牌策略包
 - `/hotspots` 热点流
 - `/review` 热点包审核台
+- `/publish` 发布执行台
+- `/production-studio/:packId` 一键制作后的最终内容工作台
 
 ## API
 
@@ -33,6 +35,12 @@
 - `POST /api/hotspots/sync`
 - `POST /api/publish/:packId/queue`
 - `POST /api/publish/run`
+- `POST /api/production/one-click`
+- `GET /api/production/jobs/:jobId`
+- `PATCH /api/production/jobs/:jobId`
+- `GET /api/production/packs/:packId/draft`
+- `PATCH /api/production/packs/:packId/draft`
+- `POST /api/production/packs/:packId/publish-bundle`
 
 ## Local Run
 
@@ -41,6 +49,8 @@
 3. 运行开发环境：`npm run dev`
 
 如果没有配置 `GEMINI_API_KEY`，系统会自动退回到本地模板路由，方便先调通流程。
+
+如果没有配置 `BEST_IMAGE_API_URL` / `BEST_VIDEO_API_URL`，一键制作会自动回退到本地可视化预览资产，不会中断整体流程。
 
 ## Docker Deploy
 
@@ -201,3 +211,25 @@ curl -X POST http://localhost:3000/api/publish/run \
 - `PUBLISH_RUN_URL`
 - `PUBLISH_RUN_BATCH_SIZE`
 - `PUBLISH_SIM_FAIL_RATE`
+
+## One-Click Production Studio
+
+选题在审核台通过后，可以点击“一键制作图文+视频”，系统会自动走完整链路：
+
+1. 生成传播脚本（Gemini）
+2. 调用生图 API 生成封面/图卡（可配置）
+3. 调用视频 API 生成视频（可配置，支持自动配画面）
+4. 自动生成口播稿
+5. 自动生成字幕（SRT 草稿）
+6. 在 `production-studio` 页面统一微调并导出发布包
+
+多模态配置项：
+
+- `BEST_IMAGE_PROVIDER`
+- `BEST_IMAGE_MODEL`
+- `BEST_IMAGE_API_URL`
+- `BEST_IMAGE_API_KEY`
+- `BEST_VIDEO_PROVIDER`
+- `BEST_VIDEO_MODEL`
+- `BEST_VIDEO_API_URL`
+- `BEST_VIDEO_API_KEY`

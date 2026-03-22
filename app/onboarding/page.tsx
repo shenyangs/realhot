@@ -2,9 +2,11 @@ import Link from "next/link";
 import { BrandOnboardingStatus } from "@/components/brand-onboarding-status";
 import { BrandOnboardingWizard } from "@/components/brand-onboarding-wizard";
 import { PageHero } from "@/components/page-hero";
+import { requireWorkspacePageViewer } from "@/lib/auth";
 import { getBrandStrategyPack } from "@/lib/data";
 
 export default async function OnboardingPage() {
+  await requireWorkspacePageViewer();
   const brand = await getBrandStrategyPack();
 
   return (

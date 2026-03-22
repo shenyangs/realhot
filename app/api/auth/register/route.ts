@@ -19,7 +19,9 @@ export async function POST(request: NextRequest) {
     });
 
     const response = NextResponse.json({
-      ok: true
+      ok: true,
+      needsEmailConfirm: result.mode === "supabase" ? result.needsEmailConfirm : false,
+      requiresWorkspaceSelection: false
     });
 
     if (result.mode === "demo") {
@@ -29,7 +31,44 @@ export async function POST(request: NextRequest) {
         path: "/"
       });
       response.cookies.delete(sessionCookieNames.demoRole);
-      response.cookies.delete(sessionCookieNames.workspaceSlug);
+      if (result.workspaceSlug) {
+        response.cookies.set(sessionCookieNames.workspaceSlug, result.workspaceSlug, {
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/"
+        });
+      } else {
+        response.cookies.delete(sessionCookieNames.workspaceSlug);
+      }
+    }
+
+    if (result.mode === "supabase" && result.accessToken && result.refreshToken) {
+      response.cookies.set(sessionCookieNames.accessToken, result.accessToken, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/"
+      });
+      response.cookies.set(sessionCookieNames.refreshToken, result.refreshToken, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/"
+      });
+      response.cookies.set(sessionCookieNames.userId, result.userId, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/"
+      });
+      response.cookies.delete(sessionCookieNames.demoRole);
+
+      if (result.workspaceSlug) {
+        response.cookies.set(sessionCookieNames.workspaceSlug, result.workspaceSlug, {
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/"
+        });
+      } else {
+        response.cookies.delete(sessionCookieNames.workspaceSlug);
+      }
     }
 
     return response;

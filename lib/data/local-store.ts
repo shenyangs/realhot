@@ -18,13 +18,25 @@ import {
   DemoWorkspaceMemberRecord
 } from "@/lib/auth/demo-data";
 import { ViewerUser, ViewerWorkspace } from "@/lib/auth/types";
-import { BrandStrategyPack, HotspotPack, HotspotSignal, HotspotSyncSnapshot, PublishJob } from "@/lib/domain/types";
+import {
+  BrandStrategyPack,
+  HotspotPack,
+  HotspotSignal,
+  HotspotSyncSnapshot,
+  ProductionAsset,
+  ProductionDraft,
+  ProductionJob,
+  PublishJob
+} from "@/lib/domain/types";
 
 export interface LocalDataStore {
   brand: BrandStrategyPack;
   hotspots: HotspotSignal[];
   packs: HotspotPack[];
   publishJobs: PublishJob[];
+  productionJobs: ProductionJob[];
+  productionAssets: ProductionAsset[];
+  productionDrafts: ProductionDraft[];
   lastHotspotSync: HotspotSyncSnapshot | null;
   profiles: ViewerUser[];
   workspaces: ViewerWorkspace[];
@@ -64,6 +76,9 @@ function buildInitialStore(): LocalDataStore {
     hotspots: clone(mockHotspotSignals),
     packs: clone(mockHotspotPacks),
     publishJobs: [],
+    productionJobs: [],
+    productionAssets: [],
+    productionDrafts: [],
     lastHotspotSync: null,
     profiles: clone(Object.values(DEMO_USERS)),
     workspaces: clone(DEMO_WORKSPACES),
@@ -82,6 +97,9 @@ function normalizeStore(raw: Partial<LocalDataStore> | null | undefined): LocalD
     hotspots: Array.isArray(raw?.hotspots) ? clone(raw.hotspots) : initial.hotspots,
     packs: Array.isArray(raw?.packs) ? clone(raw.packs) : initial.packs,
     publishJobs: Array.isArray(raw?.publishJobs) ? clone(raw.publishJobs) : initial.publishJobs,
+    productionJobs: Array.isArray(raw?.productionJobs) ? clone(raw.productionJobs) : initial.productionJobs,
+    productionAssets: Array.isArray(raw?.productionAssets) ? clone(raw.productionAssets) : initial.productionAssets,
+    productionDrafts: Array.isArray(raw?.productionDrafts) ? clone(raw.productionDrafts) : initial.productionDrafts,
     lastHotspotSync: raw?.lastHotspotSync ? clone(raw.lastHotspotSync) : initial.lastHotspotSync,
     profiles: mergeById(initial.profiles, Array.isArray(raw?.profiles) ? raw.profiles : undefined),
     workspaces: mergeById(initial.workspaces, Array.isArray(raw?.workspaces) ? raw.workspaces : undefined),

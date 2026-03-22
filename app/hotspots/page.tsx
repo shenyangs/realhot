@@ -4,7 +4,9 @@ import { BackToTopButton } from "@/components/back-to-top-button";
 import { EmptyStateCard } from "@/components/empty-state-card";
 import { HotspotActionButton } from "@/components/hotspot-action-button";
 import { HotspotInsightTrigger } from "@/components/hotspot-insight-trigger";
+import { HotspotSyncTrigger } from "@/components/hotspot-sync-trigger";
 import { PageHero } from "@/components/page-hero";
+import { requireWorkspacePageViewer } from "@/lib/auth";
 import { getBrandStrategyPack, getHotspotSignals, getLatestHotspotSyncSnapshot, getReviewQueue } from "@/lib/data";
 import type { HotspotKind } from "@/lib/domain/types";
 import { prioritizeHotspots, type PrioritizedHotspot } from "@/lib/services/hotspot-engine";
@@ -452,6 +454,7 @@ export default async function HotspotsPage({
 }: {
   searchParams?: SearchParams;
 }) {
+  await requireWorkspacePageViewer();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const [brand, hotspots, syncSnapshot, packs] = await Promise.all([
     getBrandStrategyPack(),
@@ -656,9 +659,9 @@ export default async function HotspotsPage({
             <p className="eyebrow">同步状态</p>
             <h3>本次同步</h3>
           </div>
-          <span className="muted">
-            {syncSnapshot ? `最近同步：${formatSyncTimestamp(syncSnapshot.executedAt)}` : "还没有同步快照"}
-          </span>
+          <HotspotSyncTrigger
+            lastSyncText={syncSnapshot ? `最近同步：${formatSyncTimestamp(syncSnapshot.executedAt)}` : "还没有同步快照"}
+          />
         </div>
 
         {syncSnapshot ? (

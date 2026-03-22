@@ -7,6 +7,10 @@ export type ContentTrack = "rapid-response" | "point-of-view";
 export type ReviewStatus = "pending" | "approved" | "needs-edit";
 
 export type PublishStatus = "queued" | "published" | "failed" | "canceled";
+export type ProductionJobStatus = "queued" | "running" | "needs-review" | "completed" | "failed";
+export type ProductionJobStage = "script" | "image" | "video" | "voice" | "subtitle" | "finalize";
+export type ProductionAssetKind = "script" | "image" | "video" | "voice" | "subtitle" | "bundle";
+export type ProductionAssetStatus = "ready" | "failed";
 export type HotspotFetchStatus = "ok" | "empty" | "failed";
 export type HotspotSourceType = "direct" | "rss" | "aggregator";
 export type HotspotProviderRole = "primary" | "fallback";
@@ -94,6 +98,7 @@ export interface ContentVariant {
 
 export interface HotspotPack {
   id: string;
+  workspaceId?: string;
   brandId: string;
   hotspotId: string;
   status: ReviewStatus;
@@ -122,6 +127,7 @@ export interface ModelRouteDecision {
 
 export interface PublishJob {
   id: string;
+  workspaceId?: string;
   packId: string;
   variantId: string;
   platform: Platform;
@@ -130,6 +136,52 @@ export interface PublishJob {
   scheduledAt?: string;
   publishedAt?: string;
   failureReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductionJob {
+  id: string;
+  workspaceId: string;
+  packId: string;
+  status: ProductionJobStatus;
+  stage: ProductionJobStage;
+  createdBy?: string;
+  errorMessage?: string;
+  retryCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductionAsset {
+  id: string;
+  workspaceId: string;
+  packId: string;
+  jobId: string;
+  kind: ProductionAssetKind;
+  name: string;
+  status: ProductionAssetStatus;
+  provider: string;
+  model: string;
+  previewUrl?: string;
+  textContent?: string;
+  jsonContent?: string;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductionDraft {
+  id: string;
+  workspaceId: string;
+  packId: string;
+  title: string;
+  body: string;
+  subtitles: string;
+  coverAssetId?: string;
+  videoAssetId?: string;
+  voiceAssetId?: string;
+  updatedBy?: string;
   createdAt: string;
   updatedAt: string;
 }

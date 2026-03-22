@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { EmptyStateCard } from "@/components/empty-state-card";
 import { OpportunityCard } from "@/components/opportunity-card";
 import { PageHero } from "@/components/page-hero";
-import { getCurrentViewer } from "@/lib/auth/session";
+import { requireWorkspacePageViewer } from "@/lib/auth";
 import { getBrandStrategyPack, getPrioritizedHotspots, getReviewQueue } from "@/lib/data";
 import type { ContentTrack, Platform, ReviewStatus } from "@/lib/domain/types";
 
@@ -78,11 +77,7 @@ function formatOpportunityTime(value: string) {
 }
 
 export default async function HomePage() {
-  const viewer = await getCurrentViewer();
-
-  if (!viewer.isPlatformAdmin && viewer.isAuthenticated && viewer.memberships.length > 1 && !viewer.currentWorkspace) {
-    redirect("/select-workspace");
-  }
+  await requireWorkspacePageViewer();
 
   const [brand, prioritized, packs] = await Promise.all([
     getBrandStrategyPack(),

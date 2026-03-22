@@ -865,10 +865,13 @@ export async function registerWithInviteCode(input: {
       })
     }));
 
+    const workspaceSlug = store.workspaces.find((workspace) => workspace.id === inviteCode.workspaceId)?.slug ?? null;
+
     return {
       mode: "demo" as const,
       userId,
-      workspaceId: inviteCode.workspaceId
+      workspaceId: inviteCode.workspaceId,
+      workspaceSlug
     };
   }
 
@@ -882,6 +885,12 @@ export async function registerWithInviteCode(input: {
   if (inviteCodeError || !inviteCode || inviteCode.used_count >= inviteCode.max_uses) {
     throw new Error("invite_code_invalid");
   }
+
+  const { data: workspace } = await supabaseServer
+    .from("workspaces")
+    .select("id, slug")
+    .eq("id", inviteCode.workspace_id)
+    .maybeSingle<{ id: string; slug: string }>();
 
   const { data: authData, error: signUpError } = await supabase.auth.signUp({
     email: normalizedEmail,
@@ -931,7 +940,11 @@ export async function registerWithInviteCode(input: {
   return {
     mode: "supabase" as const,
     userId: authData.user.id,
-    workspaceId: inviteCode.workspace_id
+    workspaceId: inviteCode.workspace_id,
+    workspaceSlug: workspace?.slug ?? null,
+    accessToken: authData.session?.access_token,
+    refreshToken: authData.session?.refresh_token,
+    needsEmailConfirm: !authData.session
   };
 }
 
