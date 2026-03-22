@@ -2338,7 +2338,7 @@ strong {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px), (hover: none) and (pointer: coarse) and (max-width: 1024px) {
   .appShell {
     grid-template-columns: 1fr;
   }
