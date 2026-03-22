@@ -135,7 +135,7 @@ strong {
 .panel,
 .subPanel {
   border: 1px solid var(--line);
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
 }
 
 .sidebarBrand,
@@ -227,15 +227,8 @@ strong {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.2rem;
-  padding: 0.88rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface-soft);
-  box-shadow: var(--shadow-xs);
-  backdrop-filter: blur(12px);
-  position: sticky;
-  top: 0.8rem;
-  z-index: 15;
+  padding: 0.2rem 0.1rem 0.4rem;
+  border-bottom: 1px solid var(--line);
 }
 
 .topbarTitle {
@@ -308,15 +301,13 @@ strong {
   text-align: left;
   cursor: pointer;
   transition:
-    transform 160ms ease,
     border-color 160ms ease,
-    box-shadow 160ms ease;
+    background 160ms ease;
 }
 
 .workspaceChoiceCard:hover {
-  transform: translateY(-1px);
-  border-color: rgba(17, 23, 32, 0.16);
-  box-shadow: var(--shadow-sm);
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.82);
 }
 
 .profileMenuRoot {
@@ -330,8 +321,9 @@ strong {
   padding: 0.42rem 0.66rem;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.8);
-  box-shadow: var(--shadow-xs);
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: 0 1px 2px rgba(16, 22, 30, 0.08);
+  backdrop-filter: blur(14px);
   transition:
     border-color 160ms ease,
     background 160ms ease;
@@ -339,7 +331,7 @@ strong {
 
 .profileTrigger:hover {
   border-color: var(--line-strong);
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.68);
 }
 
 .profileIdentity {
@@ -384,8 +376,9 @@ strong {
   padding: 1rem;
   border: 1px solid var(--line);
   border-radius: 22px;
-  background: rgba(252, 251, 248, 0.98);
-  box-shadow: var(--shadow-lg);
+  background: rgba(252, 251, 248, 0.76);
+  box-shadow: 0 18px 44px rgba(16, 22, 30, 0.14);
+  backdrop-filter: blur(18px);
 }
 
 .profilePanelHeader {
@@ -426,10 +419,8 @@ strong {
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.6);
   transition:
-    transform 180ms ease,
     border-color 160ms ease,
-    background 160ms ease,
-    box-shadow 160ms ease;
+    background 160ms ease;
 }
 
 .navCard strong {
@@ -444,7 +435,6 @@ strong {
 }
 
 .navCard:hover {
-  transform: translateY(-1px);
   border-color: var(--line-strong);
   background: rgba(255, 255, 255, 0.86);
 }
@@ -452,7 +442,6 @@ strong {
 .navCardActive {
   border-color: rgba(39, 54, 76, 0.22);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 246, 243, 0.92));
-  box-shadow: var(--shadow-sm);
 }
 
 .navCardActive strong,
@@ -464,6 +453,8 @@ strong {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
 }
 
 .statusCardLabelRow {
@@ -500,8 +491,7 @@ strong {
 @media (prefers-reduced-motion: no-preference) {
   .page > * {
     opacity: 0;
-    transform: translateY(14px);
-    animation: sectionReveal 520ms cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+    animation: sectionReveal 420ms ease-out forwards;
   }
 
   .page > *:nth-child(1) {
@@ -532,7 +522,6 @@ strong {
 @keyframes sectionReveal {
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -545,7 +534,6 @@ strong {
 
 .panel {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 247, 243, 0.82));
-  box-shadow: var(--shadow-sm);
 }
 
 .subPanel {
@@ -567,7 +555,8 @@ strong {
 .pageHero {
   padding: 1.4rem;
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  background: rgba(255, 255, 255, 0.64);
+  backdrop-filter: blur(10px);
 }
 
 .pageHeroUtility {
@@ -740,7 +729,6 @@ strong {
   transition:
     border-color 160ms ease,
     background 160ms ease,
-    transform 160ms ease,
     box-shadow 160ms ease;
 }
 
@@ -754,7 +742,7 @@ strong {
   gap: 0.45rem;
   min-height: 40px;
   padding: 0.68rem 0.96rem;
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
   font-weight: 620;
 }
 
@@ -764,9 +752,8 @@ strong {
 .promptChip:hover,
 .materialToggle:hover,
 .onboardingStepItem:hover {
-  transform: translateY(-1px);
   border-color: var(--line-strong);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .buttonLike:focus-visible,
@@ -808,7 +795,7 @@ strong {
   padding: 0.68rem 0.96rem;
   border: 1px solid rgba(185, 28, 28, 0.16);
   border-radius: 12px;
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
   font-weight: 620;
 }
 
@@ -921,12 +908,11 @@ strong {
   border: 1px solid var(--line);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.74);
-  box-shadow: var(--shadow-sm);
-  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+  box-shadow: none;
+  transition: border-color 180ms ease, background 180ms ease;
 }
 
 .hotspotViewTab:hover {
-  transform: translateY(-1px);
   border-color: rgba(39, 54, 76, 0.22);
 }
 
@@ -939,7 +925,6 @@ strong {
 .hotspotViewTabActive {
   border-color: rgba(39, 54, 76, 0.22);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 245, 241, 0.95));
-  box-shadow: var(--shadow-sm);
 }
 
 .pill-positive {
@@ -1082,7 +1067,7 @@ strong {
   border-radius: 18px;
   border: 1px solid rgba(235, 238, 242, 0.22);
   color: #eef2f7;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 10px 24px rgba(16, 22, 30, 0.12);
 }
 
 .hotspotBoardColumn-platform {
@@ -1171,7 +1156,6 @@ strong {
   background: rgba(16, 20, 28, 0.18);
   border: 1px solid rgba(255, 255, 255, 0.11);
   transition:
-    transform 180ms ease,
     background 180ms ease,
     border-color 180ms ease;
   writing-mode: horizontal-tb;
@@ -1179,7 +1163,6 @@ strong {
 }
 
 .hotspotBoardEntry:hover {
-  transform: translateY(-1px);
   background: rgba(16, 20, 28, 0.28);
   border-color: rgba(255, 255, 255, 0.18);
 }
@@ -1454,7 +1437,7 @@ strong {
 .onboardingStepItemActive {
   border-color: rgba(39, 54, 76, 0.2);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 245, 241, 0.94));
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .reviewTaskRailList .reviewTaskRow {
@@ -1894,9 +1877,8 @@ strong {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.78);
   transition:
-    transform 160ms ease,
     border-color 160ms ease,
-    box-shadow 160ms ease;
+    background 160ms ease;
 }
 
 .brandAutofillReference span {
@@ -1906,9 +1888,8 @@ strong {
 }
 
 .brandAutofillReference:hover {
-  transform: translateY(-1px);
   border-color: rgba(39, 54, 76, 0.22);
-  box-shadow: var(--shadow-xs);
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .onboardingActions {
@@ -1925,7 +1906,7 @@ strong {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.8);
-  box-shadow: var(--shadow-xs);
+  box-shadow: none;
 }
 
 .hotspotBoardPage {
@@ -2046,7 +2027,7 @@ strong {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.78);
   color: var(--text);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 10px 26px rgba(16, 22, 30, 0.14);
   backdrop-filter: blur(20px);
   opacity: 0;
   transform: translateY(16px);

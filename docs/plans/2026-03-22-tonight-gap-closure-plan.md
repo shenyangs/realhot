@@ -206,3 +206,42 @@
 - OpenAI TTS/STT：`gpt-4o-mini-tts`、`gpt-4o-transcribe`、`gpt-4o-transcribe-diarize` 可用于口播与字幕。
 - Google Imagen：Imagen 4 系列（standard/ultra/fast）可用于高质量图像生成。
 - Google Veo：Veo 3.1 在 Vertex AI 文档中明确支持文本/图像到视频、扩展、插入/移除对象，并支持音频对话。
+
+## 10. 新增计划入口（一键制作 + 最终内容工作台）
+
+你新增的需求已拆成独立执行文档：
+
+- [2026-03-23-one-click-production-workbench-plan.md](/Users/sam/Desktop/1st/docs/plans/2026-03-23-one-click-production-workbench-plan.md)
+
+建议排期：
+
+1. 先完成本计划的 Block 0-8（用户体系硬化 + 多模态基础能力）。
+2. 再接新文档的 Block 9-12（“选题通过 -> 一键制作 -> 最终工作台 -> 发布出口”闭环）。
+
+## 11. 收尾计划（本地保存 + 更新 GitHub）
+
+全部开发与联调完成后，统一执行以下收尾流程：
+
+1. 本地保存与校验
+   - 跑 `npm run typecheck` 与 `npm run lint`
+   - 确认 `.env.local`、密钥文件、运行缓存未被误提交
+   - 生成最终变更清单（模块、路由、数据表、环境变量）
+2. 本地提交规范
+   - 按功能分 2-4 个 commit（鉴权隔离、多模态引擎、工作台、文档）
+   - 每个 commit message 使用“动词 + 范围”格式，便于回滚
+3. 推送到 GitHub
+   - 推送分支：`git push -u origin <feature-branch>`
+   - 创建 PR，附上：
+     - 背景与目标
+     - 风险点
+     - 测试结果
+     - 回滚方案
+4. 合并后落盘归档
+   - 拉取主干并打本地标签（可选）：`git tag -a v0.x.x -m \"...\"`
+   - 导出一份发布说明到 `docs/`（含已知限制与后续计划）
+
+收尾验收标准：
+
+1. 本地工作区干净（仅保留预期变更）。
+2. GitHub 上有完整 PR 与可追踪提交。
+3. 文档、代码、数据库变更说明一致。
