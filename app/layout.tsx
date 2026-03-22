@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppTopbar } from "@/components/app-topbar";
+import { MobileDock } from "@/components/mobile-dock";
 import { getCurrentViewer } from "@/lib/auth/session";
 import { Sidebar } from "@/components/sidebar";
 import "./globals.css";
@@ -24,6 +25,7 @@ export default async function RootLayout({
           <main className="mainContent">
             <AppTopbar viewer={viewer} />
             {children}
+            <MobileDock />
           </main>
         </div>
       </body>
