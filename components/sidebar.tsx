@@ -33,6 +33,11 @@ const navItems: NavItem[] = [
     description: "排队发布、清空待执行、查看结果"
   },
   {
+    href: "/production-studio",
+    label: "内容深度制作",
+    description: "一键生成图文和视频，再统一微调"
+  },
+  {
     href: "/brands",
     label: "品牌系统",
     description: "维护品牌语境、规则和素材资产"

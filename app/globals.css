@@ -613,6 +613,75 @@ strong {
   display: none;
 }
 
+.productionStudioStack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.productionPackList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.productionPackCard {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.9rem;
+  background: var(--card-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.productionStageGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.productionStageCard {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem;
+  background: var(--card-soft);
+}
+
+.productionPreviewGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.productionPreviewCard {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.productionPreviewCard img,
+.productionPreviewCard video,
+.productionPreviewCard audio {
+  width: 100%;
+  border-radius: 10px;
+}
+
+.productionFormGrid {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.productionQuickStart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
 .mobileDockNav {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -2336,6 +2405,12 @@ strong {
     align-items: flex-start;
     min-width: 0;
   }
+
+  .productionPackList,
+  .productionStageGrid,
+  .productionPreviewGrid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 900px), (hover: none) and (pointer: coarse) and (max-width: 1024px) {
@@ -2492,5 +2567,11 @@ strong {
 
   .hotspotBoardColumn {
     min-width: 0;
+  }
+
+  .productionPackList,
+  .productionStageGrid,
+  .productionPreviewGrid {
+    grid-template-columns: 1fr;
   }
 }

@@ -5,6 +5,7 @@ import { PageHero } from "@/components/page-hero";
 import { PublishActions } from "@/components/publish-actions";
 import { PublishJobDeleteButton } from "@/components/publish-job-delete-button";
 import { PublishQueueClearButton } from "@/components/publish-queue-clear-button";
+import { OneClickProductionButton } from "@/components/one-click-production-button";
 import { getBrandStrategyPack, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
 import type { Platform } from "@/lib/domain/types";
 
@@ -60,6 +61,9 @@ export default async function PublishPage() {
           <>
             <Link className="buttonLike primaryButton" href="/review">
               回到选题详情台
+            </Link>
+            <Link className="buttonLike subtleButton" href="/production-studio">
+              进入内容深度制作
             </Link>
             <Link className="buttonLike subtleButton" href="/">
               回到工作台
@@ -152,6 +156,8 @@ export default async function PublishPage() {
                           </div>
                         ))}
                       </div>
+
+                      <OneClickProductionButton compact packId={pack.id} />
 
                       <PublishActions
                         packId={pack.id}

@@ -148,6 +148,9 @@ export default async function HomePage() {
               <Link className="buttonLike subtleButton" href="/brands">
                 管理品牌系统
               </Link>
+              <Link className="buttonLike subtleButton" href="/production-studio">
+                内容深度制作
+              </Link>
             </>
           }
           context={brand.name}

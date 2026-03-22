@@ -14,7 +14,7 @@ const mobileNavItems: MobileNavItem[] = [
   { href: "/hotspots", label: "热点" },
   { href: "/review", label: "审核" },
   { href: "/publish", label: "发布" },
-  { href: "/account", label: "账户" }
+  { href: "/production-studio", label: "制作" }
 ];
 
 export function MobileDock() {

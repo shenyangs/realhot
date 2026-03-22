@@ -6,6 +6,7 @@ import { PageHero } from "@/components/page-hero";
 import { PublishActions } from "@/components/publish-actions";
 import { ReviewActions } from "@/components/review-actions";
 import { ReviewEditor } from "@/components/review-editor";
+import { OneClickProductionButton } from "@/components/one-click-production-button";
 import { getBrandStrategyPack, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
 import type { ContentTrack, Platform, ReviewStatus } from "@/lib/domain/types";
 
@@ -299,6 +300,9 @@ export default async function ReviewPage({
             <Link className="buttonLike subtleButton" href="#review-editor">
               直接改稿
             </Link>
+            <Link className="buttonLike subtleButton" href={`/production-studio/${activePack.id}`}>
+              内容深度制作
+            </Link>
           </>
         }
         description="先选题，再看当前稿，再做审核决定。"
@@ -581,6 +585,14 @@ export default async function ReviewPage({
                 <strong>{failedCount} 条</strong>
               </div>
             </div>
+          </section>
+
+          <section className="panel helperPanel reviewNextStepBlock">
+            <OneClickProductionButton
+              disabled={activePack.status !== "approved"}
+              disabledReason="选题通过后，这里会启用一键制作图文+视频。"
+              packId={activePack.id}
+            />
           </section>
 
           {activePack.status === "approved" ? (
