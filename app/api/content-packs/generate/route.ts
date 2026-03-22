@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateContentPackForHotspot } from "@/lib/services/content-pack-generator";
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const maybeMessage = (error as { message?: unknown }).message;
+    const maybeDetails = (error as { details?: unknown }).details;
+    const maybeHint = (error as { hint?: unknown }).hint;
+    const parts = [maybeMessage, maybeDetails, maybeHint]
+      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .map((item) => item.trim());
+
+    if (parts.length > 0) {
+      return parts.join(" | ");
+    }
+  }
+
+  return "Content pack generation failed";
+}
+
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as {
@@ -28,7 +49,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Content pack generation failed"
+        error: getErrorMessage(error)
       },
       {
         status: 500
