@@ -66,7 +66,7 @@ export default async function ProductionStudioPage({
             返回审核台
           </Link>
         </div>
-        <p className="muted">这里会统一承接一键制作后的图文、视频、口播与字幕产物，先做可视化与可重试骨架。</p>
+        <p className="muted">这里会统一承接一键制作后的图文、视频、口播与字幕产物，可直接重生资产、替换封面并导出发布包。</p>
       </section>
 
       <section className="summaryGrid">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ProductionAsset, ProductionDraft, ProductionJob, ProductionJobStage } from "@/lib/domain/types";
 
 interface ProductionStudioConsoleProps {
@@ -12,13 +12,21 @@ interface ProductionStudioConsoleProps {
   initialBody: string;
 }
 
-function pickAsset(assets: ProductionAsset[], kind: ProductionAsset["kind"]) {
-  return assets.find((asset) => asset.kind === kind);
-}
-
 function isLikelyVideoUrl(url: string): boolean {
   const normalized = url.toLowerCase();
   return normalized.endsWith(".mp4") || normalized.endsWith(".mov") || normalized.includes("video");
+}
+
+function pickPreferredAsset(assets: ProductionAsset[], preferredId?: string | null): ProductionAsset | null {
+  if (preferredId) {
+    const matched = assets.find((asset) => asset.id === preferredId);
+
+    if (matched) {
+      return matched;
+    }
+  }
+
+  return assets[0] ?? null;
 }
 
 export function ProductionStudioConsole({
@@ -34,7 +42,27 @@ export function ProductionStudioConsole({
   const [draft, setDraft] = useState<ProductionDraft | null>(initialDraft);
   const [message, setMessage] = useState<string>("");
   const [isPending, startTransition] = useTransition();
+  const autoStartRef = useRef(false);
   const storageKey = useMemo(() => `signalstack:production:${packId}`, [packId]);
+
+  const imageAssets = useMemo(() => assets.filter((asset) => asset.kind === "image"), [assets]);
+  const videoAssets = useMemo(() => assets.filter((asset) => asset.kind === "video"), [assets]);
+  const voiceAssets = useMemo(() => assets.filter((asset) => asset.kind === "voice"), [assets]);
+  const subtitleAssets = useMemo(() => assets.filter((asset) => asset.kind === "subtitle"), [assets]);
+  const scriptAsset = useMemo(() => assets.find((asset) => asset.kind === "script") ?? null, [assets]);
+
+  const [coverAssetId, setCoverAssetId] = useState<string>(
+    initialDraft?.coverAssetId ?? initialAssets.find((asset) => asset.kind === "image")?.id ?? ""
+  );
+  const [videoAssetId, setVideoAssetId] = useState<string>(
+    initialDraft?.videoAssetId ?? initialAssets.find((asset) => asset.kind === "video")?.id ?? ""
+  );
+  const [voiceAssetId, setVoiceAssetId] = useState<string>(
+    initialDraft?.voiceAssetId ?? initialAssets.find((asset) => asset.kind === "voice")?.id ?? ""
+  );
+  const [subtitleAssetId, setSubtitleAssetId] = useState<string>(
+    initialAssets.find((asset) => asset.kind === "subtitle")?.id ?? ""
+  );
   const [title, setTitle] = useState(initialDraft?.title ?? initialTitle);
   const [body, setBody] = useState(initialDraft?.body ?? initialBody);
   const [subtitles, setSubtitles] = useState(
@@ -49,7 +77,15 @@ export function ProductionStudioConsole({
         "你可以在这里直接微调字幕内容。"
       ].join("\n")
   );
+  const [coverImageUrl, setCoverImageUrl] = useState<string>(
+    pickPreferredAsset(initialAssets.filter((asset) => asset.kind === "image"), initialDraft?.coverAssetId)?.previewUrl ?? ""
+  );
   const [lastSavedAt, setLastSavedAt] = useState<string>(initialDraft?.updatedAt ?? "");
+
+  const selectedImageAsset = pickPreferredAsset(imageAssets, coverAssetId);
+  const selectedVideoAsset = pickPreferredAsset(videoAssets, videoAssetId);
+  const selectedVoiceAsset = pickPreferredAsset(voiceAssets, voiceAssetId);
+  const selectedSubtitleAsset = pickPreferredAsset(subtitleAssets, subtitleAssetId);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(storageKey);
@@ -63,11 +99,22 @@ export function ProductionStudioConsole({
         title?: string;
         body?: string;
         subtitles?: string;
+        coverAssetId?: string;
+        videoAssetId?: string;
+        voiceAssetId?: string;
+        subtitleAssetId?: string;
+        coverImageUrl?: string;
         updatedAt?: string;
       };
+
       setTitle(parsed.title ?? initialDraft?.title ?? initialTitle);
       setBody(parsed.body ?? initialDraft?.body ?? initialBody);
       setSubtitles(parsed.subtitles ?? initialDraft?.subtitles ?? subtitles);
+      setCoverAssetId(parsed.coverAssetId ?? initialDraft?.coverAssetId ?? "");
+      setVideoAssetId(parsed.videoAssetId ?? initialDraft?.videoAssetId ?? "");
+      setVoiceAssetId(parsed.voiceAssetId ?? initialDraft?.voiceAssetId ?? "");
+      setSubtitleAssetId(parsed.subtitleAssetId ?? initialAssets.find((asset) => asset.kind === "subtitle")?.id ?? "");
+      setCoverImageUrl(parsed.coverImageUrl ?? "");
       setLastSavedAt(parsed.updatedAt ?? initialDraft?.updatedAt ?? "");
     } catch {
       window.localStorage.removeItem(storageKey);
@@ -81,6 +128,11 @@ export function ProductionStudioConsole({
         title,
         body,
         subtitles,
+        coverAssetId,
+        videoAssetId,
+        voiceAssetId,
+        subtitleAssetId,
+        coverImageUrl,
         updatedAt: new Date().toISOString()
       };
 
@@ -89,11 +141,45 @@ export function ProductionStudioConsole({
     }, 450);
 
     return () => window.clearTimeout(timeout);
-  }, [body, storageKey, subtitles, title]);
+  }, [body, coverAssetId, coverImageUrl, storageKey, subtitleAssetId, subtitles, title, videoAssetId, voiceAssetId]);
 
-  async function refreshJobDetail() {
+  useEffect(() => {
+    if (!selectedImageAsset) {
+      return;
+    }
+
+    setCoverImageUrl(selectedImageAsset.previewUrl ?? "");
+  }, [selectedImageAsset?.id, selectedImageAsset?.previewUrl]);
+
+  useEffect(() => {
+    if (imageAssets.length > 0 && !imageAssets.some((asset) => asset.id === coverAssetId)) {
+      setCoverAssetId(imageAssets[0].id);
+    }
+  }, [coverAssetId, imageAssets]);
+
+  useEffect(() => {
+    if (videoAssets.length > 0 && !videoAssets.some((asset) => asset.id === videoAssetId)) {
+      setVideoAssetId(videoAssets[0].id);
+    }
+  }, [videoAssetId, videoAssets]);
+
+  useEffect(() => {
+    if (voiceAssets.length > 0 && !voiceAssets.some((asset) => asset.id === voiceAssetId)) {
+      setVoiceAssetId(voiceAssets[0].id);
+    }
+  }, [voiceAssetId, voiceAssets]);
+
+  useEffect(() => {
+    if (subtitleAssets.length > 0 && !subtitleAssets.some((asset) => asset.id === subtitleAssetId)) {
+      setSubtitleAssetId(subtitleAssets[0].id);
+    }
+  }, [subtitleAssetId, subtitleAssets]);
+
+  async function refreshJobDetail(silent = false) {
     if (!job?.id) {
-      setMessage("当前还没有可刷新的一键制作作业。");
+      if (!silent) {
+        setMessage("当前还没有可刷新的一键制作作业。");
+      }
       return;
     }
 
@@ -107,7 +193,9 @@ export function ProductionStudioConsole({
     };
 
     if (!response.ok || !payload.ok || !payload.job) {
-      setMessage(payload.error ?? "刷新作业状态失败");
+      if (!silent) {
+        setMessage(payload.error ?? "刷新作业状态失败");
+      }
       return;
     }
 
@@ -119,11 +207,66 @@ export function ProductionStudioConsole({
       setTitle(payload.draft.title);
       setBody(payload.draft.body);
       setSubtitles(payload.draft.subtitles);
+      setCoverAssetId(payload.draft.coverAssetId ?? "");
+      setVideoAssetId(payload.draft.videoAssetId ?? "");
+      setVoiceAssetId(payload.draft.voiceAssetId ?? "");
       setLastSavedAt(payload.draft.updatedAt);
     }
 
-    setMessage(`已刷新：${payload.job.status} / ${payload.job.stage}`);
+    if (!silent) {
+      setMessage(`已刷新：${payload.job.status} / ${payload.job.stage}`);
+    }
   }
+
+  useEffect(() => {
+    if (!job?.id || autoStartRef.current) {
+      return;
+    }
+
+    if (job.status !== "queued") {
+      return;
+    }
+
+    autoStartRef.current = true;
+
+    startTransition(async () => {
+      const response = await fetch(`/api/production/jobs/${job.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          action: "start"
+        })
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        runError?: string;
+      };
+
+      if (!response.ok || !payload.ok) {
+        setMessage(payload.error ?? "启动一键制作失败");
+        return;
+      }
+
+      await refreshJobDetail(true);
+      setMessage(payload.runError ? `作业完成但存在警告：${payload.runError}` : "一键制作已启动");
+    });
+  }, [job?.id, job?.status]);
+
+  useEffect(() => {
+    if (!job?.id || job.status !== "running") {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void refreshJobDetail(true);
+    }, 3500);
+
+    return () => window.clearInterval(timer);
+  }, [job?.id, job?.status]);
 
   function rerunStage(stage: ProductionJobStage | "retry") {
     if (!job?.id) {
@@ -159,10 +302,67 @@ export function ProductionStudioConsole({
         return;
       }
 
-      await refreshJobDetail();
-      if (payload.runError) {
-        setMessage(`作业完成但存在警告：${payload.runError}`);
+      await refreshJobDetail(true);
+      setMessage(payload.runError ? `作业完成但存在警告：${payload.runError}` : "阶段重跑完成");
+    });
+  }
+
+  function regenerateAsset(asset: ProductionAsset | null, label: string) {
+    if (!asset) {
+      setMessage(`当前没有可${label}的资产`);
+      return;
+    }
+
+    startTransition(async () => {
+      setMessage("");
+      const response = await fetch(`/api/production/assets/${asset.id}/regenerate`, {
+        method: "POST"
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.ok) {
+        setMessage(payload.error ?? `${label}失败`);
+        return;
       }
+
+      await refreshJobDetail(true);
+      setMessage(`${label}完成`);
+    });
+  }
+
+  function applyCoverImageUrl() {
+    if (!selectedImageAsset?.id || !coverImageUrl.trim()) {
+      setMessage("请先选择封面资产并填写 URL");
+      return;
+    }
+
+    startTransition(async () => {
+      setMessage("");
+      const response = await fetch(`/api/production/assets/${selectedImageAsset.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          previewUrl: coverImageUrl.trim()
+        })
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.ok) {
+        setMessage(payload.error ?? "替换封面失败");
+        return;
+      }
+
+      await refreshJobDetail(true);
+      setMessage("封面地址已更新");
     });
   }
 
@@ -178,9 +378,9 @@ export function ProductionStudioConsole({
           title,
           body,
           subtitles,
-          coverAssetId: pickAsset(assets, "image")?.id,
-          videoAssetId: pickAsset(assets, "video")?.id,
-          voiceAssetId: pickAsset(assets, "voice")?.id
+          coverAssetId: coverAssetId || undefined,
+          videoAssetId: videoAssetId || undefined,
+          voiceAssetId: voiceAssetId || undefined
         })
       });
 
@@ -237,12 +437,6 @@ export function ProductionStudioConsole({
     });
   }
 
-  const scriptAsset = pickAsset(assets, "script");
-  const imageAsset = pickAsset(assets, "image");
-  const videoAsset = pickAsset(assets, "video");
-  const voiceAsset = pickAsset(assets, "voice");
-  const subtitleAsset = pickAsset(assets, "subtitle");
-
   return (
     <section className="panel">
       <div className="panelHeader sectionTitle">
@@ -253,6 +447,8 @@ export function ProductionStudioConsole({
         <span className="pill pill-neutral">{job ? `${job.status} / ${job.stage}` : "未触发作业"}</span>
       </div>
 
+      {job?.errorMessage ? <p className="muted">上次执行提示：{job.errorMessage}</p> : null}
+
       <div className="inlineActions">
         <button className="buttonLike subtleButton" disabled={isPending} onClick={() => void refreshJobDetail()} type="button">
           刷新作业状态
@@ -261,33 +457,112 @@ export function ProductionStudioConsole({
           全链路重跑
         </button>
         <button className="buttonLike subtleButton" disabled={isPending || !job} onClick={() => rerunStage("image")} type="button">
-          重生图片
+          从图片阶段重跑
         </button>
         <button className="buttonLike subtleButton" disabled={isPending || !job} onClick={() => rerunStage("video")} type="button">
-          重生视频
-        </button>
-        <button className="buttonLike subtleButton" disabled={isPending || !job} onClick={() => rerunStage("voice")} type="button">
-          重跑口播+字幕
+          从视频阶段重跑
         </button>
       </div>
 
       <div className="brandInfoGrid">
         <article className="subPanel">
           <strong>图文预览</strong>
-          {imageAsset?.previewUrl ? <img alt="封面预览" src={imageAsset.previewUrl} style={{ width: "100%", borderRadius: "12px" }} /> : null}
-          <p className="muted">{imageAsset?.textContent ?? "暂无图像资产"}</p>
+          {selectedImageAsset?.previewUrl ? (
+            <img alt="封面预览" src={selectedImageAsset.previewUrl} style={{ width: "100%", borderRadius: "12px" }} />
+          ) : null}
+          <p className="muted">{selectedImageAsset?.textContent ?? "暂无图像资产"}</p>
+          <label className="field">
+            <span>封面资产</span>
+            <select onChange={(event) => setCoverAssetId(event.target.value)} value={coverAssetId}>
+              {imageAssets.length === 0 ? <option value="">暂无图像</option> : null}
+              {imageAssets.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>替换封面 URL</span>
+            <input onChange={(event) => setCoverImageUrl(event.target.value)} value={coverImageUrl} />
+          </label>
+          <div className="inlineActions">
+            <button className="buttonLike subtleButton" disabled={isPending || !selectedImageAsset} onClick={() => regenerateAsset(selectedImageAsset, "重生图片")} type="button">
+              重生当前图片
+            </button>
+            <button className="buttonLike subtleButton" disabled={isPending || !selectedImageAsset} onClick={applyCoverImageUrl} type="button">
+              应用封面 URL
+            </button>
+          </div>
         </article>
 
         <article className="subPanel">
           <strong>视频预览</strong>
-          {videoAsset?.previewUrl ? (
-            isLikelyVideoUrl(videoAsset.previewUrl) ? (
-              <video controls playsInline src={videoAsset.previewUrl} style={{ width: "100%", borderRadius: "12px" }} />
+          {selectedVideoAsset?.previewUrl ? (
+            isLikelyVideoUrl(selectedVideoAsset.previewUrl) ? (
+              <video controls playsInline src={selectedVideoAsset.previewUrl} style={{ width: "100%", borderRadius: "12px" }} />
             ) : (
-              <img alt="视频预览" src={videoAsset.previewUrl} style={{ width: "100%", borderRadius: "12px" }} />
+              <img alt="视频预览" src={selectedVideoAsset.previewUrl} style={{ width: "100%", borderRadius: "12px" }} />
             )
           ) : null}
-          <p className="muted">{videoAsset?.textContent?.slice(0, 120) ?? "暂无视频资产"}</p>
+          <p className="muted">{selectedVideoAsset?.textContent?.slice(0, 120) ?? "暂无视频资产"}</p>
+          <label className="field">
+            <span>视频资产</span>
+            <select onChange={(event) => setVideoAssetId(event.target.value)} value={videoAssetId}>
+              {videoAssets.length === 0 ? <option value="">暂无视频</option> : null}
+              {videoAssets.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="inlineActions">
+            <button className="buttonLike subtleButton" disabled={isPending || !selectedVideoAsset} onClick={() => regenerateAsset(selectedVideoAsset, "重生视频")} type="button">
+              重生当前视频
+            </button>
+          </div>
+        </article>
+      </div>
+
+      <div className="brandInfoGrid">
+        <article className="subPanel">
+          <strong>口播预览</strong>
+          {selectedVoiceAsset?.previewUrl ? <audio controls src={selectedVoiceAsset.previewUrl} style={{ width: "100%" }} /> : null}
+          <p className="muted">{selectedVoiceAsset?.textContent?.slice(0, 180) ?? "暂无口播资产"}</p>
+          <label className="field">
+            <span>口播资产</span>
+            <select onChange={(event) => setVoiceAssetId(event.target.value)} value={voiceAssetId}>
+              {voiceAssets.length === 0 ? <option value="">暂无口播</option> : null}
+              {voiceAssets.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="buttonLike subtleButton" disabled={isPending || !selectedVoiceAsset} onClick={() => regenerateAsset(selectedVoiceAsset, "重跑口播")} type="button">
+            重跑当前口播
+          </button>
+        </article>
+
+        <article className="subPanel">
+          <strong>字幕资产</strong>
+          <p className="muted">{selectedSubtitleAsset?.textContent?.slice(0, 120) ?? "暂无字幕资产"}</p>
+          <label className="field">
+            <span>字幕资产</span>
+            <select onChange={(event) => setSubtitleAssetId(event.target.value)} value={subtitleAssetId}>
+              {subtitleAssets.length === 0 ? <option value="">暂无字幕</option> : null}
+              {subtitleAssets.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="buttonLike subtleButton" disabled={isPending || !selectedSubtitleAsset} onClick={() => regenerateAsset(selectedSubtitleAsset, "重跑字幕")} type="button">
+            重跑当前字幕
+          </button>
         </article>
       </div>
 
@@ -324,12 +599,12 @@ export function ProductionStudioConsole({
           <strong>{scriptAsset ? "已生成" : "未生成"}</strong>
         </div>
         <div>
-          <span>口播资产</span>
-          <strong>{voiceAsset ? "已生成" : "未生成"}</strong>
+          <span>图片资产</span>
+          <strong>{imageAssets.length > 0 ? `${imageAssets.length} 份` : "未生成"}</strong>
         </div>
         <div>
-          <span>字幕资产</span>
-          <strong>{subtitleAsset ? "已生成" : "未生成"}</strong>
+          <span>视频资产</span>
+          <strong>{videoAssets.length > 0 ? `${videoAssets.length} 份` : "未生成"}</strong>
         </div>
         <div>
           <span>草稿状态</span>

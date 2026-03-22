@@ -205,6 +205,54 @@ export async function listProductionAssetsByPack(packId: string): Promise<Produc
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
+export async function getProductionAssetById(assetId: string): Promise<ProductionAsset | null> {
+  const store = await readLocalDataStore();
+  return store.productionAssets.find((asset) => asset.id === assetId) ?? null;
+}
+
+export async function updateProductionAsset(
+  assetId: string,
+  input: {
+    name?: string;
+    status?: ProductionAsset["status"];
+    previewUrl?: string;
+    textContent?: string;
+    jsonContent?: string;
+    errorMessage?: string;
+    provider?: string;
+    model?: string;
+  }
+): Promise<ProductionAsset | null> {
+  let updated: ProductionAsset | null = null;
+  const now = new Date().toISOString();
+
+  await updateLocalDataStore((store) => ({
+    ...store,
+    productionAssets: store.productionAssets.map((asset) => {
+      if (asset.id !== assetId) {
+        return asset;
+      }
+
+      updated = {
+        ...asset,
+        name: input.name ?? asset.name,
+        status: input.status ?? asset.status,
+        previewUrl: input.previewUrl ?? asset.previewUrl,
+        textContent: input.textContent ?? asset.textContent,
+        jsonContent: input.jsonContent ?? asset.jsonContent,
+        errorMessage: input.errorMessage ?? asset.errorMessage,
+        provider: input.provider ?? asset.provider,
+        model: input.model ?? asset.model,
+        updatedAt: now
+      };
+
+      return updated;
+    })
+  }));
+
+  return updated;
+}
+
 export async function getProductionDraftByPack(packId: string, workspaceId: string): Promise<ProductionDraft | null> {
   const store = await readLocalDataStore();
   return store.productionDrafts.find((item) => item.packId === packId && item.workspaceId === workspaceId) ?? null;
@@ -245,6 +293,30 @@ export async function saveProductionDraft(input: {
   }));
 
   return draft;
+}
+
+function mapAssetKindToStage(kind: ProductionAssetKind): ProductionJobStage {
+  if (kind === "bundle") {
+    return "finalize";
+  }
+
+  if (kind === "subtitle") {
+    return "subtitle";
+  }
+
+  if (kind === "voice") {
+    return "voice";
+  }
+
+  if (kind === "video") {
+    return "video";
+  }
+
+  if (kind === "image") {
+    return "image";
+  }
+
+  return "script";
 }
 
 function removeRegeneratedKinds(existing: ProductionAsset[], fromStage: ProductionJobStage): ProductionAsset[] {
@@ -349,6 +421,256 @@ function composeVideoPrompt(input: {
     "参考脚本：",
     input.script.slice(0, 1400)
   ].join("\n");
+}
+
+export async function regenerateProductionAsset(input: {
+  assetId: string;
+  requestedBy?: string;
+}): Promise<{
+  asset: ProductionAsset;
+  job: ProductionJob;
+  draft: ProductionDraft | null;
+}> {
+  const currentAsset = await getProductionAssetById(input.assetId);
+
+  if (!currentAsset) {
+    throw new Error("asset_not_found");
+  }
+
+  const job = await getProductionJobById(currentAsset.jobId);
+
+  if (!job) {
+    throw new Error("job_not_found");
+  }
+
+  const pack = await getHotspotPack(job.packId);
+
+  if (!pack) {
+    throw new Error("pack_not_found");
+  }
+
+  const [brand, hotspots, assetsForJob] = await Promise.all([
+    getBrandStrategyPack(),
+    getHotspotSignals(),
+    listProductionAssetsByJob(job.id)
+  ]);
+  const hotspot = hotspots.find((item) => item.id === pack.hotspotId);
+  const baseTitle = pack.variants[0]?.title ?? pack.whyNow;
+  const baseBody = pack.variants[0]?.body ?? pack.whyUs;
+
+  let scriptText = assetsForJob.find((asset) => asset.kind === "script")?.textContent ?? "";
+
+  if (!scriptText) {
+    scriptText = await runModelTask(
+      "strategy-planning",
+      composeScriptPrompt({
+        brandName: brand.name,
+        topics: brand.topics,
+        tone: brand.tone,
+        hotspotTitle: hotspot?.title ?? baseTitle,
+        hotspotSummary: hotspot?.summary ?? pack.whyNow,
+        targetTitle: baseTitle,
+        targetBody: baseBody
+      })
+    );
+  }
+
+  let nextName = currentAsset.name;
+  let nextStatus: ProductionAsset["status"] = "ready";
+  let nextProvider = currentAsset.provider;
+  let nextModel = currentAsset.model;
+  let nextPreviewUrl = currentAsset.previewUrl;
+  let nextText = currentAsset.textContent;
+  let nextJson = currentAsset.jsonContent;
+  let nextError = "";
+  let producedVoiceScript: string | undefined;
+  let producedSubtitles: string | undefined;
+
+  if (currentAsset.kind === "script") {
+    const route = decideModelRoute("strategy-planning");
+    nextProvider = route.provider;
+    nextModel = route.model;
+    nextText = await runModelTask(
+      "strategy-planning",
+      composeScriptPrompt({
+        brandName: brand.name,
+        topics: brand.topics,
+        tone: brand.tone,
+        hotspotTitle: hotspot?.title ?? baseTitle,
+        hotspotSummary: hotspot?.summary ?? pack.whyNow,
+        targetTitle: baseTitle,
+        targetBody: baseBody
+      })
+    );
+  } else if (currentAsset.kind === "image") {
+    const imagePrompt = composeImagePrompt({
+      brandName: brand.name,
+      title: baseTitle,
+      summary: hotspot?.summary ?? pack.whyNow,
+      script: scriptText || baseBody
+    });
+    const imageResult = await generateImageAssets({
+      prompt: imagePrompt,
+      desiredCount: 1
+    }).catch((error) => ({
+      provider: "pipeline",
+      model: "preview-image-v1",
+      assets: [],
+      warning: `生图接口调用失败：${error instanceof Error ? error.message : "unknown_error"}`
+    }));
+
+    nextProvider = imageResult.provider;
+    nextModel = imageResult.model;
+    nextName = imageResult.assets[0]?.name ?? currentAsset.name;
+    nextPreviewUrl =
+      imageResult.assets[0]?.previewUrl ??
+      buildSvgDataUrl({
+        title: baseTitle,
+        subtitle: brand.name,
+        tint: "#0f172a"
+      });
+    nextText = imageResult.assets[0]?.prompt ? `提示词：${imageResult.assets[0].prompt}` : currentAsset.textContent;
+    nextError = imageResult.warning ?? "";
+  } else if (currentAsset.kind === "video") {
+    const videoPrompt = composeVideoPrompt({
+      brandName: brand.name,
+      title: baseTitle,
+      summary: hotspot?.summary ?? pack.whyNow,
+      script: scriptText || baseBody
+    });
+    const videoResult = await generateVideoAssets({
+      prompt: videoPrompt,
+      script: scriptText || baseBody,
+      desiredCount: 1,
+      durationSeconds: 45
+    }).catch((error) => ({
+      provider: "pipeline",
+      model: "storyboard-video-v1",
+      assets: [],
+      voiceScript: undefined,
+      subtitles: undefined,
+      warning: `视频接口调用失败：${error instanceof Error ? error.message : "unknown_error"}`
+    }));
+
+    nextProvider = videoResult.provider;
+    nextModel = videoResult.model;
+    nextName = videoResult.assets[0]?.name ?? currentAsset.name;
+    nextPreviewUrl =
+      videoResult.assets[0]?.previewUrl ??
+      buildSvgDataUrl({
+        title: "9:16 视频草片",
+        subtitle: "重生后预览",
+        tint: "#1f2937"
+      });
+    nextText = [videoResult.assets[0]?.narrative, videoResult.assets[0]?.videoUrl ? `视频地址：${videoResult.assets[0].videoUrl}` : ""]
+      .filter(Boolean)
+      .join("\n");
+    producedVoiceScript = videoResult.voiceScript;
+    producedSubtitles = videoResult.subtitles;
+    nextError = videoResult.warning ?? "";
+  } else if (currentAsset.kind === "voice") {
+    nextProvider = "pipeline";
+    nextModel = "voice-script-v1";
+    nextText = [`标题：${baseTitle}`, scriptText.slice(0, 1200) || baseBody].join("\n\n");
+  } else if (currentAsset.kind === "subtitle") {
+    nextProvider = "pipeline";
+    nextModel = "subtitle-align-v1";
+    nextText = buildSubtitleFromScript(scriptText || baseBody);
+  } else if (currentAsset.kind === "bundle") {
+    nextProvider = "pipeline";
+    nextModel = "bundle-v1";
+    const bundle = await buildProductionPublishBundle({
+      packId: pack.id,
+      workspaceId: job.workspaceId
+    });
+    nextJson = JSON.stringify(bundle.bundle, null, 2);
+  }
+
+  const updatedAsset = await updateProductionAsset(currentAsset.id, {
+    name: nextName,
+    status: nextStatus,
+    previewUrl: nextPreviewUrl,
+    textContent: nextText,
+    jsonContent: nextJson,
+    errorMessage: nextError,
+    provider: nextProvider,
+    model: nextModel
+  });
+
+  if (!updatedAsset) {
+    throw new Error("asset_update_failed");
+  }
+
+  if (currentAsset.kind === "video" && producedVoiceScript) {
+    const voiceAsset = assetsForJob.find((asset) => asset.kind === "voice");
+
+    if (voiceAsset) {
+      await updateProductionAsset(voiceAsset.id, {
+        textContent: [`标题：${baseTitle}`, producedVoiceScript].join("\n\n"),
+        provider: updatedAsset.provider,
+        model: updatedAsset.model,
+        errorMessage: ""
+      });
+    }
+  }
+
+  if ((currentAsset.kind === "video" && producedSubtitles) || currentAsset.kind === "subtitle") {
+    const subtitleAsset = assetsForJob.find((asset) => asset.kind === "subtitle");
+    const subtitleText = currentAsset.kind === "subtitle" ? nextText ?? "" : producedSubtitles ?? "";
+
+    if (subtitleAsset && subtitleText) {
+      await updateProductionAsset(subtitleAsset.id, {
+        textContent: subtitleText,
+        provider: "pipeline",
+        model: "subtitle-align-v1",
+        errorMessage: ""
+      });
+    }
+  }
+
+  const currentDraft = await getProductionDraftByPack(pack.id, job.workspaceId);
+  let draft: ProductionDraft | null = currentDraft;
+
+  if (currentDraft) {
+    draft = await saveProductionDraft({
+      workspaceId: currentDraft.workspaceId,
+      packId: currentDraft.packId,
+      title: currentDraft.title,
+      body: currentDraft.body,
+      subtitles:
+        currentAsset.kind === "subtitle"
+          ? nextText ?? currentDraft.subtitles
+          : currentAsset.kind === "video" && producedSubtitles
+            ? producedSubtitles
+            : currentDraft.subtitles,
+      coverAssetId: currentDraft.coverAssetId ?? (currentAsset.kind === "image" ? currentAsset.id : undefined),
+      videoAssetId: currentDraft.videoAssetId ?? (currentAsset.kind === "video" ? currentAsset.id : undefined),
+      voiceAssetId: currentDraft.voiceAssetId ?? (currentAsset.kind === "voice" ? currentAsset.id : undefined),
+      updatedBy: input.requestedBy ?? job.createdBy
+    });
+  }
+
+  const refreshedJob = await updateProductionJob(job.id, {
+    status: "needs-review",
+    stage: mapAssetKindToStage(currentAsset.kind),
+    errorMessage: nextError
+  });
+
+  if (!refreshedJob) {
+    throw new Error("job_update_failed");
+  }
+
+  const refreshedAsset = await getProductionAssetById(currentAsset.id);
+
+  if (!refreshedAsset) {
+    throw new Error("asset_refresh_failed");
+  }
+
+  return {
+    asset: refreshedAsset,
+    job: refreshedJob,
+    draft
+  };
 }
 
 export async function runProductionJob(input: {

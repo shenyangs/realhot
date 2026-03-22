@@ -52,11 +52,11 @@ export async function PATCH(
 
   const { jobId } = await context.params;
   const body = (await request.json().catch(() => ({}))) as {
-    action?: "retry" | "rerun_stage";
+    action?: "start" | "retry" | "rerun_stage";
     stage?: ProductionJobStage;
   };
 
-  if (!body.action || (body.action !== "retry" && body.action !== "rerun_stage")) {
+  if (!body.action || (body.action !== "start" && body.action !== "retry" && body.action !== "rerun_stage")) {
     return NextResponse.json({ ok: false, error: "unsupported_action" }, { status: 400 });
   }
 
@@ -70,18 +70,29 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
+  if (body.action === "start" && current.status === "running") {
+    return NextResponse.json({
+      ok: true,
+      job: current
+    });
+  }
+
   const restartStage: ProductionJobStage =
-    body.action === "retry"
+    body.action === "start"
+      ? current.stage
+      : body.action === "retry"
       ? "script"
       : body.stage === "image" || body.stage === "video" || body.stage === "voice" || body.stage === "subtitle"
         ? body.stage
         : "script";
 
+  const nextRetryCount = body.action === "start" ? current.retryCount : current.retryCount + 1;
+
   await updateProductionJob(jobId, {
     status: "queued",
     stage: restartStage,
     errorMessage: "",
-    retryCount: current.retryCount + 1
+    retryCount: nextRetryCount
   });
 
   const executed = await runProductionJob({

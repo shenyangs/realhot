@@ -38,6 +38,8 @@
 - `POST /api/production/one-click`
 - `GET /api/production/jobs/:jobId`
 - `PATCH /api/production/jobs/:jobId`
+- `PATCH /api/production/assets/:assetId`
+- `POST /api/production/assets/:assetId/regenerate`
 - `GET /api/production/packs/:packId/draft`
 - `PATCH /api/production/packs/:packId/draft`
 - `POST /api/production/packs/:packId/publish-bundle`
