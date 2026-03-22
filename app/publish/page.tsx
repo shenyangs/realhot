@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { EmptyStateCard } from "@/components/empty-state-card";
+import { PackDeleteButton } from "@/components/pack-delete-button";
+import { PageHero } from "@/components/page-hero";
 import { PublishActions } from "@/components/publish-actions";
+import { PublishJobDeleteButton } from "@/components/publish-job-delete-button";
+import { PublishQueueClearButton } from "@/components/publish-queue-clear-button";
 import { getBrandStrategyPack, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
 import type { Platform } from "@/lib/domain/types";
 
@@ -51,54 +55,44 @@ export default async function PublishPage() {
 
   return (
     <div className="page publishDeskPage">
-      <section className="publishHero panel">
-        <div className="publishHeroCopy">
-          <p className="eyebrow">发布台</p>
-          <h2>把已经改好、审好的内容集中送到真正的出口，而不是继续卡在编辑页里。</h2>
-          <p className="muted heroText">
-            这里专门处理待发布内容、发布队列和结果反馈。编辑台负责把稿子改顺，发布台负责把出口管理清楚。
-          </p>
-          <div className="buttonRow">
+      <PageHero
+        actions={
+          <>
             <Link className="buttonLike primaryButton" href="/review">
-              回到选题库
+              回到选题详情台
             </Link>
             <Link className="buttonLike subtleButton" href="/">
-              回到今日选题台
+              回到工作台
             </Link>
-          </div>
-        </div>
-
-        <div className="publishHeroMeta">
-          <div className="metaPill">
-            <span>当前品牌</span>
-            <strong>{brand.name}</strong>
-          </div>
-          <div className="metaPill">
-            <span>待发布选题</span>
-            <strong>{readyPacks.length} 个热点包</strong>
-          </div>
-          <div className="metaPill">
-            <span>队列状态</span>
-            <strong>{queuedJobs.length} 条待执行，{publishedJobs.length} 条已发布</strong>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+        description="先看待发布内容，再看发布队列，最后处理失败反馈。"
+        eyebrow="发布总览"
+        facts={[
+          { label: "当前品牌", value: brand.name },
+          { label: "待发布选题", value: `${readyPacks.length} 个热点包` },
+          { label: "队列状态", value: `${queuedJobs.length} 条待执行` },
+          { label: "已发布", value: `${publishedJobs.length} 条` }
+        ]}
+        context={brand.name}
+        title="发布执行台"
+      />
 
       <section className="summaryGrid">
         <article className="panel summaryCard">
           <p className="eyebrow">待发布</p>
           <h3>{readyPacks.length} 个</h3>
-          <p className="muted">这些内容包已经通过审核，可以在这里统一排队、导出或立即执行。</p>
+          <p className="muted">已通过审核，待进入发布。</p>
         </article>
         <article className="panel summaryCard">
           <p className="eyebrow">队列中</p>
           <h3>{queuedJobs.length} 条</h3>
-          <p className="muted">这里看的是已经进入队列但还没真正发出的任务，方便集中盯住节奏。</p>
+          <p className="muted">已进入队列，等待执行。</p>
         </article>
         <article className="panel summaryCard">
           <p className="eyebrow">异常反馈</p>
           <h3>{failedJobs.length} 条</h3>
-          <p className="muted">发布失败会回到这里，方便你快速判断是重试、导出，还是回到编辑台再修。</p>
+          <p className="muted">失败任务在这里集中处理。</p>
         </article>
       </section>
 
@@ -108,7 +102,7 @@ export default async function PublishPage() {
           <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">待发布内容</p>
-              <h3>这些选题任务已经可以进入发布台</h3>
+              <h3>哪些题准备发</h3>
             </div>
           </div>
 
@@ -124,8 +118,8 @@ export default async function PublishPage() {
                       <div className="panelHeader sectionTitle">
                         <div>
                           <p className="eyebrow">热点包 {pack.id}</p>
-                          <h3>{pack.variants[0]?.title ?? pack.whyNow}</h3>
-                          <p className="muted">{pack.whyUs}</p>
+                          <h3 className="publishPackTitle">{pack.variants[0]?.title ?? pack.whyNow}</h3>
+                          <p className="muted publishPackSummary">{pack.whyUs}</p>
                         </div>
                         <Link className="sectionLink" href={`/review?pack=${pack.id}&variant=${pack.variants[0]?.id ?? ""}`}>
                           进入选题编辑
@@ -151,8 +145,8 @@ export default async function PublishPage() {
                         {pack.variants.map((variant) => (
                           <div className="publishVariantItem" key={variant.id}>
                             <div>
-                              <strong>{variant.title}</strong>
-                              <p className="muted">{variant.angle}</p>
+                              <strong className="publishVariantTitle">{variant.title}</strong>
+                              <p className="muted publishVariantSummary">{variant.angle}</p>
                             </div>
                             <span className="muted">{variant.platforms.map((platform) => platformLabels[platform]).join(" / ")}</span>
                           </div>
@@ -165,16 +159,17 @@ export default async function PublishPage() {
                         publishedCount={publishedCount}
                         queuedCount={queuedCount}
                       />
+                      <PackDeleteButton label="删除这题" packId={pack.id} redirectHref="/publish" />
                     </article>
                   );
                 })
               ) : (
                 <EmptyStateCard
                   actionLabel="去选题库推进内容"
-                  description="当前还没有已通过审核的选题任务进入发布台。先把内容改到可审、可发，再回来统一处理出口。"
+                  description="当前暂无可发布内容。"
                   eyebrow="发布台"
                   href="/review"
-                  title="现在还没有可以进入发布的内容"
+                  title="暂无待发布内容"
                 />
               )}
             </div>
@@ -183,8 +178,13 @@ export default async function PublishPage() {
 
         <aside className="publishAsideColumn">
           <section className="panel helperPanel">
-            <p className="eyebrow">队列中任务</p>
-            <h3>已经排队，等待执行</h3>
+            <div className="listItem">
+              <div>
+                <p className="eyebrow">队列中任务</p>
+                <h3>待执行队列</h3>
+              </div>
+              <PublishQueueClearButton label="清空全部待执行" />
+            </div>
             <div className="publishJobList">
               {queuedJobs.length > 0 ? (
                 queuedJobs.map((job) => (
@@ -193,16 +193,19 @@ export default async function PublishPage() {
                       <strong>{job.variantTitle}</strong>
                       <p className="muted">{platformLabels[job.platform]} · {job.publishWindow}</p>
                     </div>
-                    <span className="pill pill-neutral">已排队</span>
+                    <div className="publishJobControls">
+                      <span className="pill pill-neutral">已排队</span>
+                      <PublishJobDeleteButton jobId={job.id} />
+                    </div>
                   </div>
                 ))
               ) : (
                 <EmptyStateCard
                   actionLabel="去看待发布内容"
-                  description="当前没有排队中的发布任务。你可以先把已通过选题送进发布台，或者继续推进审核。"
+                  description="当前队列为空。"
                   eyebrow="队列中任务"
                   href="/publish"
-                  title="发布队列现在是空的"
+                  title="暂无队列任务"
                 />
               )}
             </div>
@@ -210,7 +213,7 @@ export default async function PublishPage() {
 
           <section className="panel helperPanel">
             <p className="eyebrow">已发布记录</p>
-            <h3>已经成功送出的内容</h3>
+            <h3>发布记录</h3>
             <div className="publishJobList">
               {publishedJobs.length > 0 ? (
                 publishedJobs.map((job) => (
@@ -226,9 +229,9 @@ export default async function PublishPage() {
                 ))
               ) : (
                 <EmptyStateCard
-                  description="这里会显示已经成功发布到各个平台的内容记录，方便你确认出口是否真正完成。"
+                  description="成功发布的记录会显示在这里。"
                   eyebrow="已发布记录"
-                  title="还没有成功发布的内容"
+                  title="暂无发布记录"
                 />
               )}
             </div>
@@ -236,7 +239,7 @@ export default async function PublishPage() {
 
           <section className="panel helperPanel">
             <p className="eyebrow">失败反馈</p>
-            <h3>失败后下一步该怎么处理</h3>
+            <h3>失败任务</h3>
             <div className="publishJobList">
               {failedPacks.length > 0 ? (
                 failedPacks.map(({ pack, failedJobs: items, queuedCount, publishedCount, failedCount }) => (
@@ -279,9 +282,9 @@ export default async function PublishPage() {
                 ))
               ) : (
                 <EmptyStateCard
-                  description="当前没有失败任务，说明发布出口比较干净。接下来重点盯住待发布和队列中的任务即可。"
+                  description="当前没有失败任务。"
                   eyebrow="失败反馈"
-                  title="当前没有需要人工处理的失败任务"
+                  title="暂无失败任务"
                 />
               )}
             </div>

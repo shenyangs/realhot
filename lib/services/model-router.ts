@@ -1,4 +1,5 @@
 import { LlmTask, ModelPreference, ModelRouteDecision } from "@/lib/domain/types";
+import { createUserTextContent, extractGeminiText, requestGeminiContent } from "@/lib/services/gemini-client";
 
 export interface ProviderConfig {
   provider: string;
@@ -8,18 +9,6 @@ export interface ProviderConfig {
 }
 
 const providerConfigs: ProviderConfig[] = [
-  {
-    provider: "openai",
-    model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
-    preference: "latency",
-    available: Boolean(process.env.OPENAI_API_KEY)
-  },
-  {
-    provider: "anthropic",
-    model: process.env.ANTHROPIC_MODEL ?? "claude-3-7-sonnet-latest",
-    preference: "quality",
-    available: Boolean(process.env.ANTHROPIC_API_KEY)
-  },
   {
     provider: "gemini",
     model: process.env.GEMINI_MODEL ?? "gemini-2.5-pro",
@@ -55,7 +44,7 @@ export function decideModelRoute(task: LlmTask): ModelRouteDecision {
     reason:
       chosen.provider === "mock"
         ? "No model credentials detected, using deterministic local templates."
-        : `Selected for ${preferred} priority on ${task}.`
+        : `Using Gemini for ${task} with ${preferred} priority.`
   };
 }
 
@@ -71,8 +60,8 @@ export async function runModelTask(task: LlmTask, prompt: string): Promise<strin
     ].join("\n");
   }
 
-  if (route.provider === "openai") {
-    return runOpenAiTask(route.model, prompt);
+  if (route.provider === "gemini") {
+    return runGeminiTask(route.model, prompt);
   }
 
   return [
@@ -82,28 +71,16 @@ export async function runModelTask(task: LlmTask, prompt: string): Promise<strin
   ].join("\n");
 }
 
-async function runOpenAiTask(model: string, prompt: string): Promise<string> {
-  const baseUrl = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
-
-  const response = await fetch(`${baseUrl}/responses`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model,
-      input: prompt
-    })
+async function runGeminiTask(model: string, prompt: string): Promise<string> {
+  const payload = await requestGeminiContent({
+    model,
+    contents: [createUserTextContent(prompt)],
+    timeoutMs: 60000,
+    generationConfig: {
+      responseMimeType: "text/plain"
+    }
   });
+  const outputText = extractGeminiText(payload);
 
-  if (!response.ok) {
-    throw new Error(`OpenAI request failed with status ${response.status}`);
-  }
-
-  const payload = (await response.json()) as {
-    output_text?: string;
-  };
-
-  return payload.output_text ?? "No output_text returned from OpenAI.";
+  return outputText ?? "No text returned from Gemini generateContent.";
 }

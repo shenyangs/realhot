@@ -66,6 +66,49 @@ function buildPrompt(input: RewriteVariantInput) {
   ].join("\n");
 }
 
+function tightenSentence(value: string) {
+  return value.replace(/\s+/g, " ").replace(/，/g, "，").trim();
+}
+
+function buildLocalRewriteFallback(input: RewriteVariantInput): {
+  nextTitle: string;
+  nextBody: string;
+  changeSummary: string;
+} {
+  const request = input.userRequest.trim();
+  const opener = `${input.brandName} 这次不打算泛泛跟热点，而是把重点放在 ${input.whyNow || "当前时机"}。`;
+  const relevance = input.whyUs
+    ? `更关键的是，这件事和品牌相关，因为 ${input.whyUs}。`
+    : `更关键的是，这次表达要回到品牌自己的业务语境。`;
+  const execution =
+    input.trackLabel === "快反"
+      ? "这版建议保留快反节奏，开头先给判断，中段讲清影响，结尾落到品牌动作。"
+      : "这版建议保留观点结构，先讲变化，再讲判断，最后落到品牌方法。";
+
+  const nextTitle = tightenSentence(
+    [
+      input.title.replace(/[。！!？?]+$/g, ""),
+      request ? `｜${request.slice(0, 16)}` : "｜品牌判断版"
+    ].join("")
+  );
+
+  const nextBody = [
+    opener,
+    input.body,
+    relevance,
+    execution,
+    request ? `本轮额外要求：${request}。` : null
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  return {
+    nextTitle,
+    nextBody,
+    changeSummary: "AI 暂不可用，已按当前平台、角度和改稿要求生成一版本地建议，可继续手动细修。"
+  };
+}
+
 export async function rewriteVariantDraft(
   input: RewriteVariantInput
 ): Promise<RewriteVariantResult> {
@@ -82,7 +125,26 @@ export async function rewriteVariantDraft(
     };
   }
 
-  const output = await runModelTask("copy-polish", buildPrompt(input));
+  let output: string;
+
+  try {
+    output = await runModelTask("copy-polish", buildPrompt(input));
+  } catch (error) {
+    const fallback = buildLocalRewriteFallback(input);
+
+    return {
+      mode: input.mode,
+      applied: input.mode === "direct",
+      route,
+      nextTitle: fallback.nextTitle,
+      nextBody: fallback.nextBody,
+      changeSummary:
+        error instanceof Error
+          ? `${fallback.changeSummary} 原因：${error.message}`
+          : fallback.changeSummary
+    };
+  }
+
   const nextTitle = extractSection(output, "TITLE") || input.title;
   const nextBody = extractSection(output, "BODY") || input.body;
   const changeSummary =

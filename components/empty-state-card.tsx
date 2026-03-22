@@ -16,14 +16,21 @@ export function EmptyStateCard({
 }) {
   return (
     <div className="emptyStateCard">
-      <p className="eyebrow">{eyebrow}</p>
-      <h3>{title}</h3>
-      <p className="muted">{description}</p>
-      {href && actionLabel ? (
-        <Link className="buttonLike subtleButton" href={href}>
-          {actionLabel}
-        </Link>
-      ) : null}
+      <div className="emptyStateArtwork" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <div className="emptyStateContent">
+        <p className="eyebrow">{eyebrow}</p>
+        <h3>{title}</h3>
+        <p className="muted">{description}</p>
+        {href && actionLabel ? (
+          <Link className="buttonLike subtleButton" href={href}>
+            {actionLabel}
+          </Link>
+        ) : null}
+      </div>
     </div>
   );
 }

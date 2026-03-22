@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateHotspotPackReview } from "@/lib/data/repository";
+import { deleteHotspotPack, updateHotspotPackReview } from "@/lib/data";
 
 export async function POST(
   request: NextRequest,
@@ -39,6 +39,31 @@ export async function POST(
       {
         ok: false,
         error: error instanceof Error ? error.message : "Review update failed"
+      },
+      {
+        status: 500
+      }
+    );
+  }
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ packId: string }> }
+) {
+  try {
+    const { packId } = await params;
+    const removed = await deleteHotspotPack(packId);
+
+    return NextResponse.json({
+      ok: true,
+      removed
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : "Delete pack failed"
       },
       {
         status: 500

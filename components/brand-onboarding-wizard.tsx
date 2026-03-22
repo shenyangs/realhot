@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BrandAutofillPanel, type BrandAutofillPayload } from "@/components/brand-autofill-panel";
 import {
   formatLocalTimestamp,
   getOnboardingStorageKey,
@@ -109,6 +110,7 @@ export function BrandOnboardingWizard({
   const [recent, setRecent] = useState(recentMoves.join("\n"));
   const [saveState, setSaveState] = useState<"loading" | "saving" | "saved">("loading");
   const [lastSavedAt, setLastSavedAt] = useState<string>();
+  const [storageBrandName, setStorageBrandName] = useState(brandName);
   const initializedRef = useRef(false);
 
   const currentStep = steps[stepIndex];
@@ -117,7 +119,7 @@ export function BrandOnboardingWizard({
     () => materialOptions.filter((item) => !materials.includes(item)),
     [materials]
   );
-  const storageKey = useMemo(() => getOnboardingStorageKey(brandName), [brandName]);
+  const storageKey = useMemo(() => getOnboardingStorageKey(storageBrandName), [storageBrandName]);
   const completedSteps = useMemo(() => {
     let count = 0;
 
@@ -145,7 +147,8 @@ export function BrandOnboardingWizard({
   }, [basic, goals, materials.length, recent, rules]);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(storageKey);
+    const initialStorageKey = getOnboardingStorageKey(brandName);
+    const stored = window.localStorage.getItem(initialStorageKey);
 
     if (stored) {
       try {
@@ -157,14 +160,15 @@ export function BrandOnboardingWizard({
         setMaterials(parsed.materials ?? []);
         setRecent(parsed.recent ?? "");
         setLastSavedAt(parsed.updatedAt);
+        setStorageBrandName(parsed.basic?.brandName || brandName);
       } catch {
-        window.localStorage.removeItem(storageKey);
+        window.localStorage.removeItem(initialStorageKey);
       }
     }
 
     initializedRef.current = true;
     setSaveState("saved");
-  }, [storageKey]);
+  }, [brandName]);
 
   useEffect(() => {
     if (!initializedRef.current) {
@@ -210,14 +214,25 @@ export function BrandOnboardingWizard({
     );
   }
 
+  function applyAutofill(payload: BrandAutofillPayload) {
+    setBasic(payload.draft.basic);
+    setGoals(payload.draft.goals);
+    setRules(payload.draft.rules);
+    setMaterials(payload.draft.materials);
+    setRecent(payload.draft.recent);
+    setStorageBrandName(payload.strategy.name);
+    setSaveState("saved");
+    setLastSavedAt(payload.updatedAt);
+  }
+
   return (
     <div className="onboardingLayout">
       <aside className="onboardingSidebar panel">
         <div>
           <p className="eyebrow">品牌接入</p>
-          <h2>第一次使用时，先把品牌讲明白。</h2>
+          <h2>品牌设置</h2>
           <p className="muted">
-            这样后面的热点判断、选题生成和改稿才会越来越像你，而不是像一个通用模板。
+            用于补齐品牌基础、目标与表达边界。
           </p>
         </div>
 
@@ -268,6 +283,12 @@ export function BrandOnboardingWizard({
 
           {currentStep.key === "basic" ? (
             <div className="stack">
+              <BrandAutofillPanel
+                compact
+                initialBrandName={basic.brandName || brandName}
+                onApplied={applyAutofill}
+                refreshAfterApply={false}
+              />
               <label className="field">
                 <span>品牌名称</span>
                 <input

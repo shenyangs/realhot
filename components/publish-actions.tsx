@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { PublishQueueClearButton } from "@/components/publish-queue-clear-button";
 
 export function PublishActions({
   packId,
@@ -117,6 +118,11 @@ export function PublishActions({
         <button disabled={isPending} onClick={runPublishNow} type="button">
           {failedCount > 0 ? "立即重试" : "立即执行发布"}
         </button>
+        <PublishQueueClearButton
+          emptyLabel="当前这题没有待清空的发布任务"
+          label={compact ? "清空待执行" : "清空这题待执行"}
+          packId={packId}
+        />
         <a className="buttonLike" href={`/api/content-packs/${packId}/export?format=markdown`}>
           {compact ? "导出内容" : "导出 Markdown"}
         </a>

@@ -1,7 +1,30 @@
 import { getBrandStrategyPack, getHotspotPack, getHotspotSignals } from "@/lib/data";
-import { HotspotPack } from "@/lib/domain/types";
+import { HotspotPack, Platform } from "@/lib/domain/types";
 import { getChinaMarketPromptLines } from "@/lib/services/china-market";
 import { runModelTask } from "@/lib/services/model-router";
+
+const platformLabels: Record<Platform, string> = {
+  xiaohongshu: "小红书",
+  wechat: "公众号",
+  "video-channel": "视频号",
+  douyin: "抖音"
+};
+
+function buildLocalPreview(pack: HotspotPack) {
+  return pack.variants
+    .map((variant, index) =>
+      [
+        `${index + 1}. ${variant.title}`,
+        `类型: ${variant.track} / ${variant.format}`,
+        `平台: ${variant.platforms.map((platform) => platformLabels[platform]).join(" / ")}`,
+        `发布时间: ${variant.publishWindow}`,
+        `切入角度: ${variant.angle}`,
+        `封面钩子: ${variant.coverHook}`,
+        `正文: ${variant.body}`
+      ].join("\n")
+    )
+    .join("\n\n---\n\n");
+}
 
 export async function generatePackPreview(packId: string): Promise<{
   pack: HotspotPack;
@@ -28,7 +51,16 @@ export async function generatePackPreview(packId: string): Promise<{
     "输出要求: 生成 2 条快反内容和 2 条观点内容，适配小红书、公众号、视频号、抖音。"
   ].join("\n");
 
-  const output = await runModelTask("content-generation", prompt);
+  let output: string;
+
+  try {
+    output = await runModelTask("content-generation", prompt);
+  } catch (error) {
+    output =
+      error instanceof Error
+        ? `${buildLocalPreview(pack)}\n\n[AI_PREVIEW_UNAVAILABLE]\n${error.message}\n\n已回退为本地预览内容，待上游模型恢复后可重试。`
+        : `${buildLocalPreview(pack)}\n\n[AI_PREVIEW_UNAVAILABLE]\nUnknown AI error\n\n已回退为本地预览内容，待上游模型恢复后可重试。`;
+  }
 
   return {
     pack,

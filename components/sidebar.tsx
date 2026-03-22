@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode } from "react";
+import { type ViewerContext } from "@/lib/auth/types";
 
 interface NavItem {
   href: Route;
@@ -14,73 +14,80 @@ interface NavItem {
 const navItems: NavItem[] = [
   {
     href: "/",
-    label: "今日选题台",
-    description: "先判断今天该做什么，再推进选题生产"
+    label: "工作台",
+    description: "先看今天有哪些热点、任务和卡点"
   },
   {
     href: "/hotspots",
     label: "热点看板",
-    description: "查看全部抓取热点、信源和处理建议"
+    description: "看全部热点，再挑值得跟进的题"
   },
   {
     href: "/review",
-    label: "选题库",
-    description: "查看选题、进入编辑、提交审核"
+    label: "选题详情台",
+    description: "集中改稿、审核，也能直接删除选题"
   },
   {
     href: "/publish",
-    label: "发布台",
-    description: "统一查看待发布、队列状态和发布结果"
+    label: "发布执行台",
+    description: "排队发布、清空待执行、查看结果"
   },
   {
     href: "/brands",
-    label: "品牌与规则",
-    description: "维护品牌画像、素材、规则和近期动态"
+    label: "品牌系统",
+    description: "维护品牌语境、规则和素材资产"
   }
 ];
 
-export function Sidebar({ footer }: { footer?: ReactNode }) {
+export function Sidebar({ viewer }: { viewer: ViewerContext }) {
   const pathname = usePathname();
+  const activeItem = navItems.find((item) => pathname === item.href) ?? navItems[0];
 
   return (
     <aside className="sidebar">
-      <div className="sidebarTop">
-        <div className="brandBlock">
-          <p className="eyebrow">SignalStack</p>
-          <h1>热点驱动内容台</h1>
+      <div className="sidebarInner">
+        <div className="sidebarBrand">
+          <span className="sidebarKicker">内容工作台</span>
+          <Link className="brandLink" href="/">
+            热点驱动内容台
+          </Link>
           <p className="muted">
-            面向中国企业品牌团队的热点判断、选题推进与多平台内容生产工作台。
+            从热点信号到内容发布，用一套安静、清晰、可执行的品牌工作流跑完。
           </p>
         </div>
 
-        <div className="statusCard">
-          <span className="statusDot" />
-          <div>
-            <strong>今天的工作重心</strong>
-            <p className="muted">先判断值得做的题，再清待审核和待发布出口。</p>
-          </div>
+        <div className="sidebarSection">
+          <span className="sidebarLabel">主流程</span>
+          <nav className="nav" aria-label="main navigation">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+
+              return (
+                <Link
+                  aria-current={isActive ? "page" : undefined}
+                  className={`navCard ${isActive ? "navCardActive" : ""}`}
+                  href={item.href}
+                  key={item.href}
+                  title={item.description}
+                >
+                  <strong>{item.label}</strong>
+                  <span>{item.description}</span>
+                </Link>
+              );
+            })}
+          </nav>
         </div>
 
-        <nav className="nav">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-
-            return (
-              <Link
-                aria-current={isActive ? "page" : undefined}
-                className={`navCard ${isActive ? "navCardActive" : ""}`}
-                href={item.href}
-                key={item.href}
-              >
-                <strong>{item.label}</strong>
-                <span>{item.description}</span>
-              </Link>
-            );
-          })}
-        </nav>
+        <div className="sidebarStatusCard">
+          <div className="statusCardLabelRow">
+            <span className="statusDot" />
+            <span className="sidebarLabel">当前位置</span>
+          </div>
+          <strong>{activeItem.label}</strong>
+          <p className="muted">{activeItem.description}</p>
+          {viewer.currentWorkspace ? <small className="muted">{viewer.currentWorkspace.name}</small> : null}
+        </div>
       </div>
-
-      {footer}
     </aside>
   );
 }

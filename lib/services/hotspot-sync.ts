@@ -1,9 +1,18 @@
-import { createHash } from "node:crypto";
+import { createDecipheriv, createHash } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { updateLocalDataStore } from "@/lib/data/local-store";
 import { getBrandStrategyPack } from "@/lib/data";
-import { BrandStrategyPack, HotspotKind, HotspotSignal } from "@/lib/domain/types";
+import {
+  BrandStrategyPack,
+  HotspotFetchStatus,
+  HotspotKind,
+  HotspotProviderReport,
+  HotspotProviderRole,
+  HotspotSignal,
+  HotspotSourceType,
+  HotspotSyncSnapshot
+} from "@/lib/domain/types";
 import { getChinaHotspotRules } from "@/lib/services/china-market";
 import { GeneratedPackResult, generateContentPackForEntities } from "@/lib/services/content-pack-generator";
 import { getSupabaseServerClient } from "@/lib/supabase/client";
@@ -41,8 +50,6 @@ interface ProviderPageObservation {
   note: string;
 }
 
-type ProviderFetchStatus = "ok" | "empty" | "failed";
-
 interface TextRequestOptions {
   method?: string;
   headers?: Record<string, string>;
@@ -59,19 +66,7 @@ interface TextResponse {
 }
 
 export interface HotspotSyncResult {
-  providers: Array<{
-    id: string;
-    label: string;
-    fetched: number;
-    persisted: number;
-    fetchStatus?: ProviderFetchStatus;
-    fetchNote?: string;
-    pageChecked?: boolean;
-    pageReachable?: boolean;
-    pageMatchedTitles?: number;
-    pageGated?: boolean;
-    pageNote?: string;
-  }>;
+  providers: HotspotProviderReport[];
   hotspots: SyncedHotspot[];
   generatedPacks: Array<{
     hotspotId: string;
@@ -101,6 +96,16 @@ interface JsonHotspotProviderConfig {
   mapItems: (payload: unknown) => FeedItem[];
 }
 
+interface TrendRadarProviderConfig {
+  id: string;
+  label: string;
+  kind: HotspotKind;
+  source: string;
+  market: "china" | "global";
+  pageUrl?: string;
+  trendRadarSourceId: string;
+}
+
 const baseProviderConfigs: HotspotProvider[] = [
   {
     id: "rss-36kr",
@@ -117,6 +122,22 @@ const baseProviderConfigs: HotspotProvider[] = [
     source: "IT之家 RSS",
     market: "china",
     buildUrl: () => "https://www.ithome.com/rss/"
+  },
+  {
+    id: "rss-huxiu",
+    label: "虎嗅 / China Tech",
+    kind: "industry",
+    source: "虎嗅 RSS",
+    market: "china",
+    buildUrl: () => "https://www.huxiu.com/rss/0.xml"
+  },
+  {
+    id: "rss-ifanr",
+    label: "爱范儿 / China Tech",
+    kind: "industry",
+    source: "爱范儿 RSS",
+    market: "china",
+    buildUrl: () => "https://www.ifanr.com/feed"
   },
   {
     id: "rss-cnbeta",
@@ -166,7 +187,7 @@ const baseProviderConfigs: HotspotProvider[] = [
     source: "Google News RSS",
     market: "global",
     buildUrl: () =>
-      buildGoogleNewsUrl('("OpenAI" OR "Anthropic" OR "Google DeepMind" OR "TechCrunch AI" OR "The Verge AI")', {
+      buildGoogleNewsUrl('("Google Gemini" OR "Google DeepMind" OR "TechCrunch AI" OR "The Verge AI" OR "AI Agent")', {
         locale: "en-US",
         region: "US",
         edition: "US:en"
@@ -212,15 +233,15 @@ const auxiliaryJsonProviderConfigs: JsonHotspotProviderConfig[] = [
     mapItems: mapAa1BaiduItems
   },
   {
-    id: "aa1-weibo-hot",
-    label: "AA1 / 微博热搜",
+    id: "weibo-realtime-multi",
+    label: "Weibo / Realtime Hot",
     kind: "mass",
-    source: "AA1 Weibo Hot",
+    source: "Weibo Realtime Hot",
     market: "china",
-    pageUrl: "https://s.weibo.com/top/summary",
-    url: "https://zj.v.api.aa1.cn/api/weibo-rs/",
-    isEnabled: () => (process.env.ENABLE_AA1_WEIBO_HOT_SEARCH ?? "true").toLowerCase() !== "false",
-    mapItems: mapAa1WeiboItems
+    pageUrl: "https://s.weibo.com/top/summary?cate=realtimehot",
+    url: "https://s.weibo.com/top/summary?cate=realtimehot",
+    isEnabled: () => (process.env.ENABLE_WEIBO_REALTIME_MULTI_SEARCH ?? "true").toLowerCase() !== "false",
+    mapItems: () => []
   },
   {
     id: "zhihu-hot-list",
@@ -254,6 +275,108 @@ const auxiliaryJsonProviderConfigs: JsonHotspotProviderConfig[] = [
     url: "https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc",
     isEnabled: () => (process.env.ENABLE_TOUTIAO_HOT_BOARD ?? "true").toLowerCase() !== "false",
     mapItems: mapToutiaoHotBoardItems
+  }
+];
+
+const trendRadarProviderConfigs: TrendRadarProviderConfig[] = [
+  {
+    id: "trendradar-weibo",
+    label: "微博热搜",
+    kind: "mass",
+    source: "Weibo Realtime Hot",
+    market: "china",
+    pageUrl: "https://s.weibo.com/top/summary?cate=realtimehot",
+    trendRadarSourceId: "weibo"
+  },
+  {
+    id: "trendradar-zhihu",
+    label: "知乎热榜",
+    kind: "mass",
+    source: "Zhihu Hot API",
+    market: "china",
+    pageUrl: "https://www.zhihu.com/hot",
+    trendRadarSourceId: "zhihu"
+  },
+  {
+    id: "trendradar-baidu",
+    label: "百度热搜",
+    kind: "mass",
+    source: "AA1 Baidu Hot",
+    market: "china",
+    pageUrl: "https://top.baidu.com/board?tab=realtime",
+    trendRadarSourceId: "baidu"
+  },
+  {
+    id: "trendradar-toutiao",
+    label: "今日头条",
+    kind: "mass",
+    source: "Toutiao Hot Board",
+    market: "china",
+    pageUrl: "https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc",
+    trendRadarSourceId: "toutiao"
+  },
+  {
+    id: "trendradar-douyin",
+    label: "抖音热点",
+    kind: "mass",
+    source: "抖音",
+    market: "china",
+    pageUrl: "https://www.douyin.com/hot",
+    trendRadarSourceId: "douyin"
+  },
+  {
+    id: "trendradar-bilibili",
+    label: "B站热搜",
+    kind: "mass",
+    source: "Bilibili Popular API",
+    market: "china",
+    pageUrl: "https://www.bilibili.com/v/popular/rank/all",
+    trendRadarSourceId: "bilibili-hot-search"
+  },
+  {
+    id: "trendradar-tieba",
+    label: "百度贴吧",
+    kind: "mass",
+    source: "贴吧",
+    market: "china",
+    pageUrl: "https://tieba.baidu.com/hottopic/browse/topicList",
+    trendRadarSourceId: "tieba"
+  },
+  {
+    id: "trendradar-wallstreetcn",
+    label: "华尔街见闻",
+    kind: "industry",
+    source: "华尔街见闻",
+    market: "china",
+    pageUrl: "https://wallstreetcn.com/hot-article",
+    trendRadarSourceId: "wallstreetcn-hot"
+  },
+  {
+    id: "trendradar-cls",
+    label: "财联社",
+    kind: "industry",
+    source: "财联社",
+    market: "china",
+    pageUrl: "https://www.cls.cn",
+    trendRadarSourceId: "cls-hot"
+  },
+  {
+    id: "trendradar-thepaper",
+    label: "澎湃新闻",
+    kind: "industry",
+    source: "澎湃新闻",
+    market: "china",
+    pageUrl: "https://www.thepaper.cn",
+    trendRadarSourceId: "thepaper"
+  },
+  {
+    id: "trendradar-ifeng",
+    label: "凤凰网",
+    kind: "industry",
+    source: "凤凰网",
+    market: "china",
+    pageUrl: "https://news.ifeng.com",
+    trendRadarSourceId: "ifeng"
   }
 ];
 
@@ -293,6 +416,23 @@ function getEntobitRankTypes(): string[] {
 
 function isAuxiliaryJsonSourcesEnabled(): boolean {
   return (process.env.ENABLE_AUXILIARY_HOT_SOURCES ?? "true").toLowerCase() !== "false";
+}
+
+function isTrendRadarSourcesEnabled(): boolean {
+  return (process.env.ENABLE_TRENDRADAR_SOURCES ?? "false").toLowerCase() === "true";
+}
+
+function getTrendRadarBaseUrl(): string {
+  return process.env.TRENDRADAR_BASE_URL ?? "https://newsnow.busiyi.world/api/s";
+}
+
+function isTrendRadarFallbackOnly(): boolean {
+  return (process.env.TRENDRADAR_FALLBACK_ONLY ?? "true").toLowerCase() !== "false";
+}
+
+function getTrendRadarSourceLimit(): number {
+  const maxItems = Number.parseInt(process.env.TRENDRADAR_SOURCE_MAX_ITEMS ?? "25", 10);
+  return Number.isNaN(maxItems) ? 25 : maxItems;
 }
 
 function isBaseProviderEnabled(providerId: string): boolean {
@@ -423,21 +563,41 @@ async function fetchTextResponse(url: string, options: TextRequestOptions = {}):
 function getProviderConfigs(): HotspotProvider[] {
   const providers = baseProviderConfigs.filter((provider) => isBaseProviderEnabled(provider.id));
 
+  if (isTrendRadarSourcesEnabled()) {
+    providers.push(
+      ...trendRadarProviderConfigs.map((config) => ({
+        id: config.id,
+        label: config.label,
+        kind: config.kind,
+        source: config.source,
+        market: config.market,
+        pageUrl: config.pageUrl,
+        fetchItems: () => fetchTrendRadarItems(config)
+      }))
+    );
+  }
+
   if (isAuxiliaryJsonSourcesEnabled()) {
     providers.push(
       ...auxiliaryJsonProviderConfigs
         .filter((config) => config.isEnabled())
         .map(
-          (config) =>
-            ({
+          (config) => {
+            const fetchItems =
+              config.id === "weibo-realtime-multi"
+                ? () => fetchWeiboRealtimeMultiChannelItems()
+                : () => fetchJsonProviderItems(config);
+
+            return {
               id: config.id,
               label: config.label,
               kind: config.kind,
               source: config.source,
               market: config.market,
               pageUrl: config.pageUrl,
-              fetchItems: () => fetchJsonProviderItems(config)
-            }) satisfies HotspotProvider
+              fetchItems
+            } satisfies HotspotProvider;
+          }
         )
     );
   }
@@ -484,7 +644,10 @@ function buildEntobitItemUrl(rankType: string, keyword: string): string {
 }
 
 function stripHtml(value: string): string {
-  return decodeEntities(value.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+  const normalized = decodeEntities(value.replace(/<!\[CDATA\[|\]\]>/g, ""));
+  const stripped = normalized.replace(/<[^>]+>/g, " ");
+
+  return decodeEntities(stripped).replace(/\s+/g, " ").trim();
 }
 
 function decodeEntities(value: string): string {
@@ -676,6 +839,46 @@ function mapAa1WeiboItems(payload: unknown): FeedItem[] {
     .filter((item): item is FeedItem => item !== null);
 }
 
+function normalizeWeiboTagTitle(title: string): string {
+  return title.replace(/^#|#$/g, "").trim();
+}
+
+function buildWeiboSearchUrl(keyword: string): string {
+  return `https://s.weibo.com/weibo?q=${encodeURIComponent(`#${keyword}#`)}`;
+}
+
+function parseWeiboSummaryItems(html: string): FeedItem[] {
+  const rows = [...html.matchAll(/<td class="td-02">([\s\S]*?)<\/td>[\s\S]*?<td class="td-03">([\s\S]*?)<\/td>/g)];
+
+  return rows
+    .map((match) => {
+      const infoBlock = match[1];
+      const heatBlock = match[2];
+      const anchorMatch = infoBlock.match(/<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+      const title = normalizeWeiboTagTitle(stripHtml(anchorMatch?.[2] ?? ""));
+      const relativeUrl = anchorMatch?.[1]?.trim();
+      const heat = stripHtml(heatBlock).replace(/[^\d万亿.+]/g, "").trim();
+
+      if (!title) {
+        return null;
+      }
+
+      return {
+        title,
+        summary: [
+          "平台: 微博热搜",
+          heat ? `热度: ${heat}` : null,
+          "采集方式: 实时榜页面"
+        ]
+          .filter((item): item is string => Boolean(item))
+          .join(" | "),
+        url: relativeUrl ? new URL(relativeUrl, "https://s.weibo.com").toString() : buildWeiboSearchUrl(title),
+        publishedAt: new Date().toISOString()
+      } satisfies FeedItem;
+    })
+    .filter((item): item is FeedItem => item !== null);
+}
+
 function mapZhihuHotItems(payload: unknown): FeedItem[] {
   const record = readRecordPayload(payload);
   const items = readArrayPayload(record?.data);
@@ -781,6 +984,79 @@ function mapToutiaoHotBoardItems(payload: unknown): FeedItem[] {
     .filter((item): item is FeedItem => item !== null);
 }
 
+function mapTrendRadarItems(payload: unknown, config: TrendRadarProviderConfig): FeedItem[] {
+  const record = readRecordPayload(payload);
+  const status = trimText(record?.status);
+  const items = readArrayPayload(record?.items);
+
+  if (status && status !== "success" && status !== "cache") {
+    return [];
+  }
+
+  return items
+    .map((item, index) => {
+      const title = trimText(item.title);
+      const url = trimText(item.url) ?? trimText(item.mobileUrl) ?? trimText(item.mobile_url);
+
+      if (!title || !url) {
+        return null;
+      }
+
+      const summaryParts = [
+        trimText(item.desc) ??
+          trimText(item.digest) ??
+          trimText(item.content) ??
+          trimText(item.coverText) ??
+          trimText(item.excerpt),
+        stringifyMetricLabel("平台", config.label),
+        stringifyMetricLabel("排名", item.rank ?? item.index ?? index + 1),
+        stringifyMetricLabel("采集方式", status === "cache" ? "备用聚合缓存" : "备用聚合实时抓取")
+      ].filter((value): value is string => Boolean(value));
+
+      return {
+        title,
+        summary: summaryParts.join(" | ") || `${config.label} 聚合热点`,
+        url,
+        publishedAt: normalizeTimestamp(
+          (item.publishTime as number | string | undefined) ??
+            (item.timestamp as number | string | undefined) ??
+            (item.createdAt as number | string | undefined) ??
+            (item.created_at as number | string | undefined)
+        )
+      } satisfies FeedItem;
+    })
+    .filter((item): item is FeedItem => item !== null);
+}
+
+async function fetchTrendRadarItems(config: TrendRadarProviderConfig): Promise<FeedItem[]> {
+  const url = new URL(getTrendRadarBaseUrl());
+  url.searchParams.set("id", config.trendRadarSourceId);
+  url.searchParams.set("latest", "");
+
+  const response = await fetchTextResponse(url.toString(), {
+    headers: {
+      Accept: "application/json, text/plain, */*",
+      "User-Agent": "BrandHotspotStudio/0.1"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`${config.id} responded with ${response.status}`);
+  }
+
+  if (/attention required|cloudflare|cf-browser-verification/i.test(response.text)) {
+    throw new Error(`${config.id} returned a challenge page`);
+  }
+
+  const payload = parseLooseJson(response.text);
+
+  if (payload === null) {
+    throw new Error(`${config.id} returned non-JSON content`);
+  }
+
+  return mapTrendRadarItems(payload, config).slice(0, getTrendRadarSourceLimit());
+}
+
 function mapEntobitItem(item: Record<string, unknown>, config: EntobitRankConfig): FeedItem | null {
   const title = [item.keywords, item.keyword, item.title].find(
     (value): value is string => typeof value === "string" && value.trim().length > 0
@@ -876,6 +1152,201 @@ async function fetchJsonProviderItems(config: JsonHotspotProviderConfig): Promis
   const limit = Number.isNaN(maxItems) ? 10 : maxItems;
 
   return items.slice(0, limit);
+}
+
+async function fetchWeiboSummaryItems(): Promise<FeedItem[]> {
+  const response = await fetchTextResponse("https://s.weibo.com/top/summary?cate=realtimehot", {
+    headers: {
+      "User-Agent": "Mozilla/5.0"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`weibo-summary responded with ${response.status}`);
+  }
+
+  if (/Sina Visitor System/i.test(response.text)) {
+    return [];
+  }
+
+  const items = parseWeiboSummaryItems(response.text);
+  const maxItems = Number.parseInt(process.env.WEIBO_HOT_MAX_ITEMS ?? "60", 10);
+  const limit = Number.isNaN(maxItems) ? 60 : maxItems;
+
+  return items.slice(0, limit);
+}
+
+async function fetchWeiboPublicItems(): Promise<FeedItem[]> {
+  const response = await fetchTextResponse("https://weibo.cn/pub/", {
+    headers: {
+      "User-Agent": "Mozilla/5.0"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`weibo-public responded with ${response.status}`);
+  }
+
+  const matches = [...response.text.matchAll(/<div class="c"><a href="([^"]+)">([\s\S]*?)<\/a><\/div>/g)];
+  const maxItems = Number.parseInt(process.env.AUXILIARY_HOT_SOURCE_MAX_ITEMS ?? "10", 10);
+  const limit = Number.isNaN(maxItems) ? 10 : maxItems;
+
+  return matches
+    .map((match) => {
+      const url = match[1]?.trim();
+      const title = stripHtml(match[2] ?? "");
+
+      if (!url || !title) {
+        return null;
+      }
+
+      return {
+        title,
+        summary: "微博公开热词页",
+        url,
+        publishedAt: new Date().toISOString()
+      } satisfies FeedItem;
+    })
+    .filter((item): item is FeedItem => item !== null)
+    .slice(0, limit);
+}
+
+function decryptZhaoyizheResponse(cipherText: string): string {
+  const decipher = createDecipheriv(
+    "aes-256-ecb",
+    Buffer.from("cce1d5a8d58249048623eb26b8b0ea53", "utf8"),
+    null
+  );
+  decipher.setAutoPadding(true);
+
+  return `${decipher.update(cipherText.trim(), "base64", "utf8")}${decipher.final("utf8")}`;
+}
+
+async function fetchZhaoyizheWeiboItems(): Promise<FeedItem[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const url = new URL("https://hotengineapi.zhaoyizhe.com/hotEngineApi/data/list");
+  url.searchParams.set("startDate", today);
+  url.searchParams.set("endDate", today);
+  url.searchParams.set("type", "");
+  url.searchParams.set("pageNo", "1");
+  url.searchParams.set("pageSize", process.env.WEIBO_HOT_MAX_ITEMS ?? "60");
+  url.searchParams.set("keyword", "");
+  url.searchParams.set("radioType", "1");
+
+  const response = await fetchTextResponse(url.toString(), {
+    headers: {
+      "User-Agent": "Mozilla/5.0"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`zhaoyizhe-weibo responded with ${response.status}`);
+  }
+
+  const decrypted = decryptZhaoyizheResponse(response.text);
+  const payload = parseLooseJson(decrypted);
+  const record = readRecordPayload(payload);
+
+  if (!record || record.code !== 1) {
+    return [];
+  }
+
+  const items = readArrayPayload(record.data);
+
+  return items
+    .map((item) => {
+      const title = normalizeWeiboTagTitle(
+        trimText(item.title) ?? trimText(item.topic) ?? trimText(item.word) ?? ""
+      );
+
+      if (!title) {
+        return null;
+      }
+
+      return {
+        title,
+        summary: [
+          "平台: 微博热搜",
+          stringifyMetricLabel("热度", item.hot ?? item.num ?? item.hotValue),
+          "采集方式: 热搜引擎备用源"
+        ]
+          .filter((part): part is string => Boolean(part))
+          .join(" | "),
+        url: buildWeiboSearchUrl(title),
+        publishedAt: new Date().toISOString()
+      } satisfies FeedItem;
+    })
+    .filter((item): item is FeedItem => item !== null);
+}
+
+function dedupeFeedItemsByTitle(items: FeedItem[]): FeedItem[] {
+  const merged = new Map<string, FeedItem>();
+
+  for (const item of items) {
+    const key = normalizeHotspotTitle(item.title);
+
+    if (!key) {
+      continue;
+    }
+
+    const existing = merged.get(key);
+
+    if (!existing) {
+      merged.set(key, item);
+      continue;
+    }
+
+    const summary = Array.from(new Set([existing.summary, item.summary].filter(Boolean))).join(" | ");
+
+    merged.set(key, {
+      ...existing,
+      summary,
+      url: existing.url || item.url,
+      publishedAt: existing.publishedAt || item.publishedAt
+    });
+  }
+
+  return Array.from(merged.values());
+}
+
+async function fetchWeiboRealtimeMultiChannelItems(): Promise<FeedItem[]> {
+  const summaryItems = await fetchWeiboSummaryItems().catch(() => []);
+
+  if (summaryItems.length >= 40) {
+    return summaryItems;
+  }
+
+  const [publicItems, entobitItems, zhaoyizheItems, aa1Items] = await Promise.all([
+    fetchWeiboPublicItems().catch(() => []),
+    fetchEntobitItems(entobitRankConfigs.realTimeHotSearchList).catch(() => []),
+    fetchZhaoyizheWeiboItems().catch(() => []),
+    (async () => {
+      const response = await fetchTextResponse("https://zj.v.api.aa1.cn/api/weibo-rs/", {
+        headers: {
+          Accept: "application/json, text/plain, */*",
+          "User-Agent": "BrandHotspotStudio/0.1"
+        }
+      });
+
+      if (!response.ok) {
+        return [];
+      }
+
+      const payload = parseLooseJson(response.text);
+      return payload === null ? [] : mapAa1WeiboItems(payload);
+    })().catch(() => [])
+  ]);
+
+  const maxItems = Number.parseInt(process.env.WEIBO_HOT_MAX_ITEMS ?? "60", 10);
+  const limit = Number.isNaN(maxItems) ? 60 : maxItems;
+
+  return dedupeFeedItemsByTitle([
+    ...summaryItems,
+    ...publicItems,
+    ...entobitItems,
+    ...zhaoyizheItems,
+    ...aa1Items
+  ]).slice(0, limit);
 }
 
 function normalizeHotspotTitle(title: string): string {
@@ -1065,6 +1536,10 @@ function countMassNoiseHits(titleText: string): number {
 }
 
 function getProviderPriorityBoost(provider: HotspotProvider): number {
+  if (provider.id.startsWith("trendradar-") && isTrendRadarFallbackOnly()) {
+    return -5;
+  }
+
   if (
     provider.id === "aa1-baidu-hot" ||
     provider.id === "aa1-weibo-hot" ||
@@ -1077,6 +1552,39 @@ function getProviderPriorityBoost(provider: HotspotProvider): number {
   }
 
   return 0;
+}
+
+function getProviderSourceType(provider: HotspotProvider): HotspotSourceType {
+  if (provider.id.startsWith("rss-")) {
+    return "rss";
+  }
+
+  if (provider.id.startsWith("trendradar-") || provider.id.startsWith("entobit-") || provider.id.startsWith("aa1-")) {
+    return "aggregator";
+  }
+
+  return "direct";
+}
+
+function getProviderPriorityRole(provider: HotspotProvider): HotspotProviderRole {
+  if (provider.id.startsWith("trendradar-") && isTrendRadarFallbackOnly()) {
+    return "fallback";
+  }
+
+  return "primary";
+}
+
+function buildHotspotSyncSnapshot(input: {
+  executedAt: string;
+  hotspotCount: number;
+  providers: HotspotProviderReport[];
+}): HotspotSyncSnapshot {
+  return {
+    executedAt: input.executedAt,
+    providerCount: input.providers.length,
+    hotspotCount: input.hotspotCount,
+    providers: input.providers
+  };
 }
 
 function getProviderPriorityAdjustment(
@@ -1115,9 +1623,8 @@ function scoreAgainstBrand(brand: BrandStrategyPack, item: FeedItem, kind: Hotsp
     "automation",
     "saas",
     "b2b",
-    "openai",
-    "anthropic",
-    "claude",
+    "gemini",
+    "deepmind",
     "gpt",
     "deepseek",
     "kimi",
@@ -1246,7 +1753,8 @@ async function persistHotspots(brand: BrandStrategyPack, hotspots: SyncedHotspot
         title: hotspot.title,
         summary: hotspot.summary,
         kind: hotspot.kind,
-        source: `${hotspot.source} / ${hotspot.providerId}`,
+        source: hotspot.source,
+        sourceUrl: hotspot.url,
         detectedAt: hotspot.detectedAt,
         relevanceScore: hotspot.relevanceScore,
         industryScore: hotspot.industryScore,
@@ -1276,7 +1784,8 @@ async function persistHotspots(brand: BrandStrategyPack, hotspots: SyncedHotspot
     title: hotspot.title,
     summary: hotspot.summary,
     kind: hotspot.kind,
-    source: `${hotspot.source} / ${hotspot.providerId}`,
+    source: hotspot.source,
+    source_url: hotspot.url,
     detected_at: hotspot.detectedAt,
     relevance_score: hotspot.relevanceScore,
     industry_score: hotspot.industryScore,
@@ -1441,7 +1950,7 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
             title: item.title,
             summary: item.summary || item.title,
             kind: provider.kind,
-            source: `${provider.source} / ${provider.market === "china" ? "CN-first" : "Global-core"}`,
+            source: `${provider.source} / ${provider.market === "china" ? "CN-first" : "Global-core"} / ${provider.id}`,
             detectedAt: item.publishedAt ? new Date(item.publishedAt).toISOString() : new Date().toISOString(),
             ...scores,
             priorityScore,
@@ -1453,7 +1962,7 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
         return {
           provider,
           hotspots,
-          fetchStatus: (items.length > 0 ? "ok" : "empty") as ProviderFetchStatus,
+          fetchStatus: (items.length > 0 ? "ok" : "empty") as HotspotFetchStatus,
           fetchNote: items.length > 0 ? `抓取成功，返回 ${items.length} 条` : "抓取成功，但返回 0 条",
           pageObservation
         };
@@ -1479,21 +1988,35 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
 
   const storage = await persistHotspots(brand, deduped);
   const generatedPacks = await autoGeneratePacks(brand, deduped);
+  const providerReports = providerResults.map((result) => ({
+    id: result.provider.id,
+    label: result.provider.label,
+    sourceType: getProviderSourceType(result.provider),
+    priorityRole: getProviderPriorityRole(result.provider),
+    fetched: result.hotspots.length,
+    persisted: storage.persisted ? result.hotspots.length : 0,
+    fetchStatus: result.fetchStatus,
+    fetchNote: result.fetchNote,
+    pageChecked: result.pageObservation?.checked,
+    pageReachable: result.pageObservation?.reachable,
+    pageMatchedTitles: result.pageObservation?.matchedTitles,
+    pageGated: result.pageObservation?.gated,
+    pageNote: result.pageObservation?.note
+  }));
+  const executedAt = new Date().toISOString();
+  const syncSnapshot = buildHotspotSyncSnapshot({
+    executedAt,
+    hotspotCount: deduped.length,
+    providers: providerReports
+  });
+
+  await updateLocalDataStore((store) => ({
+    ...store,
+    lastHotspotSync: syncSnapshot
+  }));
 
   return {
-    providers: providerResults.map((result) => ({
-      id: result.provider.id,
-      label: result.provider.label,
-      fetched: result.hotspots.length,
-      persisted: storage.persisted ? result.hotspots.length : 0,
-      fetchStatus: result.fetchStatus,
-      fetchNote: result.fetchNote,
-      pageChecked: result.pageObservation?.checked,
-      pageReachable: result.pageObservation?.reachable,
-      pageMatchedTitles: result.pageObservation?.matchedTitles,
-      pageGated: result.pageObservation?.gated,
-      pageNote: result.pageObservation?.note
-    })),
+    providers: providerReports,
     hotspots: deduped,
     generatedPacks: generatedPacks.map((result) => ({
       hotspotId: result.pack.hotspotId,

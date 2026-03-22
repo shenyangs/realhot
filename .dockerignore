@@ -1,0 +1,15 @@
+.git
+.gitignore
+.agents
+.DS_Store
+.next
+.next-dev
+.runtime
+backups
+node_modules
+npm-debug.log*
+.env.local
+.env.local.*
+.env.local.bak*
+.vscode
+tsconfig.tsbuildinfo

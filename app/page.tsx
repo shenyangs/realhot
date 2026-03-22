@@ -1,11 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { EmptyStateCard } from "@/components/empty-state-card";
-import { HotspotActionButton } from "@/components/hotspot-action-button";
-import {
-  getBrandStrategyPack,
-  getPrioritizedHotspots,
-  getReviewQueue
-} from "@/lib/data";
+import { OpportunityCard } from "@/components/opportunity-card";
+import { PageHero } from "@/components/page-hero";
+import { getCurrentViewer } from "@/lib/auth/session";
+import { getBrandStrategyPack, getPrioritizedHotspots, getReviewQueue } from "@/lib/data";
 import type { ContentTrack, Platform, ReviewStatus } from "@/lib/domain/types";
 
 const platformLabels: Record<Platform, string> = {
@@ -28,14 +27,14 @@ const statusLabels: Record<ReviewStatus, string> = {
 
 function getOpportunityWindow(velocityScore: number) {
   if (velocityScore >= 85) {
-    return "建议 4 小时内立题";
+    return "4 小时内完成立题";
   }
 
   if (velocityScore >= 75) {
-    return "建议今天内完成首稿";
+    return "今天内完成首稿";
   }
 
-  return "可继续观察，适合沉淀观点";
+  return "适合继续观察并沉淀观点";
 }
 
 function getRecommendedAngle(kind: "industry" | "mass" | "brand") {
@@ -62,7 +61,29 @@ function getProgressLabel(platformCount: number, status: ReviewStatus) {
   return `已生成 ${platformCount} 个版本，待审核`;
 }
 
+function formatOpportunityTime(value: string) {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(parsed);
+}
+
 export default async function HomePage() {
+  const viewer = await getCurrentViewer();
+
+  if (!viewer.isPlatformAdmin && viewer.isAuthenticated && viewer.memberships.length > 1 && !viewer.currentWorkspace) {
+    redirect("/select-workspace");
+  }
+
   const [brand, prioritized, packs] = await Promise.all([
     getBrandStrategyPack(),
     getPrioritizedHotspots(),
@@ -80,6 +101,7 @@ export default async function HomePage() {
       }
     ])
   );
+
   const tasks = packs.flatMap((pack) =>
     pack.variants.map((variant) => ({
       id: variant.id,
@@ -99,304 +121,274 @@ export default async function HomePage() {
   const reviewItems = tasks.filter((task) => task.packStatus === "pending").slice(0, 4);
   const publishItems = tasks.filter((task) => task.packStatus === "approved").slice(0, 4);
   const needsEditCount = tasks.filter((task) => task.packStatus === "needs-edit").length;
+  const blockerCount = reviewItems.length + needsEditCount;
 
   return (
     <div className="page workbenchPage">
-      <section className="workbenchHero">
-        <div className="heroCopy">
-          <p className="eyebrow">今日选题台</p>
-          <h2>先判断今天值不值得做，再把选题快速推进到可发状态。</h2>
-          <p className="muted heroText">
-            已按 {brand.name} 的行业方向、品牌边界和近期动态，整理出今天最值得处理的热点机会与选题任务。
-          </p>
-        </div>
-        <div className="heroMeta">
-          <div className="metaPill">
-            <span>当前品牌</span>
-            <strong>{brand.name}</strong>
-          </div>
-          <div className="metaPill">
-            <span>重点平台</span>
-            <strong>小红书 / 公众号 / 视频号 / 抖音</strong>
-          </div>
-          <div className="metaPill">
-            <span>今日节奏</span>
-            <strong>{focusHotspots.length} 个机会，{tasks.length} 个选题在推进</strong>
-          </div>
-          <Link className="metaPill metaPillAction" href="/onboarding">
-            <span>新品牌接入</span>
-            <strong>先走品牌接入流程，再进入日常工作台</strong>
-          </Link>
-        </div>
-      </section>
+      <PageHero
+        actions={
+          <>
+            <Link className="buttonLike primaryButton" href="/review">
+              进入选题详情台
+            </Link>
+            <Link className="buttonLike subtleButton" href="/hotspots">
+              查看全部热点
+            </Link>
+            <Link className="buttonLike subtleButton" href="/brands">
+              管理品牌系统
+            </Link>
+          </>
+        }
+        context={brand.name}
+        description="查看今日机会、审核积压与发布准备。"
+        eyebrow="工作台总览"
+        facts={[
+          { label: "当前品牌", value: brand.name },
+          { label: "今日机会", value: `${focusHotspots.length} 个优先热点` },
+          { label: "生产负载", value: `${tasks.length} 个任务流转中` },
+          { label: "当前堵点", value: `${blockerCount} 个待处理出口` }
+        ]}
+        title="工作台"
+        variant="utility"
+      />
 
-      <section className="workbenchToolbar panel">
-        <div className="toolbarFilters">
-          <div className="toolbarGroup">
-            <span className="toolbarLabel">品牌</span>
-            <strong>{brand.name}</strong>
-          </div>
-          <div className="toolbarGroup">
-            <span className="toolbarLabel">平台</span>
-            <strong>全部平台</strong>
-          </div>
-          <div className="toolbarGroup">
-            <span className="toolbarLabel">状态</span>
-            <strong>全部状态</strong>
-          </div>
-          <div className="toolbarGroup">
-            <span className="toolbarLabel">时间</span>
-            <strong>最近 24 小时</strong>
+      <section className="panel workbenchFocusStrip">
+        <div className="panelHeader sectionTitle">
+          <div>
+            <p className="eyebrow">处理顺序</p>
+            <h2>今日优先级</h2>
           </div>
         </div>
-        <div className="toolbarActions">
-          <Link className="buttonLike subtleButton" href="/hotspots">
-            刷新热点机会
-          </Link>
-          <Link className="buttonLike primaryButton" href="/review">
-            进入选题库
-          </Link>
+
+        <div className="workflowStrip workbenchFocusSteps">
+          <article className="workflowCard">
+            <span className="workflowStep">01</span>
+            <strong>审核</strong>
+            <p className="muted">{reviewItems.length} 条内容等待确认，优先释放后续流转。</p>
+          </article>
+          <article className="workflowCard">
+            <span className="workflowStep">02</span>
+            <strong>改稿</strong>
+            <p className="muted">{needsEditCount} 条版本待调整，完成后可重新进入审核。</p>
+          </article>
+          <article className="workflowCard">
+            <span className="workflowStep">03</span>
+            <strong>新增选题</strong>
+            <p className="muted">当前可从 {focusHotspots.length} 个优先热点里继续补充新题。</p>
+          </article>
         </div>
       </section>
 
       <section className="summaryGrid">
-        <article className="panel summaryCard">
-          <p className="eyebrow">今天值得做</p>
-          <h3>{focusHotspots.length} 个热点机会已排优先级</h3>
-          <p className="muted">优先看行业热点，再看大众热点，避免把精力花在低相关噪音上。</p>
+        <article className="panel summaryCard summaryCardElevated">
+          <p className="eyebrow">热点筛选</p>
+          <h3>{focusHotspots.length} 个优先机会</h3>
+          <p className="muted">按品牌相关性与执行窗口筛出今日值得处理的热点。</p>
         </article>
-        <article className="panel summaryCard">
-          <p className="eyebrow">正在生产</p>
-          <h3>{tasks.length} 个选题任务在流转</h3>
-          <p className="muted">按选题推进，不按技术模块切换，减少来回跳页和理解成本。</p>
+        <article className="panel summaryCard summaryCardElevated">
+          <p className="eyebrow">流程状态</p>
+          <h3>{tasks.length} 个版本在流转</h3>
+          <p className="muted">从选题到终稿统一放在当前工作流内处理。</p>
         </article>
-        <article className="panel summaryCard">
-          <p className="eyebrow">今日堵点</p>
-          <h3>{reviewItems.length} 个待审核，{needsEditCount} 个待改稿</h3>
-          <p className="muted">先清影响发布节奏的卡点，再继续开新题，首页只展示今天必须处理的出口。</p>
+        <article className="panel summaryCard summaryCardElevated">
+          <p className="eyebrow">待处理</p>
+          <h3>{blockerCount} 处需要跟进</h3>
+          <p className="muted">优先清理出口，再决定是否继续扩充新题。</p>
         </article>
       </section>
 
-      <section className="panel helperPanel">
+      <section className="panel workflowPanel">
         <div className="panelHeader sectionTitle">
           <div>
-            <p className="eyebrow">第一次试用</p>
-            <h3>先按这 3 步走，最快看到完整链路</h3>
+            <p className="eyebrow">主流程</p>
+            <h2>工作流</h2>
           </div>
-          <Link className="sectionLink" href="/hotspots">
-            从热点看板开始
-          </Link>
         </div>
-        <div className="definitionList">
-          <div>
-            <span>第 1 步</span>
-            <strong>去热点看板，点“转成 4 条内容”，先生成一个选题任务。</strong>
-          </div>
-          <div>
-            <span>第 2 步</span>
-            <strong>进入选题库，在中间编辑区改稿，右侧完成审核通过。</strong>
-          </div>
-          <div>
-            <span>第 3 步</span>
-            <strong>到发布台把内容送进队列，再执行发布，确认出口跑通。</strong>
-          </div>
+
+        <div className="workflowStrip">
+          <article className="workflowCard">
+            <span className="workflowStep">01</span>
+            <strong>热点</strong>
+            <p className="muted">筛出今天值得进入判断的外部信号。</p>
+          </article>
+          <article className="workflowCard">
+            <span className="workflowStep">02</span>
+            <strong>选题</strong>
+            <p className="muted">映射为品牌视角、版本与发布时间窗口。</p>
+          </article>
+          <article className="workflowCard">
+            <span className="workflowStep">03</span>
+            <strong>编辑</strong>
+            <p className="muted">在统一编辑台完成改写、审核与风险控制。</p>
+          </article>
+          <article className="workflowCard">
+            <span className="workflowStep">04</span>
+            <strong>发布</strong>
+            <p className="muted">进入发布执行台排队、导出或立即发送。</p>
+          </article>
         </div>
       </section>
+
+      <div className="dashboardSplit">
+        <section className="panel">
+          <div className="panelHeader sectionTitle">
+            <div>
+              <p className="eyebrow">优先机会</p>
+              <h2>热点机会</h2>
+            </div>
+            <Link className="sectionLink" href="/hotspots">
+              打开热点看板
+            </Link>
+          </div>
+
+          <div className="opportunityRail opportunityRailDense">
+            {focusHotspots.length > 0 ? (
+              focusHotspots.map((signal) => {
+                const existingPack = packByHotspotId.get(signal.id);
+
+                return (
+                  <OpportunityCard
+                    angle={getRecommendedAngle(signal.kind)}
+                    detectedAt={formatOpportunityTime(signal.detectedAt)}
+                    hotspotId={signal.id}
+                    key={signal.id}
+                    packId={existingPack?.packId}
+                    platform={existingPack?.platform}
+                    recommendedAction={signal.recommendedAction}
+                    relevanceReason={signal.reasons[0] ?? "已命中品牌主题词与近期传播方向"}
+                    source={signal.source}
+                    summary={signal.summary}
+                    title={signal.title}
+                    variantId={existingPack?.variantId}
+                    windowLabel={getOpportunityWindow(signal.velocityScore)}
+                  />
+                );
+              })
+            ) : (
+              <EmptyStateCard
+                actionLabel="去品牌系统补资料"
+                description="还没有抓到适合今天处理的热点。先补品牌资料或刷新热点机会，再回来决定今天做什么。"
+                eyebrow="热点机会"
+                href="/brands"
+                title="今天还没有可立刻处理的热点机会"
+              />
+            )}
+          </div>
+        </section>
+
+        <aside className="stack dashboardAsideStack">
+          <article className="panel queuePanel queuePanelDense">
+            <div className="panelHeader sectionTitle">
+              <div>
+                <p className="eyebrow">审核队列</p>
+                <h2>待审核</h2>
+              </div>
+              <Link className="sectionLink" href="/review">
+                进入处理
+              </Link>
+            </div>
+
+            <div className="queueList">
+              {reviewItems.length > 0 ? (
+                reviewItems.map((item) => (
+                  <div className="queueItem" key={`review-${item.id}`}>
+                    <div>
+                      <strong>{item.title}</strong>
+                      <p className="muted">{item.owner} · {item.publishWindow}</p>
+                    </div>
+                    <span className="pill pill-warning">待审核</span>
+                  </div>
+                ))
+              ) : (
+                <p className="emptyState">今天没有堆积在审核口的内容，可以继续推进新选题。</p>
+              )}
+            </div>
+          </article>
+
+          <article className="panel queuePanel queuePanelDense">
+            <div className="panelHeader sectionTitle">
+              <div>
+                <p className="eyebrow">待发布</p>
+                <h2>已通过</h2>
+              </div>
+              <Link className="sectionLink" href="/publish">
+                进入发布台
+              </Link>
+            </div>
+
+            <div className="queueList">
+              {publishItems.length > 0 ? (
+                publishItems.map((item) => (
+                  <div className="queueItem" key={`publish-${item.id}`}>
+                    <div>
+                      <strong>{item.title}</strong>
+                      <p className="muted">{item.platforms} · {item.publishWindow}</p>
+                    </div>
+                    <span className="pill pill-positive">待发布</span>
+                  </div>
+                ))
+              ) : (
+                <p className="emptyState">当前还没有通过终审的内容，先把上面的选题推进到可发布状态。</p>
+              )}
+            </div>
+          </article>
+        </aside>
+      </div>
 
       <section className="panel">
         <div className="panelHeader sectionTitle">
           <div>
-            <p className="eyebrow">今天值得做</p>
-            <h3>先选机会，再转成选题</h3>
+            <p className="eyebrow">任务流转</p>
+            <h2>当前任务</h2>
           </div>
-          <Link className="sectionLink" href="/hotspots">
-            打开热点看板
+          <Link className="sectionLink" href="/review">
+            查看全部任务
           </Link>
         </div>
 
-        <div className="opportunityRail">
-          {focusHotspots.length > 0 ? (
-            focusHotspots.map((signal) => {
-              const existingPack = packByHotspotId.get(signal.id);
-
-              return (
-                <article className="opportunityCard" key={signal.id}>
-                <div className="opportunityHeader">
-                  <span className={`pill pill-${signal.recommendedAction === "ship-now" ? "positive" : "warning"}`}>
-                    {signal.recommendedAction === "ship-now" ? "建议立刻跟进" : "建议继续观察"}
+        {tasks.length > 0 ? (
+          <div className="reviewTaskListSimple reviewTaskListWorkspace">
+            {tasks.map((task) => (
+              <article className="reviewTaskRow reviewTaskRowWorkspace" key={task.id}>
+                <div className="reviewTaskRowMain">
+                  <div className="taskRowIdentity">
+                    <strong className="reviewTaskTitle">{task.title}</strong>
+                    <p className="muted reviewTaskSummary">{task.source}</p>
+                  </div>
+                  <div className="reviewContextLine">
+                    <span>{task.platforms}</span>
+                    <span>{task.type}</span>
+                    <span>{task.publishWindow}</span>
+                    <span>{task.owner}</span>
+                  </div>
+                </div>
+                <div className="reviewTaskRowMeta">
+                  <span
+                    className={`pill pill-${task.packStatus === "approved" ? "positive" : task.packStatus === "needs-edit" ? "warning" : "neutral"}`}
+                  >
+                    {task.status}
                   </span>
-                  <small className="muted">{signal.detectedAt}</small>
-                </div>
-
-                <div className="stack compactStack">
-                  <h3>{signal.title}</h3>
-                  <p className="muted">{signal.summary}</p>
-                </div>
-
-                <div className="opportunityFacts">
-                  <div>
-                    <span>为什么相关</span>
-                    <strong>{signal.reasons[0] ?? "已命中品牌主题词与近期传播方向"}</strong>
-                  </div>
-                  <div>
-                    <span>建议角度</span>
-                    <strong>{getRecommendedAngle(signal.kind)}</strong>
-                  </div>
-                  <div>
-                    <span>时效窗口</span>
-                    <strong>{getOpportunityWindow(signal.velocityScore)}</strong>
-                  </div>
-                </div>
-
-                <div className="opportunityFooter">
-                  <span className="sourceLabel">{signal.source}</span>
+                  <small className="muted">{task.progress}</small>
                   <div className="buttonRow">
-                    <HotspotActionButton
-                      hotspotId={signal.id}
-                      packId={existingPack?.packId}
-                      platform={existingPack?.platform}
-                      variantId={existingPack?.variantId}
-                    />
-                    <Link className="buttonLike subtleButton" href="/hotspots">
-                      进入机会判断
+                    <Link className="buttonLike subtleButton" href={`/review?pack=${task.packId}&variant=${task.id}`}>
+                      打开详情台
                     </Link>
                   </div>
                 </div>
-                </article>
-              );
-            })
-          ) : (
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="taskEmptyRow">
             <EmptyStateCard
-              actionLabel="去品牌与规则补资料"
-              description="还没有抓到适合今天处理的热点。先补品牌资料或刷新热点机会，再回来决定今天做什么。"
-              eyebrow="热点机会"
-              href="/brands"
-              title="今天还没有可立刻处理的热点机会"
+              actionLabel="去热点看板挑题"
+              description="当前还没有选题任务进入生产。你可以先从热点看板挑一个题，转进今天的生产流程。"
+              eyebrow="选题任务"
+              href="/hotspots"
+              title="今天还没有正在推进的选题"
             />
-          )}
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="panelHeader sectionTitle">
-          <div>
-            <p className="eyebrow">正在推进的选题任务</p>
-            <h3>把今天该做的题推进到可审、可发</h3>
           </div>
-          <Link className="sectionLink" href="/review">
-            进入选题库
-          </Link>
-        </div>
-
-        <div className="taskTable">
-          <div className="taskRow taskHead">
-            <span>选题</span>
-            <span>来源热点</span>
-            <span>平台</span>
-            <span>类型</span>
-            <span>状态</span>
-            <span>内容进度</span>
-            <span>最佳发布时间</span>
-            <span>负责人</span>
-            <span>操作</span>
-          </div>
-          {tasks.length > 0 ? (
-            tasks.map((task) => (
-              <div className="taskRow" key={task.id}>
-                <div className="taskTitleCell">
-                  <strong>{task.title}</strong>
-                </div>
-                <span className="muted">{task.source}</span>
-                <span>{task.platforms}</span>
-                <span>{task.type}</span>
-                <span>
-                  <span className={`pill pill-${task.packStatus === "approved" ? "positive" : task.packStatus === "needs-edit" ? "warning" : "neutral"}`}>
-                    {task.status}
-                  </span>
-                </span>
-                <span>{task.progress}</span>
-                <span>{task.publishWindow}</span>
-                <span>{task.owner}</span>
-                <div className="taskActions">
-                  <Link className="tableAction" href={`/review?pack=${task.packId}&variant=${task.id}`}>
-                    进入编辑
-                  </Link>
-                  <Link className="tableAction mutedAction" href="/brands">
-                    查看品牌规则
-                  </Link>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="taskEmptyRow">
-              <EmptyStateCard
-                actionLabel="去热点看板挑题"
-                description="当前还没有选题任务进入生产。你可以先从热点看板挑一个题，转进今天的生产流程。"
-                eyebrow="选题任务"
-                href="/hotspots"
-                title="今天还没有正在推进的选题"
-              />
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="queueGrid">
-        <article className="panel queuePanel">
-          <div className="panelHeader sectionTitle">
-          <div>
-            <p className="eyebrow">待审核</p>
-            <h3>先清会影响今天节奏的稿件</h3>
-          </div>
-          <Link className="sectionLink" href={reviewItems[0] ? `/review?pack=${reviewItems[0].packId}&variant=${reviewItems[0].id}` : "/review"}>
-            进入选题库
-          </Link>
-          </div>
-
-          <div className="queueList">
-            {reviewItems.length > 0 ? (
-              reviewItems.map((item) => (
-                <div className="queueItem" key={`review-${item.id}`}>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p className="muted">{item.owner} · {item.publishWindow}</p>
-                  </div>
-                  <span className="pill pill-warning">待审核</span>
-                </div>
-              ))
-            ) : (
-              <p className="emptyState">今天没有堆积在审核口的内容，可以继续推进新选题。</p>
-            )}
-          </div>
-        </article>
-
-        <article className="panel queuePanel">
-          <div className="panelHeader sectionTitle">
-          <div>
-            <p className="eyebrow">待发布</p>
-            <h3>只看今天真正能出街的内容</h3>
-          </div>
-          <Link className="sectionLink" href="/publish">
-            进入发布台
-          </Link>
-          </div>
-
-          <div className="queueList">
-            {publishItems.length > 0 ? (
-              publishItems.map((item) => (
-                <div className="queueItem" key={`publish-${item.id}`}>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p className="muted">{item.platforms} · {item.publishWindow}</p>
-                  </div>
-                  <span className="pill pill-positive">待发布</span>
-                </div>
-              ))
-            ) : (
-              <p className="emptyState">当前还没有通过终审的内容，先把上面的选题推进到可发布状态。</p>
-            )}
-          </div>
-        </article>
+        )}
       </section>
     </div>
   );

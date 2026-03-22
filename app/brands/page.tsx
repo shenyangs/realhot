@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { BrandAutofillPanel } from "@/components/brand-autofill-panel";
 import { BrandOnboardingStatus } from "@/components/brand-onboarding-status";
+import { PageHero } from "@/components/page-hero";
 import { getBrandStrategyPack } from "@/lib/data";
 import { getBrandBrainSummary } from "@/lib/services/brand-brain";
 
@@ -72,16 +74,11 @@ export default async function BrandsPage() {
 
   return (
     <div className="page brandsPage">
-      <section className="brandHero panel">
-        <div className="brandHeroCopy">
-          <p className="eyebrow">品牌与规则</p>
-          <h2>先把品牌喂明白，再让热点判断和内容生成真正像你自己。</h2>
-          <p className="muted heroText">
-            这一页不是“设置页”，而是品牌接入和长期维护的知识底盘。品牌画像、表达边界、素材资产和近期动态都会直接影响后续选题和改稿质量。
-          </p>
-          <div className="buttonRow">
+      <PageHero
+        actions={
+          <>
             <Link className="buttonLike primaryButton" href="/">
-              进入今日选题台
+              回到工作台
             </Link>
             <Link className="buttonLike subtleButton" href="/onboarding">
               重新走接入流程
@@ -89,31 +86,32 @@ export default async function BrandsPage() {
             <a className="buttonLike subtleButton" href="#material-library">
               继续补资料
             </a>
-          </div>
-        </div>
+          </>
+        }
+        description="查看品牌画像、表达边界与资料状态。"
+        eyebrow="品牌系统"
+        facts={[
+          { label: "当前品牌", value: brandStrategyPack.name },
+          { label: "所属行业", value: brandStrategyPack.sector },
+          {
+            label: "资料状态",
+            value: materialsMissing.length === 0 ? "已具备完整接入条件" : "已具备基础运行条件"
+          },
+          { label: "稳定素材", value: `${stableSources.length} 项` }
+        ]}
+        context={brandStrategyPack.name}
+        title="品牌系统"
+      />
 
-        <div className="brandHeroMeta">
-          <div className="metaPill">
-            <span>当前品牌</span>
-            <strong>{brandStrategyPack.name}</strong>
-          </div>
-          <div className="metaPill">
-            <span>所属行业</span>
-            <strong>{brandStrategyPack.sector}</strong>
-          </div>
-          <BrandOnboardingStatus brandName={brandStrategyPack.name} />
-          <div className="metaPill">
-            <span>资料状态</span>
-            <strong>{materialsMissing.length === 0 ? "已具备完整接入条件" : "已具备基础运行条件"}</strong>
-          </div>
-        </div>
-      </section>
+      <BrandOnboardingStatus brandName={brandStrategyPack.name} variant="card" />
+
+      <BrandAutofillPanel initialBrandName={brandStrategyPack.name} />
 
       <section className="panel">
         <div className="panelHeader sectionTitle">
           <div>
             <p className="eyebrow">品牌接入 5 步</p>
-            <h3>先建档，再开始日常选题与内容生产</h3>
+            <h3>接入流程</h3>
           </div>
         </div>
 
@@ -163,7 +161,7 @@ export default async function BrandsPage() {
           <div className="panelHeader">
             <div>
               <p className="eyebrow">传播目标</p>
-              <h3>系统现在会优先朝这些方向产出</h3>
+              <h3>当前方向</h3>
             </div>
           </div>
           <div className="definitionList">
@@ -188,7 +186,7 @@ export default async function BrandsPage() {
           <div className="panelHeader">
             <div>
               <p className="eyebrow">表达规则</p>
-              <h3>让系统知道什么能说，什么不能说</h3>
+              <h3>表达边界</h3>
             </div>
           </div>
           <div className="definitionList">
@@ -215,7 +213,7 @@ export default async function BrandsPage() {
           <div className="panelHeader">
             <div>
               <p className="eyebrow">近期动态</p>
-              <h3>这些时效资料会直接影响借势与观点内容</h3>
+              <h3>最近更新</h3>
             </div>
           </div>
           <div className="timelineList">
@@ -234,7 +232,7 @@ export default async function BrandsPage() {
           <div className="panelHeader">
             <div>
               <p className="eyebrow">推荐补充资料</p>
-              <h3>先传这些，最能明显提升后续内容质量</h3>
+              <h3>建议补齐</h3>
             </div>
           </div>
 
@@ -252,7 +250,7 @@ export default async function BrandsPage() {
           <div className="panelHeader">
             <div>
               <p className="eyebrow">资料完整度</p>
-              <h3>{materialsMissing.length === 0 ? "现在已经可以稳定运行" : "已经能跑，但还可以更像你的品牌"}</h3>
+              <h3>{materialsMissing.length === 0 ? "已完整" : "待补充"}</h3>
             </div>
           </div>
 
@@ -279,7 +277,7 @@ export default async function BrandsPage() {
         <div className="panelHeader sectionTitle">
           <div>
             <p className="eyebrow">素材与资料库</p>
-            <h3>按类型整理，而不是把文件堆成附件列表</h3>
+            <h3>资料库</h3>
           </div>
         </div>
 

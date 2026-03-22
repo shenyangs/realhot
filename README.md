@@ -13,7 +13,7 @@
 - Next.js App Router
 - TypeScript
 - Supabase schema 预置
-- 多模型路由层，可接 OpenAI 并扩展到其他大模型
+- Gemini API 路由层，默认统一走 Google Gemini
 
 ## Core Screens
 
@@ -40,7 +40,24 @@
 2. 复制环境变量：`cp .env.example .env.local`
 3. 运行开发环境：`npm run dev`
 
-如果没有配置模型密钥，系统会自动退回到本地模板路由，方便先调通流程。
+如果没有配置 `GEMINI_API_KEY`，系统会自动退回到本地模板路由，方便先调通流程。
+
+## Docker Deploy
+
+- 多阶段镜像：`/Users/sam/Desktop/1st/Dockerfile`
+- Compose：`/Users/sam/Desktop/1st/compose.yaml`
+- 极空间环境变量模板：`/Users/sam/Desktop/1st/.env.zspace.example`
+- 极空间 + 节点小宝部署步骤：`/Users/sam/Desktop/1st/docs/deploy-zspace.md`
+
+快速开始：
+
+```bash
+cp .env.zspace.example .env.zspace
+docker compose build
+docker compose up -d
+```
+
+默认对外暴露 `3000` 端口，并把本地运行时数据持久化到 `./data/runtime`。
 
 ## Data Model
 
@@ -81,6 +98,8 @@
 
 同步器现在也支持实验性自定义适配器源。当前已加上 `Entobit / 热搜神器 Pro` 的 spike 适配入口，但默认关闭，因为该站点使用未文档化私有接口，匿名服务端抓取是否稳定会受站点风控策略影响。
 
+另外，当前代码也预留了 `TrendRadar/newsnow` 兼容接入层，适合作为中国本土平台热源的补充聚合层使用。建议优先使用你自部署或可控的 TrendRadar/newsnow 接口地址，再通过环境变量开启；公开默认地址可能会遇到 Cloudflare challenge 或地区网络差异，因此更适合做备用层，而不是唯一主源。
+
 - `ENABLE_AUXILIARY_HOT_SOURCES=true`
 - `ENABLE_AA1_BAIDU_HOT_SEARCH=true`
 - `ENABLE_AA1_WEIBO_HOT_SEARCH=true`
@@ -88,6 +107,10 @@
 - `ENABLE_BILIBILI_POPULAR_HOT=true`
 - `ENABLE_TOUTIAO_HOT_BOARD=true`
 - `AUXILIARY_HOT_SOURCE_MAX_ITEMS=10`
+- `ENABLE_TRENDRADAR_SOURCES=true`
+- `TRENDRADAR_BASE_URL=https://your-trendradar-or-newsnow.example.com/api/s`
+- `TRENDRADAR_FALLBACK_ONLY=true`
+- `TRENDRADAR_SOURCE_MAX_ITEMS=25`
 - `ENABLE_ENTOBIT_HOT_SEARCH=true`
 - `ENTOBIT_HOT_SEARCH_RANK_TYPES=realTimeHotSearchList,douyin,baidu,xiaohongshu`
 - `ENTOBIT_HOT_SEARCH_MAX_ITEMS=10`

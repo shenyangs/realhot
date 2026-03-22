@@ -399,7 +399,7 @@ export function ReviewEditor({
         <div className="reviewSimpleHeader">
           <div>
             <p className="eyebrow">AI 改稿</p>
-            <h3>直接说你想怎么改</h3>
+            <h3>改稿助手</h3>
           </div>
         </div>
 

@@ -13,6 +13,7 @@ import {
   DashboardMetric,
   HotspotPack,
   HotspotSignal,
+  HotspotSyncSnapshot,
   Platform,
   PublishJob
 } from "@/lib/domain/types";
@@ -46,6 +47,7 @@ interface HotspotRow {
   summary: string;
   kind: HotspotSignal["kind"];
   source: string;
+  source_url?: string | null;
   detected_at: string;
   relevance_score: number;
   industry_score: number;
@@ -106,6 +108,11 @@ export interface QueuePublishJobsResult {
   usedMockStorage: boolean;
 }
 
+export interface ClearPublishJobsResult {
+  removedCount: number;
+  usedMockStorage: boolean;
+}
+
 export interface QueuedPublishJob extends PublishJob {
   variantTitle: string;
   variantBody: string;
@@ -136,6 +143,7 @@ function mapHotspot(row: HotspotRow): HotspotSignal {
     summary: row.summary,
     kind: row.kind,
     source: row.source,
+    sourceUrl: row.source_url ?? undefined,
     detectedAt: row.detected_at,
     relevanceScore: row.relevance_score,
     industryScore: row.industry_score,
@@ -235,6 +243,111 @@ export async function getBrandStrategyPack(): Promise<BrandStrategyPack> {
   return mapBrand(brand, sources ?? []);
 }
 
+export async function updateBrandStrategyPack(
+  input: BrandStrategyPack
+): Promise<BrandStrategyPack> {
+  const normalized: BrandStrategyPack = {
+    ...input,
+    name: input.name.trim(),
+    slogan: input.slogan.trim(),
+    sector: input.sector.trim(),
+    audiences: input.audiences.map((item) => item.trim()).filter(Boolean),
+    positioning: input.positioning.map((item) => item.trim()).filter(Boolean),
+    topics: input.topics.map((item) => item.trim()).filter(Boolean),
+    tone: input.tone.map((item) => item.trim()).filter(Boolean),
+    redLines: input.redLines.map((item) => item.trim()).filter(Boolean),
+    competitors: input.competitors.map((item) => item.trim()).filter(Boolean),
+    recentMoves: input.recentMoves.map((item) => item.trim()).filter(Boolean),
+    sources: input.sources
+      .map((source) => ({
+        label: source.label.trim(),
+        type: source.type,
+        freshness: source.freshness,
+        value: source.value.trim()
+      }))
+      .filter((source) => source.label && source.value)
+  };
+
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    const store = await updateLocalDataStore((current) => ({
+      ...current,
+      brand: normalized
+    }));
+
+    return store.brand;
+  }
+
+  const { data: existingBrand, error: existingBrandError } = await supabase
+    .from("brands")
+    .select("id")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+
+  if (existingBrandError || !existingBrand) {
+    throw existingBrandError ?? new Error("未找到可更新的品牌记录");
+  }
+
+  const brandId = existingBrand.id;
+  const now = new Date().toISOString();
+
+  const { error: updateError } = await supabase
+    .from("brands")
+    .update({
+      name: normalized.name,
+      slogan: normalized.slogan,
+      sector: normalized.sector,
+      audiences: normalized.audiences,
+      positioning: normalized.positioning,
+      topics: normalized.topics,
+      tone: normalized.tone,
+      red_lines: normalized.redLines,
+      competitors: normalized.competitors,
+      recent_moves: normalized.recentMoves,
+      updated_at: now
+    })
+    .eq("id", brandId);
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  const { error: deleteError } = await supabase
+    .from("brand_sources")
+    .delete()
+    .eq("brand_id", brandId);
+
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  if (normalized.sources.length > 0) {
+    const { error: insertError } = await supabase
+      .from("brand_sources")
+      .insert(
+        normalized.sources.map((source) => ({
+          brand_id: brandId,
+          label: source.label,
+          type: source.type,
+          freshness: source.freshness,
+          value: source.value,
+          fetched_at: now
+        }))
+      );
+
+    if (insertError) {
+      throw insertError;
+    }
+  }
+
+  return {
+    ...(await getBrandStrategyPack()),
+    id: brandId
+  };
+}
+
 export async function getHotspotSignals(): Promise<HotspotSignal[]> {
   const supabase = getSupabaseServerClient();
 
@@ -328,6 +441,11 @@ export async function getPrioritizedHotspots() {
   return prioritizeHotspots(brand, signals);
 }
 
+export async function getLatestHotspotSyncSnapshot(): Promise<HotspotSyncSnapshot | null> {
+  const store = await readLocalDataStore();
+  return store.lastHotspotSync ?? null;
+}
+
 export async function updateHotspotPackReview(
   packId: string,
   input: {
@@ -388,6 +506,43 @@ export async function updateHotspotPackReview(
   }
 
   return (await getHotspotPack(packId)) ?? null;
+}
+
+export async function deleteHotspotPack(packId: string): Promise<boolean> {
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    let removed = false;
+
+    await updateLocalDataStore((store) => ({
+      ...store,
+      packs: store.packs.filter((pack) => {
+        const shouldKeep = pack.id !== packId;
+
+        if (!shouldKeep) {
+          removed = true;
+        }
+
+        return shouldKeep;
+      }),
+      publishJobs: store.publishJobs.filter((job) => job.packId !== packId)
+    }));
+
+    return removed;
+  }
+
+  const { data, error } = await supabase
+    .from("hotspot_packs")
+    .delete()
+    .eq("id", packId)
+    .select("id")
+    .returns<Array<{ id: string }>>();
+
+  if (error) {
+    throw error;
+  }
+
+  return (data?.length ?? 0) > 0;
 }
 
 export async function getPublishJobsForPack(packId: string): Promise<PublishJob[]> {
@@ -666,4 +821,86 @@ export async function updatePublishJobStatus(
   }
 
   return mapPublishJob(data);
+}
+
+export async function deletePublishJob(jobId: string): Promise<boolean> {
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    let removed = false;
+
+    await updateLocalDataStore((store) => ({
+      ...store,
+      publishJobs: store.publishJobs.filter((job) => {
+        const shouldKeep = job.id !== jobId;
+
+        if (!shouldKeep) {
+          removed = true;
+        }
+
+        return shouldKeep;
+      })
+    }));
+
+    return removed;
+  }
+
+  const { data, error } = await supabase
+    .from("publish_jobs")
+    .delete()
+    .eq("id", jobId)
+    .select("id")
+    .returns<Array<{ id: string }>>();
+
+  if (error) {
+    throw error;
+  }
+
+  return (data?.length ?? 0) > 0;
+}
+
+export async function clearQueuedPublishJobs(input?: {
+  packId?: string;
+}): Promise<ClearPublishJobsResult> {
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    let removedCount = 0;
+
+    await updateLocalDataStore((store) => ({
+      ...store,
+      publishJobs: store.publishJobs.filter((job) => {
+        const shouldRemove = job.status === "queued" && (input?.packId ? job.packId === input.packId : true);
+
+        if (shouldRemove) {
+          removedCount += 1;
+          return false;
+        }
+
+        return true;
+      })
+    }));
+
+    return {
+      removedCount,
+      usedMockStorage: true
+    };
+  }
+
+  let query = supabase.from("publish_jobs").delete().eq("status", "queued");
+
+  if (input?.packId) {
+    query = query.eq("pack_id", input.packId);
+  }
+
+  const { data, error } = await query.select("id").returns<Array<{ id: string }>>();
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    removedCount: data?.length ?? 0,
+    usedMockStorage: false
+  };
 }

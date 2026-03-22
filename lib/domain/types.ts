@@ -7,6 +7,9 @@ export type ContentTrack = "rapid-response" | "point-of-view";
 export type ReviewStatus = "pending" | "approved" | "needs-edit";
 
 export type PublishStatus = "queued" | "published" | "failed" | "canceled";
+export type HotspotFetchStatus = "ok" | "empty" | "failed";
+export type HotspotSourceType = "direct" | "rss" | "aggregator";
+export type HotspotProviderRole = "primary" | "fallback";
 
 export type LlmTask =
   | "hotspot-analysis"
@@ -44,6 +47,7 @@ export interface HotspotSignal {
   summary: string;
   kind: HotspotKind;
   source: string;
+  sourceUrl?: string;
   detectedAt: string;
   relevanceScore: number;
   industryScore: number;
@@ -51,6 +55,29 @@ export interface HotspotSignal {
   riskScore: number;
   recommendedAction: "ship-now" | "watch" | "discard";
   reasons: string[];
+}
+
+export interface HotspotProviderReport {
+  id: string;
+  label: string;
+  sourceType?: HotspotSourceType;
+  priorityRole?: HotspotProviderRole;
+  fetched: number;
+  persisted: number;
+  fetchStatus?: HotspotFetchStatus;
+  fetchNote?: string;
+  pageChecked?: boolean;
+  pageReachable?: boolean;
+  pageMatchedTitles?: number;
+  pageGated?: boolean;
+  pageNote?: string;
+}
+
+export interface HotspotSyncSnapshot {
+  executedAt: string;
+  providerCount: number;
+  hotspotCount: number;
+  providers: HotspotProviderReport[];
 }
 
 export interface ContentVariant {

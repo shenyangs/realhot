@@ -31,8 +31,149 @@ where brand_id in ('11111111-1111-1111-1111-111111111111');
 delete from brands
 where id in ('11111111-1111-1111-1111-111111111111');
 
+delete from workspace_members
+where workspace_id in ('88888888-8888-8888-8888-888888888881');
+
+delete from workspace_invites
+where workspace_id in ('88888888-8888-8888-8888-888888888881');
+
+delete from workspace_invite_codes
+where workspace_id in ('88888888-8888-8888-8888-888888888881');
+
+delete from platform_admins
+where user_id in (
+  '99999999-9999-9999-9999-999999999991',
+  '99999999-9999-9999-9999-999999999992',
+  '99999999-9999-9999-9999-999999999993',
+  '99999999-9999-9999-9999-999999999994'
+);
+
+delete from workspaces
+where id in ('88888888-8888-8888-8888-888888888881');
+
+delete from profiles
+where id in (
+  '99999999-9999-9999-9999-999999999991',
+  '99999999-9999-9999-9999-999999999992',
+  '99999999-9999-9999-9999-999999999993',
+  '99999999-9999-9999-9999-999999999994'
+);
+
+insert into profiles (
+  id,
+  email,
+  display_name,
+  status
+) values
+  (
+    '99999999-9999-9999-9999-999999999991',
+    'superadmin@example.com',
+    'Platform Super Admin',
+    'active'
+  ),
+  (
+    '99999999-9999-9999-9999-999999999992',
+    'owner@example.com',
+    'Workspace Owner',
+    'active'
+  ),
+  (
+    '99999999-9999-9999-9999-999999999993',
+    'operator@example.com',
+    'Content Operator',
+    'active'
+  ),
+  (
+    '99999999-9999-9999-9999-999999999994',
+    'approver@example.com',
+    'Content Approver',
+    'active'
+  );
+
+insert into platform_admins (
+  user_id
+) values (
+  '99999999-9999-9999-9999-999999999991'
+);
+
+insert into workspaces (
+  id,
+  name,
+  slug,
+  status,
+  plan_type,
+  owner_user_id
+) values (
+  '88888888-8888-8888-8888-888888888881',
+  'SignalStack Demo Workspace',
+  'signalstack-demo',
+  'active',
+  'trial',
+  '99999999-9999-9999-9999-999999999992'
+);
+
+insert into workspace_members (
+  id,
+  workspace_id,
+  user_id,
+  role,
+  status,
+  invited_by,
+  joined_at
+) values
+  (
+    '12121212-1212-1212-1212-121212121212',
+    '88888888-8888-8888-8888-888888888881',
+    '99999999-9999-9999-9999-999999999992',
+    'org_admin',
+    'active',
+    '99999999-9999-9999-9999-999999999991',
+    now()
+  ),
+  (
+    '13131313-1313-1313-1313-131313131313',
+    '88888888-8888-8888-8888-888888888881',
+    '99999999-9999-9999-9999-999999999993',
+    'operator',
+    'active',
+    '99999999-9999-9999-9999-999999999992',
+    now()
+  ),
+  (
+    '14141414-1414-1414-1414-141414141414',
+    '88888888-8888-8888-8888-888888888881',
+    '99999999-9999-9999-9999-999999999994',
+    'approver',
+    'active',
+    '99999999-9999-9999-9999-999999999992',
+    now()
+  );
+
+insert into workspace_invite_codes (
+  id,
+  workspace_id,
+  code,
+  role,
+  status,
+  max_uses,
+  used_count,
+  created_by,
+  created_at
+) values (
+  '17171717-1717-1717-1717-171717171717',
+  '88888888-8888-8888-8888-888888888881',
+  'SIGNALSTACK-TRIAL-01',
+  'operator',
+  'active',
+  3,
+  0,
+  '99999999-9999-9999-9999-999999999991',
+  '2026-03-22T09:20:00+08:00'
+);
+
 insert into brands (
   id,
+  workspace_id,
   name,
   slogan,
   sector,
@@ -42,9 +183,12 @@ insert into brands (
   tone,
   red_lines,
   competitors,
-  recent_moves
+  recent_moves,
+  created_by,
+  updated_by
 ) values (
   '11111111-1111-1111-1111-111111111111',
+  '88888888-8888-8888-8888-888888888881',
   'SignalStack',
   '让 AI 团队更快跑到市场前面',
   'AI / SaaS',
@@ -57,7 +201,9 @@ insert into brands (
   array['专业', '直接', '有判断', '不过度营销'],
   array['不虚构客户案例', '不碰瓷竞品', '不夸大模型能力', '行业新闻必须标明事实边界'],
   array['HubSpot', 'Jasper', 'Writer', '自建内容团队'],
-  array['上周发布了热点内容审核工作台 beta', '两周前在上海参加 AI 增长峰会', '本月发布品牌传播自动化白皮书']
+  array['上周发布了热点内容审核工作台 beta', '两周前在上海参加 AI 增长峰会', '本月发布品牌传播自动化白皮书'],
+  '99999999-9999-9999-9999-999999999992',
+  '99999999-9999-9999-9999-999999999992'
 );
 
 insert into brand_sources (
@@ -194,23 +340,33 @@ insert into hotspot_scores (
 
 insert into hotspot_packs (
   id,
+  workspace_id,
   brand_id,
   hotspot_id,
   status,
   why_now,
   why_us,
   review_owner,
+  created_by,
+  submitted_by,
+  approved_by,
+  submitted_at,
   review_note,
   reviewed_by,
   reviewed_at
 ) values (
   '44444444-4444-4444-4444-444444444441',
+  '88888888-8888-8888-8888-888888888881',
   '11111111-1111-1111-1111-111111111111',
   '33333333-3333-3333-3333-333333333331',
   'pending',
   '过去 12 小时行业发布密度异常高，讨论仍在上升。',
   '品牌最近刚发布审核工作台 beta，可以自然接到“从 Agent 到可控传播”的观点。',
   '品牌市场负责人',
+  '99999999-9999-9999-9999-999999999993',
+  '99999999-9999-9999-9999-999999999993',
+  null,
+  now(),
   null,
   null,
   null
@@ -279,33 +435,42 @@ insert into content_variants (
 
 insert into publish_jobs (
   id,
+  workspace_id,
   pack_id,
   variant_id,
   platform,
   status,
   queue_source,
+  requested_by,
+  approved_by,
   scheduled_at,
   published_at,
   failure_reason
 ) values
   (
     '77777777-7777-7777-7777-777777777771',
+    '88888888-8888-8888-8888-888888888881',
     '44444444-4444-4444-4444-444444444441',
     '66666666-6666-6666-6666-666666666661',
     'xiaohongshu',
     'queued',
     'manual',
+    '99999999-9999-9999-9999-999999999993',
+    null,
     null,
     null,
     null
   ),
   (
     '77777777-7777-7777-7777-777777777772',
+    '88888888-8888-8888-8888-888888888881',
     '44444444-4444-4444-4444-444444444441',
     '66666666-6666-6666-6666-666666666662',
     'douyin',
     'queued',
     'manual',
+    '99999999-9999-9999-9999-999999999993',
+    null,
     null,
     null,
     null
