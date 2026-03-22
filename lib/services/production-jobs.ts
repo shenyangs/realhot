@@ -9,12 +9,113 @@ import {
   ProductionJobStage,
   ProductionJobStatus
 } from "@/lib/domain/types";
+import { assessProductionBundleQuality } from "@/lib/services/production-quality";
+import { synthesizeVoiceTrack, transcribeVoiceTrack } from "@/lib/services/audio-pipeline";
 import { generateImageAssets, generateVideoAssets } from "@/lib/services/multimodal-pipeline";
 import { decideModelRoute, runModelTask } from "@/lib/services/model-router";
+import { getSupabaseServerClient } from "@/lib/supabase/client";
 
 const stageOrder: ProductionJobStage[] = ["script", "image", "video", "voice", "subtitle", "finalize"];
 
+interface ProductionJobRow {
+  id: string;
+  workspace_id: string;
+  pack_id: string;
+  status: ProductionJobStatus;
+  stage: ProductionJobStage;
+  created_by: string | null;
+  error_message: string | null;
+  retry_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ProductionAssetRow {
+  id: string;
+  workspace_id: string;
+  pack_id: string;
+  job_id: string;
+  kind: ProductionAsset["kind"];
+  name: string;
+  status: ProductionAsset["status"];
+  provider: string;
+  model: string;
+  preview_url: string | null;
+  text_content: string | null;
+  json_content: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ProductionDraftRow {
+  id: string;
+  workspace_id: string;
+  pack_id: string;
+  title: string;
+  body: string;
+  subtitles: string;
+  cover_asset_id: string | null;
+  video_asset_id: string | null;
+  voice_asset_id: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 const stageRank = new Map(stageOrder.map((stage, index) => [stage, index]));
+
+function mapProductionJobRow(row: ProductionJobRow): ProductionJob {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    packId: row.pack_id,
+    status: row.status,
+    stage: row.stage,
+    createdBy: row.created_by ?? undefined,
+    errorMessage: row.error_message ?? undefined,
+    retryCount: row.retry_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapProductionAssetRow(row: ProductionAssetRow): ProductionAsset {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    packId: row.pack_id,
+    jobId: row.job_id,
+    kind: row.kind,
+    name: row.name,
+    status: row.status,
+    provider: row.provider,
+    model: row.model,
+    previewUrl: row.preview_url ?? undefined,
+    textContent: row.text_content ?? undefined,
+    jsonContent: row.json_content ?? undefined,
+    errorMessage: row.error_message ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapProductionDraftRow(row: ProductionDraftRow): ProductionDraft {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    packId: row.pack_id,
+    title: row.title,
+    body: row.body,
+    subtitles: row.subtitles,
+    coverAssetId: row.cover_asset_id ?? undefined,
+    videoAssetId: row.video_asset_id ?? undefined,
+    voiceAssetId: row.voice_asset_id ?? undefined,
+    updatedBy: row.updated_by ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
 
 function stageGte(left: ProductionJobStage, right: ProductionJobStage): boolean {
   return (stageRank.get(left) ?? 0) >= (stageRank.get(right) ?? 0);
@@ -124,6 +225,7 @@ export async function createProductionJob(input: {
   packId: string;
   createdBy?: string;
 }): Promise<ProductionJob> {
+  const supabase = getSupabaseServerClient();
   const now = new Date().toISOString();
   const job: ProductionJob = {
     id: randomUUID(),
@@ -137,6 +239,31 @@ export async function createProductionJob(input: {
     updatedAt: now
   };
 
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("production_jobs")
+      .insert({
+        id: job.id,
+        workspace_id: job.workspaceId,
+        pack_id: job.packId,
+        status: job.status,
+        stage: job.stage,
+        created_by: job.createdBy ?? null,
+        error_message: job.errorMessage ?? null,
+        retry_count: job.retryCount,
+        created_at: job.createdAt,
+        updated_at: job.updatedAt
+      })
+      .select("*")
+      .maybeSingle<ProductionJobRow>();
+
+    if (error || !data) {
+      throw error ?? new Error("production_job_create_failed");
+    }
+
+    return mapProductionJobRow(data);
+  }
+
   await updateLocalDataStore((store) => ({
     ...store,
     productionJobs: [job, ...store.productionJobs]
@@ -146,11 +273,44 @@ export async function createProductionJob(input: {
 }
 
 export async function getProductionJobById(jobId: string): Promise<ProductionJob | null> {
+  const supabase = getSupabaseServerClient();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("production_jobs")
+      .select("*")
+      .eq("id", jobId)
+      .maybeSingle<ProductionJobRow>();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return mapProductionJobRow(data);
+  }
+
   const store = await readLocalDataStore();
   return store.productionJobs.find((job) => job.id === jobId) ?? null;
 }
 
 export async function listProductionJobsByPack(packId: string): Promise<ProductionJob[]> {
+  const supabase = getSupabaseServerClient();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("production_jobs")
+      .select("*")
+      .eq("pack_id", packId)
+      .order("created_at", { ascending: false })
+      .returns<ProductionJobRow[]>();
+
+    if (error || !data) {
+      return [];
+    }
+
+    return data.map(mapProductionJobRow);
+  }
+
   const store = await readLocalDataStore();
   return store.productionJobs
     .filter((job) => job.packId === packId)
@@ -166,6 +326,30 @@ export async function updateProductionJob(
     retryCount?: number;
   }
 ): Promise<ProductionJob | null> {
+  const supabase = getSupabaseServerClient();
+
+  if (supabase) {
+    const payload = {
+      ...(input.status ? { status: input.status } : {}),
+      ...(input.stage ? { stage: input.stage } : {}),
+      ...(input.errorMessage !== undefined ? { error_message: input.errorMessage || null } : {}),
+      ...(input.retryCount !== undefined ? { retry_count: input.retryCount } : {}),
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase
+      .from("production_jobs")
+      .update(payload)
+      .eq("id", jobId)
+      .select("*")
+      .maybeSingle<ProductionJobRow>();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return mapProductionJobRow(data);
+  }
+
   let updated: ProductionJob | null = null;
 
   await updateLocalDataStore((store) => ({
@@ -192,6 +376,23 @@ export async function updateProductionJob(
 }
 
 export async function listProductionAssetsByJob(jobId: string): Promise<ProductionAsset[]> {
+  const supabase = getSupabaseServerClient();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("production_assets")
+      .select("*")
+      .eq("job_id", jobId)
+      .order("created_at", { ascending: false })
+      .returns<ProductionAssetRow[]>();
+
+    if (error || !data) {
+      return [];
+    }
+
+    return data.map(mapProductionAssetRow);
+  }
+
   const store = await readLocalDataStore();
   return store.productionAssets
     .filter((asset) => asset.jobId === jobId)
@@ -199,6 +400,23 @@ export async function listProductionAssetsByJob(jobId: string): Promise<Producti
 }
 
 export async function listProductionAssetsByPack(packId: string): Promise<ProductionAsset[]> {
+  const supabase = getSupabaseServerClient();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("production_assets")
+      .select("*")
+      .eq("pack_id", packId)
+      .order("created_at", { ascending: false })
+      .returns<ProductionAssetRow[]>();
+
+    if (error || !data) {
+      return [];
+    }
+
+    return data.map(mapProductionAssetRow);
+  }
+
   const store = await readLocalDataStore();
   return store.productionAssets
     .filter((asset) => asset.packId === packId)
@@ -206,6 +424,22 @@ export async function listProductionAssetsByPack(packId: string): Promise<Produc
 }
 
 export async function getProductionAssetById(assetId: string): Promise<ProductionAsset | null> {
+  const supabase = getSupabaseServerClient();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("production_assets")
+      .select("*")
+      .eq("id", assetId)
+      .maybeSingle<ProductionAssetRow>();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return mapProductionAssetRow(data);
+  }
+
   const store = await readLocalDataStore();
   return store.productionAssets.find((asset) => asset.id === assetId) ?? null;
 }
@@ -223,8 +457,51 @@ export async function updateProductionAsset(
     model?: string;
   }
 ): Promise<ProductionAsset | null> {
-  let updated: ProductionAsset | null = null;
+  const supabase = getSupabaseServerClient();
   const now = new Date().toISOString();
+  const before = await getProductionAssetById(assetId);
+
+  if (supabase) {
+    const payload = {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.status !== undefined ? { status: input.status } : {}),
+      ...(input.previewUrl !== undefined ? { preview_url: input.previewUrl || null } : {}),
+      ...(input.textContent !== undefined ? { text_content: input.textContent || null } : {}),
+      ...(input.jsonContent !== undefined ? { json_content: input.jsonContent || null } : {}),
+      ...(input.errorMessage !== undefined ? { error_message: input.errorMessage || null } : {}),
+      ...(input.provider !== undefined ? { provider: input.provider } : {}),
+      ...(input.model !== undefined ? { model: input.model } : {}),
+      updated_at: now
+    };
+    const { data, error } = await supabase
+      .from("production_assets")
+      .update(payload)
+      .eq("id", assetId)
+      .select("*")
+      .maybeSingle<ProductionAssetRow>();
+
+    if (error || !data) {
+      return null;
+    }
+
+    const updated = mapProductionAssetRow(data);
+
+    if (before) {
+      await supabase.from("production_asset_versions").insert({
+        workspace_id: updated.workspaceId,
+        pack_id: updated.packId,
+        job_id: updated.jobId,
+        asset_id: updated.id,
+        before_state: JSON.parse(JSON.stringify(before)),
+        after_state: JSON.parse(JSON.stringify(updated)),
+        change_reason: "asset_update"
+      });
+    }
+
+    return updated;
+  }
+
+  let updated: ProductionAsset | null = null;
 
   await updateLocalDataStore((store) => ({
     ...store,
@@ -250,10 +527,48 @@ export async function updateProductionAsset(
     })
   }));
 
+  if (before && updated) {
+    const updatedSnapshot = updated as ProductionAsset;
+    await updateLocalDataStore((store) => ({
+      ...store,
+      productionAssetVersions: [
+        {
+          id: randomUUID(),
+          workspaceId: updatedSnapshot.workspaceId,
+          packId: updatedSnapshot.packId,
+          jobId: updatedSnapshot.jobId,
+          assetId: updatedSnapshot.id,
+          beforeState: JSON.stringify(before),
+          afterState: JSON.stringify(updatedSnapshot),
+          changeReason: "asset_update",
+          createdAt: now
+        },
+        ...store.productionAssetVersions
+      ]
+    }));
+  }
+
   return updated;
 }
 
 export async function getProductionDraftByPack(packId: string, workspaceId: string): Promise<ProductionDraft | null> {
+  const supabase = getSupabaseServerClient();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("production_drafts")
+      .select("*")
+      .eq("pack_id", packId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle<ProductionDraftRow>();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return mapProductionDraftRow(data);
+  }
+
   const store = await readLocalDataStore();
   return store.productionDrafts.find((item) => item.packId === packId && item.workspaceId === workspaceId) ?? null;
 }
@@ -269,6 +584,7 @@ export async function saveProductionDraft(input: {
   voiceAssetId?: string;
   updatedBy?: string;
 }): Promise<ProductionDraft> {
+  const supabase = getSupabaseServerClient();
   const now = new Date().toISOString();
   const current = await getProductionDraftByPack(input.packId, input.workspaceId);
 
@@ -286,6 +602,38 @@ export async function saveProductionDraft(input: {
     createdAt: current?.createdAt ?? now,
     updatedAt: now
   };
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("production_drafts")
+      .upsert(
+        {
+          id: draft.id,
+          workspace_id: draft.workspaceId,
+          pack_id: draft.packId,
+          title: draft.title,
+          body: draft.body,
+          subtitles: draft.subtitles,
+          cover_asset_id: draft.coverAssetId ?? null,
+          video_asset_id: draft.videoAssetId ?? null,
+          voice_asset_id: draft.voiceAssetId ?? null,
+          updated_by: draft.updatedBy ?? null,
+          created_at: draft.createdAt,
+          updated_at: draft.updatedAt
+        },
+        {
+          onConflict: "workspace_id,pack_id"
+        }
+      )
+      .select("*")
+      .maybeSingle<ProductionDraftRow>();
+
+    if (error || !data) {
+      throw error ?? new Error("production_draft_upsert_failed");
+    }
+
+    return mapProductionDraftRow(data);
+  }
 
   await updateLocalDataStore((store) => ({
     ...store,
@@ -319,6 +667,97 @@ function mapAssetKindToStage(kind: ProductionAssetKind): ProductionJobStage {
   return "script";
 }
 
+export async function appendProductionJobEvent(input: {
+  workspaceId: string;
+  packId: string;
+  jobId: string;
+  stage?: ProductionJobStage;
+  level: "info" | "warning" | "error";
+  message: string;
+  payload?: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    const supabase = getSupabaseServerClient();
+    const now = new Date().toISOString();
+
+    if (supabase) {
+      await supabase.from("production_job_events").insert({
+        workspace_id: input.workspaceId,
+        pack_id: input.packId,
+        job_id: input.jobId,
+        stage: input.stage ?? null,
+        level: input.level,
+        message: input.message,
+        payload: input.payload ?? {},
+        created_at: now
+      });
+      return;
+    }
+
+    await updateLocalDataStore((store) => ({
+      ...store,
+      productionJobEvents: [
+        {
+          id: randomUUID(),
+          workspaceId: input.workspaceId,
+          packId: input.packId,
+          jobId: input.jobId,
+          stage: input.stage,
+          level: input.level,
+          message: input.message,
+          payload: input.payload ? JSON.stringify(input.payload) : undefined,
+          createdAt: now
+        },
+        ...store.productionJobEvents
+      ]
+    }));
+  } catch {
+    // Ignore event log failures; should never block primary content production.
+  }
+}
+
+export async function listQueuedProductionJobs(input?: {
+  workspaceId?: string;
+  jobId?: string;
+  limit?: number;
+}): Promise<ProductionJob[]> {
+  const supabase = getSupabaseServerClient();
+  const limit = input?.limit && input.limit > 0 ? input.limit : 20;
+
+  if (supabase) {
+    let query = supabase
+      .from("production_jobs")
+      .select("*")
+      .eq("status", "queued")
+      .order("created_at", { ascending: true })
+      .limit(limit);
+
+    if (input?.workspaceId) {
+      query = query.eq("workspace_id", input.workspaceId);
+    }
+
+    if (input?.jobId) {
+      query = query.eq("id", input.jobId);
+    }
+
+    const { data, error } = await query.returns<ProductionJobRow[]>();
+
+    if (error || !data) {
+      return [];
+    }
+
+    return data.map(mapProductionJobRow);
+  }
+
+  const store = await readLocalDataStore();
+  return store.productionJobs
+    .filter((job) => job.status === "queued")
+    .filter((job) => (input?.workspaceId ? job.workspaceId === input.workspaceId : true))
+    .filter((job) => (input?.jobId ? job.id === input.jobId : true))
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+    .slice(0, limit);
+}
+
 function removeRegeneratedKinds(existing: ProductionAsset[], fromStage: ProductionJobStage): ProductionAsset[] {
   const affectedKinds = new Set<ProductionAssetKind>();
 
@@ -350,6 +789,67 @@ function removeRegeneratedKinds(existing: ProductionAsset[], fromStage: Producti
 }
 
 async function persistJobAssets(jobId: string, fromStage: ProductionJobStage, nextAssets: ProductionAsset[]): Promise<void> {
+  const supabase = getSupabaseServerClient();
+
+  if (supabase) {
+    const { data: existing, error: existingError } = await supabase
+      .from("production_assets")
+      .select("*")
+      .eq("job_id", jobId)
+      .returns<ProductionAssetRow[]>();
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    const preserved = removeRegeneratedKinds((existing ?? []).map(mapProductionAssetRow), fromStage);
+    const affectedKinds = new Set(
+      (existing ?? [])
+        .filter((row) => !preserved.some((item) => item.id === row.id))
+        .map((row) => row.kind)
+    );
+
+    if (affectedKinds.size > 0) {
+      const { error: deleteError } = await supabase
+        .from("production_assets")
+        .delete()
+        .eq("job_id", jobId)
+        .in("kind", Array.from(affectedKinds));
+
+      if (deleteError) {
+        throw deleteError;
+      }
+    }
+
+    if (nextAssets.length > 0) {
+      const { error: insertError } = await supabase.from("production_assets").insert(
+        nextAssets.map((asset) => ({
+          id: asset.id,
+          workspace_id: asset.workspaceId,
+          pack_id: asset.packId,
+          job_id: asset.jobId,
+          kind: asset.kind,
+          name: asset.name,
+          status: asset.status,
+          provider: asset.provider,
+          model: asset.model,
+          preview_url: asset.previewUrl ?? null,
+          text_content: asset.textContent ?? null,
+          json_content: asset.jsonContent ?? null,
+          error_message: asset.errorMessage ?? null,
+          created_at: asset.createdAt,
+          updated_at: asset.updatedAt
+        }))
+      );
+
+      if (insertError) {
+        throw insertError;
+      }
+    }
+
+    return;
+  }
+
   await updateLocalDataStore((store) => {
     const preserved = removeRegeneratedKinds(
       store.productionAssets.filter((asset) => asset.jobId === jobId),
@@ -694,6 +1194,14 @@ export async function runProductionJob(input: {
     stage: fromStage,
     errorMessage: ""
   });
+  await appendProductionJobEvent({
+    workspaceId: currentJob.workspaceId,
+    packId: currentJob.packId,
+    jobId: currentJob.id,
+    stage: fromStage,
+    level: "info",
+    message: "production_job_started"
+  });
 
   const pack = await getHotspotPack(currentJob.packId);
 
@@ -751,6 +1259,14 @@ export async function runProductionJob(input: {
         textContent: scriptText
       })
     );
+    await appendProductionJobEvent({
+      workspaceId: currentJob.workspaceId,
+      packId: pack.id,
+      jobId: currentJob.id,
+      stage: "script",
+      level: "info",
+      message: "script_generated"
+    });
 
     await updateProductionJob(currentJob.id, {
       status: "running",
@@ -777,6 +1293,14 @@ export async function runProductionJob(input: {
 
     if (imageResult.warning) {
       warnings.push(imageResult.warning);
+      await appendProductionJobEvent({
+        workspaceId: currentJob.workspaceId,
+        packId: pack.id,
+        jobId: currentJob.id,
+        stage: "image",
+        level: "warning",
+        message: imageResult.warning
+      });
     }
 
     if (imageResult.assets.length > 0) {
@@ -859,6 +1383,14 @@ export async function runProductionJob(input: {
 
     if (videoResult.warning) {
       warnings.push(videoResult.warning);
+      await appendProductionJobEvent({
+        workspaceId: currentJob.workspaceId,
+        packId: pack.id,
+        jobId: currentJob.id,
+        stage: "video",
+        level: "warning",
+        message: videoResult.warning
+      });
     }
 
     generatedVoiceScript = videoResult.voiceScript ?? generatedVoiceScript;
@@ -924,11 +1456,32 @@ export async function runProductionJob(input: {
   }
 
   if (stageGte(fromStage, "voice")) {
-    const voiceScript = [
+    const voiceScriptText = [
       `标题：${baseTitle}`,
       generatedVoiceScript || scriptText.slice(0, 1200) || baseBody
     ].join("\n\n");
-    generatedVoiceScript = voiceScript;
+    const voiceSynthesis = await synthesizeVoiceTrack({
+      script: voiceScriptText
+    }).catch((error) => ({
+      provider: "pipeline",
+      model: "voice-script-v1",
+      script: voiceScriptText,
+      audioUrl: undefined,
+      warning: error instanceof Error ? error.message : "voice_synthesis_failed"
+    }));
+    generatedVoiceScript = voiceSynthesis.script;
+
+    if (voiceSynthesis.warning) {
+      warnings.push(voiceSynthesis.warning);
+      await appendProductionJobEvent({
+        workspaceId: currentJob.workspaceId,
+        packId: pack.id,
+        jobId: currentJob.id,
+        stage: "voice",
+        level: "warning",
+        message: voiceSynthesis.warning
+      });
+    }
 
     createdAssets.push(
       makeAsset({
@@ -937,9 +1490,10 @@ export async function runProductionJob(input: {
         jobId: currentJob.id,
         kind: "voice",
         name: "口播稿",
-        provider: "pipeline",
-        model: "voice-script-v1",
-        textContent: voiceScript
+        provider: voiceSynthesis.provider,
+        model: voiceSynthesis.model,
+        previewUrl: voiceSynthesis.audioUrl,
+        textContent: voiceSynthesis.script
       })
     );
 
@@ -950,7 +1504,35 @@ export async function runProductionJob(input: {
   }
 
   if (stageGte(fromStage, "subtitle")) {
-    subtitleText = generatedSubtitleFromVideo || subtitleText || buildSubtitleFromScript(scriptText || baseBody);
+    const voiceAssetForSubtitle = [...createdAssets, ...existingAssets].find((asset) => asset.kind === "voice");
+    const transcription = await transcribeVoiceTrack({
+      audioUrl: voiceAssetForSubtitle?.previewUrl,
+      fallbackText: generatedVoiceScript || scriptText || baseBody
+    }).catch((error) => ({
+      provider: "pipeline",
+      model: "subtitle-align-v1",
+      transcript: generatedVoiceScript || scriptText || baseBody,
+      subtitles: undefined,
+      warning: error instanceof Error ? error.message : "subtitle_transcribe_failed"
+    }));
+
+    subtitleText =
+      generatedSubtitleFromVideo ||
+      transcription.subtitles ||
+      subtitleText ||
+      buildSubtitleFromScript(transcription.transcript || scriptText || baseBody);
+
+    if (transcription.warning) {
+      warnings.push(transcription.warning);
+      await appendProductionJobEvent({
+        workspaceId: currentJob.workspaceId,
+        packId: pack.id,
+        jobId: currentJob.id,
+        stage: "subtitle",
+        level: "warning",
+        message: transcription.warning
+      });
+    }
 
     createdAssets.push(
       makeAsset({
@@ -959,8 +1541,8 @@ export async function runProductionJob(input: {
         jobId: currentJob.id,
         kind: "subtitle",
         name: "字幕草稿",
-        provider: "pipeline",
-        model: "subtitle-align-v1",
+        provider: transcription.provider,
+        model: transcription.model,
         textContent: subtitleText
       })
     );
@@ -1028,6 +1610,17 @@ export async function runProductionJob(input: {
   }
 
   const assets = await listProductionAssetsByJob(currentJob.id);
+  await appendProductionJobEvent({
+    workspaceId: currentJob.workspaceId,
+    packId: pack.id,
+    jobId: currentJob.id,
+    stage: "finalize",
+    level: "info",
+    message: "production_job_completed",
+    payload: {
+      assetCount: assets.length
+    }
+  });
 
   return {
     job,
@@ -1068,6 +1661,7 @@ export async function buildProductionPublishBundle(input: {
   bundle: Record<string, unknown>;
   draft: ProductionDraft | null;
   assets: ProductionAsset[];
+  qualityReport: ReturnType<typeof assessProductionBundleQuality>;
 }> {
   const [draft, assets] = await Promise.all([
     getProductionDraftByPack(input.packId, input.workspaceId),
@@ -1092,10 +1686,19 @@ export async function buildProductionPublishBundle(input: {
     },
     generatedAt: new Date().toISOString()
   };
+  const qualityReport = assessProductionBundleQuality({
+    title: draft?.title ?? "",
+    body: draft?.body ?? "",
+    subtitles: draft?.subtitles ?? "",
+    hasCover: Boolean(cover?.previewUrl),
+    hasVideo: Boolean(video?.previewUrl),
+    hasVoiceScript: Boolean(voice?.textContent || voice?.previewUrl)
+  });
 
   return {
     bundle,
     draft,
-    assets: scopedAssets
+    assets: scopedAssets,
+    qualityReport
   };
 }

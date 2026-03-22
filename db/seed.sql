@@ -1,5 +1,30 @@
 begin;
 
+delete from production_job_events
+where workspace_id in (
+  '88888888-8888-8888-8888-888888888881'
+);
+
+delete from production_asset_versions
+where workspace_id in (
+  '88888888-8888-8888-8888-888888888881'
+);
+
+delete from production_drafts
+where workspace_id in (
+  '88888888-8888-8888-8888-888888888881'
+);
+
+delete from production_assets
+where workspace_id in (
+  '88888888-8888-8888-8888-888888888881'
+);
+
+delete from production_jobs
+where workspace_id in (
+  '88888888-8888-8888-8888-888888888881'
+);
+
 delete from publish_jobs
 where pack_id in (
   '44444444-4444-4444-4444-444444444441'

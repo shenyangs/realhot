@@ -43,6 +43,7 @@ export function ProductionStudioConsole({
   const [message, setMessage] = useState<string>("");
   const [isPending, startTransition] = useTransition();
   const autoStartRef = useRef(false);
+  const runnerKickRef = useRef(false);
   const storageKey = useMemo(() => `signalstack:production:${packId}`, [packId]);
 
   const imageAssets = useMemo(() => assets.filter((asset) => asset.kind === "image"), [assets]);
@@ -86,6 +87,10 @@ export function ProductionStudioConsole({
   const selectedVideoAsset = pickPreferredAsset(videoAssets, videoAssetId);
   const selectedVoiceAsset = pickPreferredAsset(voiceAssets, voiceAssetId);
   const selectedSubtitleAsset = pickPreferredAsset(subtitleAssets, subtitleAssetId);
+
+  useEffect(() => {
+    runnerKickRef.current = false;
+  }, [job?.id]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(storageKey);
@@ -218,6 +223,19 @@ export function ProductionStudioConsole({
     }
   }
 
+  async function kickRunner(targetJobId: string) {
+    await fetch("/api/production/run", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        jobId: targetJobId,
+        limit: 1
+      })
+    }).catch(() => null);
+  }
+
   useEffect(() => {
     if (!job?.id || autoStartRef.current) {
       return;
@@ -251,13 +269,23 @@ export function ProductionStudioConsole({
         return;
       }
 
+      await kickRunner(job.id);
       await refreshJobDetail(true);
-      setMessage(payload.runError ? `作业完成但存在警告：${payload.runError}` : "一键制作已启动");
+      setMessage("一键制作已入队并启动执行");
     });
   }, [job?.id, job?.status]);
 
   useEffect(() => {
-    if (!job?.id || job.status !== "running") {
+    if (!job?.id) {
+      return;
+    }
+
+    if (job.status === "queued" && !runnerKickRef.current) {
+      runnerKickRef.current = true;
+      void kickRunner(job.id);
+    }
+
+    if (job.status !== "queued" && job.status !== "running") {
       return;
     }
 
@@ -418,9 +446,20 @@ export function ProductionStudioConsole({
         ok?: boolean;
         error?: string;
         bundle?: Record<string, unknown>;
+        qualityReport?: {
+          score: number;
+          passed: boolean;
+          issues: Array<{ message: string; severity: string }>;
+        };
       };
 
       if (!response.ok || !payload.ok || !payload.bundle) {
+        if (payload.error === "quality_gate_blocked" && payload.qualityReport) {
+          const topIssue = payload.qualityReport.issues[0]?.message ?? "请先处理质量问题";
+          setMessage(`质量门禁未通过（${payload.qualityReport.score} 分）：${topIssue}`);
+          return;
+        }
+
         setMessage(payload.error ?? "导出发布包失败");
         return;
       }

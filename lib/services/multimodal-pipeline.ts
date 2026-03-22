@@ -1,3 +1,8 @@
+import { generateWithGoogleImagen } from "@/lib/services/providers/image/google-imagen";
+import { generateWithOpenAiImage } from "@/lib/services/providers/image/openai-image";
+import { generateWithGoogleVeo } from "@/lib/services/providers/video/google-veo";
+import { generateWithOpenAiSora } from "@/lib/services/providers/video/openai-sora";
+
 interface JsonObject {
   [key: string]: unknown;
 }
@@ -199,11 +204,59 @@ export async function generateImageAssets(input: {
   prompt: string;
   desiredCount?: number;
 }): Promise<ImageSynthesisResult> {
-  const provider = process.env.BEST_IMAGE_PROVIDER?.trim() || "best-image-api";
-  const model = process.env.BEST_IMAGE_MODEL?.trim() || "image-ultra";
+  const provider = process.env.BEST_IMAGE_PROVIDER?.trim() || "openai-image";
+  const model = process.env.BEST_IMAGE_MODEL?.trim() || "gpt-image-1";
   const endpoint = process.env.BEST_IMAGE_API_URL?.trim();
   const apiKey = process.env.BEST_IMAGE_API_KEY?.trim();
   const desiredCount = Math.min(Math.max(input.desiredCount ?? 2, 1), 4);
+
+  if (provider === "openai-image") {
+    const assets = await generateWithOpenAiImage({
+      prompt: input.prompt,
+      count: desiredCount,
+      model
+    }).catch((error) => {
+      throw new Error(error instanceof Error ? error.message : "openai_image_failed");
+    });
+
+    return {
+      provider,
+      model,
+      assets: assets.map((asset, index) => ({
+        name: index === 0 ? "封面图" : `图卡 ${index + 1}`,
+        previewUrl: asset.previewUrl,
+        prompt: asset.prompt,
+        provider,
+        model
+      })),
+      warning: assets.length > 0 ? undefined : "OpenAI 生图返回为空。"
+    };
+  }
+
+  if (provider === "google-imagen") {
+    const assets = await generateWithGoogleImagen({
+      prompt: input.prompt,
+      count: desiredCount,
+      model,
+      endpoint,
+      apiKey
+    }).catch((error) => {
+      throw new Error(error instanceof Error ? error.message : "google_imagen_failed");
+    });
+
+    return {
+      provider,
+      model,
+      assets: assets.map((asset, index) => ({
+        name: index === 0 ? "封面图" : `图卡 ${index + 1}`,
+        previewUrl: asset.previewUrl,
+        prompt: asset.prompt,
+        provider,
+        model
+      })),
+      warning: assets.length > 0 ? undefined : "Google Imagen 生图返回为空。"
+    };
+  }
 
   if (!endpoint) {
     return {
@@ -248,11 +301,71 @@ export async function generateVideoAssets(input: {
   desiredCount?: number;
   durationSeconds?: number;
 }): Promise<VideoSynthesisResult> {
-  const provider = process.env.BEST_VIDEO_PROVIDER?.trim() || "best-video-api";
-  const model = process.env.BEST_VIDEO_MODEL?.trim() || "video-ultra";
+  const provider = process.env.BEST_VIDEO_PROVIDER?.trim() || "openai-sora";
+  const model = process.env.BEST_VIDEO_MODEL?.trim() || "sora-2";
   const endpoint = process.env.BEST_VIDEO_API_URL?.trim();
   const apiKey = process.env.BEST_VIDEO_API_KEY?.trim();
   const desiredCount = Math.min(Math.max(input.desiredCount ?? 1, 1), 3);
+
+  if (provider === "openai-sora") {
+    const parsed = await generateWithOpenAiSora({
+      prompt: input.prompt,
+      script: input.script,
+      count: desiredCount,
+      durationSeconds: input.durationSeconds ?? 45,
+      model,
+      endpoint,
+      apiKey
+    }).catch((error) => {
+      throw new Error(error instanceof Error ? error.message : "openai_sora_failed");
+    });
+
+    return {
+      provider,
+      model,
+      assets: parsed.assets.map((asset, index) => ({
+        name: index === 0 ? "主视频" : `视频版本 ${index + 1}`,
+        previewUrl: asset.previewUrl,
+        videoUrl: asset.videoUrl,
+        narrative: asset.narrative,
+        provider,
+        model
+      })),
+      voiceScript: parsed.voiceScript,
+      subtitles: parsed.subtitles,
+      warning: parsed.assets.length > 0 ? undefined : "OpenAI 视频返回为空。"
+    };
+  }
+
+  if (provider === "google-veo") {
+    const parsed = await generateWithGoogleVeo({
+      prompt: input.prompt,
+      script: input.script,
+      count: desiredCount,
+      durationSeconds: input.durationSeconds ?? 45,
+      model,
+      endpoint,
+      apiKey
+    }).catch((error) => {
+      throw new Error(error instanceof Error ? error.message : "google_veo_failed");
+    });
+
+    return {
+      provider,
+      model,
+      assets: parsed.assets.map((asset, index) => ({
+        name: index === 0 ? "主视频" : `视频版本 ${index + 1}`,
+        previewUrl: asset.previewUrl,
+        videoUrl: asset.videoUrl,
+        narrative: asset.narrative,
+        provider,
+        model
+      })),
+      voiceScript: parsed.voiceScript,
+      subtitles: parsed.subtitles,
+      warning: parsed.assets.length > 0 ? undefined : "Google Veo 视频返回为空。"
+    };
+  }
 
   if (!endpoint) {
     return {

@@ -35,12 +35,26 @@ export async function POST(
   const body = (await request.json().catch(() => ({}))) as {
     queue?: boolean;
     scheduledAt?: string;
+    forceQueue?: boolean;
   };
 
   const bundle = await buildProductionPublishBundle({
     packId,
     workspaceId
   });
+
+  if (body.queue && !body.forceQueue && !bundle.qualityReport.passed) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "quality_gate_blocked",
+        qualityReport: bundle.qualityReport
+      },
+      {
+        status: 400
+      }
+    );
+  }
 
   let queued = null;
 
@@ -54,6 +68,7 @@ export async function POST(
   return NextResponse.json({
     ok: true,
     bundle: bundle.bundle,
+    qualityReport: bundle.qualityReport,
     queued
   });
 }

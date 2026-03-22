@@ -77,16 +77,28 @@ export async function PATCH(
     });
   }
 
+  if (body.action === "start") {
+    const queued = await updateProductionJob(jobId, {
+      status: "queued",
+      stage: current.stage,
+      errorMessage: "",
+      retryCount: current.retryCount
+    });
+
+    return NextResponse.json({
+      ok: true,
+      job: queued ?? current
+    });
+  }
+
   const restartStage: ProductionJobStage =
-    body.action === "start"
-      ? current.stage
-      : body.action === "retry"
+    body.action === "retry"
       ? "script"
       : body.stage === "image" || body.stage === "video" || body.stage === "voice" || body.stage === "subtitle"
         ? body.stage
         : "script";
 
-  const nextRetryCount = body.action === "start" ? current.retryCount : current.retryCount + 1;
+  const nextRetryCount = current.retryCount + 1;
 
   await updateProductionJob(jobId, {
     status: "queued",

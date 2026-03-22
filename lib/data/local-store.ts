@@ -24,7 +24,9 @@ import {
   HotspotSignal,
   HotspotSyncSnapshot,
   ProductionAsset,
+  ProductionAssetVersion,
   ProductionDraft,
+  ProductionJobEvent,
   ProductionJob,
   PublishJob
 } from "@/lib/domain/types";
@@ -37,6 +39,8 @@ export interface LocalDataStore {
   productionJobs: ProductionJob[];
   productionAssets: ProductionAsset[];
   productionDrafts: ProductionDraft[];
+  productionAssetVersions: ProductionAssetVersion[];
+  productionJobEvents: ProductionJobEvent[];
   lastHotspotSync: HotspotSyncSnapshot | null;
   profiles: ViewerUser[];
   workspaces: ViewerWorkspace[];
@@ -79,6 +83,8 @@ function buildInitialStore(): LocalDataStore {
     productionJobs: [],
     productionAssets: [],
     productionDrafts: [],
+    productionAssetVersions: [],
+    productionJobEvents: [],
     lastHotspotSync: null,
     profiles: clone(Object.values(DEMO_USERS)),
     workspaces: clone(DEMO_WORKSPACES),
@@ -100,6 +106,12 @@ function normalizeStore(raw: Partial<LocalDataStore> | null | undefined): LocalD
     productionJobs: Array.isArray(raw?.productionJobs) ? clone(raw.productionJobs) : initial.productionJobs,
     productionAssets: Array.isArray(raw?.productionAssets) ? clone(raw.productionAssets) : initial.productionAssets,
     productionDrafts: Array.isArray(raw?.productionDrafts) ? clone(raw.productionDrafts) : initial.productionDrafts,
+    productionAssetVersions: Array.isArray(raw?.productionAssetVersions)
+      ? clone(raw.productionAssetVersions)
+      : initial.productionAssetVersions,
+    productionJobEvents: Array.isArray(raw?.productionJobEvents)
+      ? clone(raw.productionJobEvents)
+      : initial.productionJobEvents,
     lastHotspotSync: raw?.lastHotspotSync ? clone(raw.lastHotspotSync) : initial.lastHotspotSync,
     profiles: mergeById(initial.profiles, Array.isArray(raw?.profiles) ? raw.profiles : undefined),
     workspaces: mergeById(initial.workspaces, Array.isArray(raw?.workspaces) ? raw.workspaces : undefined),

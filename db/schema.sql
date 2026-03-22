@@ -13,6 +13,11 @@ create type workspace_member_role as enum ('org_admin', 'operator', 'approver');
 create type workspace_member_status as enum ('active', 'disabled', 'invited');
 create type workspace_invite_status as enum ('pending', 'accepted', 'expired', 'revoked');
 create type workspace_invite_code_status as enum ('active', 'disabled', 'used-up');
+create type production_job_status as enum ('queued', 'running', 'needs-review', 'completed', 'failed');
+create type production_job_stage as enum ('script', 'image', 'video', 'voice', 'subtitle', 'finalize');
+create type production_asset_kind as enum ('script', 'image', 'video', 'voice', 'subtitle', 'bundle');
+create type production_asset_status as enum ('ready', 'failed');
+create type production_event_level as enum ('info', 'warning', 'error');
 
 create table if not exists profiles (
   id uuid primary key,
@@ -201,9 +206,91 @@ create table if not exists publish_jobs (
   unique (pack_id, variant_id, platform)
 );
 
+create table if not exists production_jobs (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  pack_id uuid not null references hotspot_packs(id) on delete cascade,
+  status production_job_status not null default 'queued',
+  stage production_job_stage not null default 'script',
+  created_by uuid references profiles(id) on delete set null,
+  error_message text,
+  retry_count int not null default 0,
+  locked_at timestamptz,
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists production_assets (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  pack_id uuid not null references hotspot_packs(id) on delete cascade,
+  job_id uuid not null references production_jobs(id) on delete cascade,
+  kind production_asset_kind not null,
+  name text not null,
+  status production_asset_status not null default 'ready',
+  provider text not null,
+  model text not null,
+  preview_url text,
+  text_content text,
+  json_content text,
+  error_message text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists production_drafts (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  pack_id uuid not null references hotspot_packs(id) on delete cascade,
+  title text not null,
+  body text not null,
+  subtitles text not null default '',
+  cover_asset_id uuid references production_assets(id) on delete set null,
+  video_asset_id uuid references production_assets(id) on delete set null,
+  voice_asset_id uuid references production_assets(id) on delete set null,
+  updated_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (workspace_id, pack_id)
+);
+
+create table if not exists production_asset_versions (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  pack_id uuid not null references hotspot_packs(id) on delete cascade,
+  job_id uuid not null references production_jobs(id) on delete cascade,
+  asset_id uuid not null references production_assets(id) on delete cascade,
+  changed_by uuid references profiles(id) on delete set null,
+  before_state jsonb,
+  after_state jsonb,
+  change_reason text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists production_job_events (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  pack_id uuid not null references hotspot_packs(id) on delete cascade,
+  job_id uuid not null references production_jobs(id) on delete cascade,
+  stage production_job_stage,
+  level production_event_level not null default 'info',
+  message text not null,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists idx_profiles_email on profiles(email);
 create index if not exists idx_workspace_members_user_id on workspace_members(user_id);
 create index if not exists idx_workspace_invite_codes_workspace_id on workspace_invite_codes(workspace_id);
 create index if not exists idx_brands_workspace_id on brands(workspace_id);
 create index if not exists idx_hotspot_packs_workspace_id on hotspot_packs(workspace_id);
 create index if not exists idx_publish_jobs_workspace_id on publish_jobs(workspace_id);
+create index if not exists idx_production_jobs_workspace_id on production_jobs(workspace_id);
+create index if not exists idx_production_jobs_status on production_jobs(status, created_at);
+create index if not exists idx_production_assets_job_id on production_assets(job_id);
+create index if not exists idx_production_assets_pack_id on production_assets(pack_id);
+create index if not exists idx_production_drafts_workspace_pack on production_drafts(workspace_id, pack_id);
+create index if not exists idx_production_asset_versions_asset_id on production_asset_versions(asset_id);
+create index if not exists idx_production_job_events_job_id on production_job_events(job_id, created_at);

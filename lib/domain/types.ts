@@ -11,6 +11,7 @@ export type ProductionJobStatus = "queued" | "running" | "needs-review" | "compl
 export type ProductionJobStage = "script" | "image" | "video" | "voice" | "subtitle" | "finalize";
 export type ProductionAssetKind = "script" | "image" | "video" | "voice" | "subtitle" | "bundle";
 export type ProductionAssetStatus = "ready" | "failed";
+export type ProductionEventLevel = "info" | "warning" | "error";
 export type HotspotFetchStatus = "ok" | "empty" | "failed";
 export type HotspotSourceType = "direct" | "rss" | "aggregator";
 export type HotspotProviderRole = "primary" | "fallback";
@@ -184,4 +185,42 @@ export interface ProductionDraft {
   updatedBy?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProductionAssetVersion {
+  id: string;
+  workspaceId: string;
+  packId: string;
+  jobId: string;
+  assetId: string;
+  changedBy?: string;
+  beforeState?: string;
+  afterState?: string;
+  changeReason?: string;
+  createdAt: string;
+}
+
+export interface ProductionJobEvent {
+  id: string;
+  workspaceId: string;
+  packId: string;
+  jobId: string;
+  stage?: ProductionJobStage;
+  level: ProductionEventLevel;
+  message: string;
+  payload?: string;
+  createdAt: string;
+}
+
+export interface ProductionQualityIssue {
+  code: string;
+  message: string;
+  severity: "low" | "medium" | "high";
+}
+
+export interface ProductionQualityReport {
+  score: number;
+  passed: boolean;
+  issues: ProductionQualityIssue[];
+  generatedAt: string;
 }

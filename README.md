@@ -36,6 +36,7 @@
 - `POST /api/publish/:packId/queue`
 - `POST /api/publish/run`
 - `POST /api/production/one-click`
+- `POST /api/production/run`
 - `GET /api/production/jobs/:jobId`
 - `PATCH /api/production/jobs/:jobId`
 - `PATCH /api/production/assets/:assetId`
@@ -235,3 +236,31 @@ curl -X POST http://localhost:3000/api/publish/run \
 - `BEST_VIDEO_MODEL`
 - `BEST_VIDEO_API_URL`
 - `BEST_VIDEO_API_KEY`
+- `BEST_TTS_PROVIDER`
+- `BEST_TTS_MODEL`
+- `BEST_TTS_VOICE`
+- `BEST_STT_PROVIDER`
+- `BEST_STT_MODEL`
+
+可选供应商特定入口（用于直连 OpenAI / Google）：
+
+- `OPENAI_IMAGE_API_URL`
+- `OPENAI_VIDEO_API_URL`
+- `OPENAI_TTS_API_URL`
+- `OPENAI_STT_API_URL`
+- `GOOGLE_IMAGEN_API_URL`
+- `GOOGLE_IMAGEN_API_KEY`
+- `GOOGLE_VEO_API_URL`
+- `GOOGLE_VEO_API_KEY`
+
+生产任务执行器（异步）：
+
+- `PRODUCTION_RUNNER_SECRET`
+- `PRODUCTION_RUN_URL`
+- `PRODUCTION_RUN_BATCH_SIZE`
+
+本地手动触发生产队列：
+
+```bash
+npm run run:production
+```
