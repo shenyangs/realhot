@@ -43,18 +43,18 @@ interface BrandSourceRow {
 
 interface HotspotRow {
   id: string;
-  title: string;
-  summary: string;
+  title: string | null;
+  summary: string | null;
   kind: HotspotSignal["kind"];
-  source: string;
+  source: string | null;
   source_url?: string | null;
-  detected_at: string;
-  relevance_score: number;
-  industry_score: number;
-  velocity_score: number;
-  risk_score: number;
-  recommended_action: HotspotSignal["recommendedAction"];
-  reasons: string[];
+  detected_at: string | null;
+  relevance_score: number | null;
+  industry_score: number | null;
+  velocity_score: number | null;
+  risk_score: number | null;
+  recommended_action: string | null;
+  reasons: string[] | null;
 }
 
 interface ContentVariantRow {
@@ -137,20 +137,29 @@ function mapBrand(row: BrandRow, sources: BrandSourceRow[]): BrandStrategyPack {
 }
 
 function mapHotspot(row: HotspotRow): HotspotSignal {
+  const recommendedAction =
+    row.recommended_action === "ship-now" || row.recommended_action === "watch" || row.recommended_action === "discard"
+      ? row.recommended_action
+      : "watch";
+
+  const reasons = Array.isArray(row.reasons)
+    ? row.reasons.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean)
+    : [];
+
   return {
     id: row.id,
-    title: row.title,
-    summary: row.summary,
+    title: (row.title ?? "").trim() || "未命名热点",
+    summary: (row.summary ?? "").trim() || "暂无摘要",
     kind: row.kind,
-    source: row.source,
+    source: (row.source ?? "").trim() || "未标注信源",
     sourceUrl: row.source_url ?? undefined,
-    detectedAt: row.detected_at,
-    relevanceScore: row.relevance_score,
-    industryScore: row.industry_score,
-    velocityScore: row.velocity_score,
-    riskScore: row.risk_score,
-    recommendedAction: row.recommended_action,
-    reasons: row.reasons
+    detectedAt: row.detected_at ?? new Date(0).toISOString(),
+    relevanceScore: row.relevance_score ?? 0,
+    industryScore: row.industry_score ?? 0,
+    velocityScore: row.velocity_score ?? 0,
+    riskScore: row.risk_score ?? 0,
+    recommendedAction,
+    reasons
   };
 }
 

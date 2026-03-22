@@ -294,7 +294,11 @@ function buildFallbackSearchUrl(title: string, sourceRecords: SourceRecord[]) {
   return `https://www.baidu.com/s?wd=${query}`;
 }
 
-function parseSourceRecords(source: string): SourceRecord[] {
+function parseSourceRecords(source: string | null | undefined): SourceRecord[] {
+  if (!source || typeof source !== "string") {
+    return [];
+  }
+
   return source
     .split("|")
     .map((item) => item.trim())
