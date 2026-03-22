@@ -1,0 +1,38 @@
+name: Hotspot Sync
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: hotspot-sync
+      cancel-in-progress: false
+    env:
+      APP_URL: https://realhot.vercel.app
+      HOTSPOT_SYNC_SECRET: ${{ secrets.HOTSPOT_SYNC_SECRET }}
+    steps:
+      - name: Validate required secret
+        run: |
+          if [ -z "${HOTSPOT_SYNC_SECRET}" ]; then
+            echo "Missing repository secret: HOTSPOT_SYNC_SECRET"
+            exit 1
+          fi
+
+      - name: Trigger hotspot sync endpoint
+        run: |
+          response="$(curl --show-error --silent --fail-with-body \
+            -X POST "${APP_URL}/api/hotspots/sync" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${HOTSPOT_SYNC_SECRET}")"
+
+          echo "${response}"
+
+          if ! echo "${response}" | grep -q '"ok":true'; then
+            echo "Sync response did not return ok=true"
+            exit 1
+          fi

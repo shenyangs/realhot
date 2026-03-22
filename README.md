@@ -72,7 +72,7 @@ docker compose up -d
 
 如果 Supabase 没配置或库里没数据，代码会自动回退到 [lib/data/mock.ts](/Users/sam/Desktop/1st/lib/data/mock.ts)。
 
-## Hotspot Sync
+## GitHub Sync
 
 首批真实热点源通过公开 RSS 接入，当前同步入口在 [app/api/hotspots/sync/route.ts](/Users/sam/Desktop/1st/app/api/hotspots/sync/route.ts)。
 
@@ -144,6 +144,16 @@ npm run sync:hotspots
 ```
 
 建议先从 `30 分钟一次` 开始，等真实噪音情况稳定后再调到 `10-15 分钟`。
+
+### GitHub Actions 定时（适合 Vercel Hobby）
+
+仓库已包含工作流：[.github/workflows/hotspot-sync.yml](/Users/sam/Desktop/1st/.github/workflows/hotspot-sync.yml)，默认每 30 分钟触发一次线上同步接口。
+
+启用前请在 GitHub 仓库中配置 Secret：
+
+- `HOTSPOT_SYNC_SECRET`：与线上 Vercel 环境变量 `HOTSPOT_SYNC_SECRET` 保持一致
+
+路径：`GitHub Repo -> Settings -> Secrets and variables -> Actions -> New repository secret`
 
 ## Content Pack Generation
 
