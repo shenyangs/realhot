@@ -34,9 +34,32 @@ function extractSection(content: string, label: string) {
   return match?.[1]?.trim() ?? "";
 }
 
+function countVisibleChars(value: string) {
+  return value.replace(/\s+/g, "").length;
+}
+
+function resolveMinimumChars(input: RewriteVariantInput): number {
+  if (input.platformLabel.includes("公众号")) {
+    return 900;
+  }
+
+  if (input.platformLabel.includes("视频号") || input.platformLabel.includes("抖音")) {
+    return 420;
+  }
+
+  if (input.trackLabel.includes("观点")) {
+    return 520;
+  }
+
+  return 260;
+}
+
 function buildPrompt(input: RewriteVariantInput) {
+  const minimumChars = resolveMinimumChars(input);
+  const currentChars = countVisibleChars(input.body);
+
   return [
-    "你是中国企业品牌内容团队的资深编辑。",
+    "你是中国头部品牌内容团队的资深主编。",
     "请基于已有草稿进行改写，不要脱离原文，不要虚构事实。",
     `品牌: ${input.brandName}`,
     `平台: ${input.platformLabel}`,
@@ -47,15 +70,19 @@ function buildPrompt(input: RewriteVariantInput) {
     `品牌语气: ${input.brandTone.join(" / ")}`,
     `品牌禁区: ${input.redLines.join("；")}`,
     `用户要求: ${input.userRequest}`,
+    `当前正文长度: ${currentChars} 字`,
+    `目标最低长度: ${minimumChars} 字`,
     `模式: ${input.mode === "direct" ? "直接改正文" : "建议模式"}`,
     "请输出以下结构：",
     "CHANGE_SUMMARY: 用 1-2 句话说明这次改动重点",
     "TITLE: 改写后的标题",
     "BODY: 改写后的正文",
     "要求：",
-    "- 更符合中文品牌内容表达",
-    "- 更好读、更好执行，不要空泛",
+    "- 必须是平台专家级文风：有观点、有推理、有动作，不要学生作文腔。",
+    "- 更符合中文品牌内容表达，不要英文腔。",
+    "- 更好读、更好执行，不要空泛。",
     "- 保留原文有效信息",
+    `- BODY 至少 ${minimumChars} 字，若原稿不足请补齐关键论证与执行动作。`,
     "- 不要输出额外解释",
     "",
     "原始标题:",
@@ -75,6 +102,7 @@ function buildLocalRewriteFallback(input: RewriteVariantInput): {
   nextBody: string;
   changeSummary: string;
 } {
+  const minimumChars = resolveMinimumChars(input);
   const request = input.userRequest.trim();
   const opener = `${input.brandName} 这次不打算泛泛跟热点，而是把重点放在 ${input.whyNow || "当前时机"}。`;
   const relevance = input.whyUs
@@ -84,6 +112,7 @@ function buildLocalRewriteFallback(input: RewriteVariantInput): {
     input.trackLabel === "快反"
       ? "这版建议保留快反节奏，开头先给判断，中段讲清影响，结尾落到品牌动作。"
       : "这版建议保留观点结构，先讲变化，再讲判断，最后落到品牌方法。";
+  const fallbackExtension = `为了达到平台主流内容深度，建议至少补齐这三段：1）行业变化与受影响角色；2）品牌判断依据与边界；3）本周可执行动作清单。`;
 
   const nextTitle = tightenSentence(
     [
@@ -97,6 +126,7 @@ function buildLocalRewriteFallback(input: RewriteVariantInput): {
     input.body,
     relevance,
     execution,
+    fallbackExtension,
     request ? `本轮额外要求：${request}。` : null
   ]
     .filter(Boolean)
@@ -105,7 +135,7 @@ function buildLocalRewriteFallback(input: RewriteVariantInput): {
   return {
     nextTitle,
     nextBody,
-    changeSummary: "AI 暂不可用，已按当前平台、角度和改稿要求生成一版本地建议，可继续手动细修。"
+    changeSummary: `AI 暂不可用，已先给出本地改稿建议。当前目标最低长度约 ${minimumChars} 字，建议继续补齐论证段落。`
   };
 }
 

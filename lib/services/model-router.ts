@@ -20,7 +20,7 @@ const providerConfigs: ProviderConfig[] = [
 const taskPreference: Record<LlmTask, ModelPreference> = {
   "hotspot-analysis": "balanced",
   "strategy-planning": "quality",
-  "content-generation": "latency",
+  "content-generation": "quality",
   "copy-polish": "quality"
 };
 
