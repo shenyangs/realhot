@@ -586,23 +586,34 @@ export default async function ReviewPage({
             </div>
           </section>
 
+          <section className="panel helperPanel reviewNextStepBlock">
+            <div className="listItem">
+              <strong>一键制作</strong>
+              <span className={`pill ${activePack.status === "approved" ? "pill-positive" : "pill-neutral"}`}>
+                {activePack.status === "approved" ? "已就绪" : "待通过"}
+              </span>
+            </div>
+            <p className="muted">
+              {activePack.status === "approved"
+                ? "当前选题已通过，可直接触发图文、视频、口播、字幕的自动生产流程。"
+                : "当前选题还未通过审核；先点“通过”后会出现可点击的一键制作按钮。"}
+            </p>
+            {activePack.status === "approved" ? (
+              <OneClickProductionButton packId={activePack.id} />
+            ) : (
+              <button className="buttonLike subtleButton" disabled type="button">
+                一键制作图文+视频（待审核通过）
+              </button>
+            )}
+          </section>
+
           {activePack.status === "approved" ? (
-            <>
-              <section className="panel helperPanel reviewNextStepBlock">
-                <div className="listItem">
-                  <strong>一键制作</strong>
-                  <span className="pill pill-positive">已就绪</span>
-                </div>
-                <p className="muted">通过后可直接触发图文、视频、口播、字幕的自动生产流程。</p>
-                <OneClickProductionButton packId={activePack.id} />
-              </section>
-              <PublishActions
-                failedCount={failedCount}
-                packId={activePack.id}
-                publishedCount={publishedCount}
-                queuedCount={queuedCount}
-              />
-            </>
+            <PublishActions
+              failedCount={failedCount}
+              packId={activePack.id}
+              publishedCount={publishedCount}
+              queuedCount={queuedCount}
+            />
           ) : (
             <ReviewActions
               currentNote={activePack.reviewNote}
