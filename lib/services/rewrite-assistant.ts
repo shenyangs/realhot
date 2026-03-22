@@ -1,4 +1,9 @@
 import { decideModelRoute, runModelTask } from "@/lib/services/model-router";
+import {
+  countVisibleChars,
+  enforceBodyMinimumWithContext,
+  resolveMinimumCharsForLabels
+} from "@/lib/services/content-quality";
 
 export interface RewriteVariantInput {
   title: string;
@@ -34,24 +39,11 @@ function extractSection(content: string, label: string) {
   return match?.[1]?.trim() ?? "";
 }
 
-function countVisibleChars(value: string) {
-  return value.replace(/\s+/g, "").length;
-}
-
 function resolveMinimumChars(input: RewriteVariantInput): number {
-  if (input.platformLabel.includes("公众号")) {
-    return 900;
-  }
-
-  if (input.platformLabel.includes("视频号") || input.platformLabel.includes("抖音")) {
-    return 420;
-  }
-
-  if (input.trackLabel.includes("观点")) {
-    return 520;
-  }
-
-  return 260;
+  return resolveMinimumCharsForLabels({
+    platformLabel: input.platformLabel,
+    trackLabel: input.trackLabel
+  });
 }
 
 function buildPrompt(input: RewriteVariantInput) {
@@ -161,13 +153,24 @@ export async function rewriteVariantDraft(
     output = await runModelTask("copy-polish", buildPrompt(input));
   } catch (error) {
     const fallback = buildLocalRewriteFallback(input);
+    const minimumChars = resolveMinimumChars(input);
+    const enhancedFallback = enforceBodyMinimumWithContext({
+      body: fallback.nextBody,
+      title: fallback.nextTitle,
+      angle: input.angle,
+      whyNow: input.whyNow,
+      whyUs: input.whyUs,
+      minimumChars,
+      platformHint: input.platformLabel,
+      trackHint: input.trackLabel.includes("观点") ? "point-of-view" : "rapid-response"
+    });
 
     return {
       mode: input.mode,
       applied: input.mode === "direct",
       route,
       nextTitle: fallback.nextTitle,
-      nextBody: fallback.nextBody,
+      nextBody: enhancedFallback.body,
       changeSummary:
         error instanceof Error
           ? `${fallback.changeSummary} 原因：${error.message}`
@@ -176,9 +179,25 @@ export async function rewriteVariantDraft(
   }
 
   const nextTitle = extractSection(output, "TITLE") || input.title;
-  const nextBody = extractSection(output, "BODY") || input.body;
+  const nextBodyRaw = extractSection(output, "BODY") || input.body;
+  const minimumChars = resolveMinimumChars(input);
+  const nextBodyEnhanced = enforceBodyMinimumWithContext({
+    body: nextBodyRaw,
+    title: nextTitle,
+    angle: input.angle,
+    whyNow: input.whyNow,
+    whyUs: input.whyUs,
+    minimumChars,
+    platformHint: input.platformLabel,
+    trackHint: input.trackLabel.includes("观点") ? "point-of-view" : "rapid-response"
+  });
+  const nextBody = nextBodyEnhanced.body;
   const changeSummary =
     extractSection(output, "CHANGE_SUMMARY") || "已根据本轮要求生成改稿建议。";
+  const summaryWithLength =
+    nextBodyEnhanced.wasExpanded
+      ? `${changeSummary} 已自动补齐至不少于 ${minimumChars} 字。`
+      : changeSummary;
 
   return {
     mode: input.mode,
@@ -186,6 +205,6 @@ export async function rewriteVariantDraft(
     route,
     nextTitle,
     nextBody,
-    changeSummary
+    changeSummary: summaryWithLength
   };
 }

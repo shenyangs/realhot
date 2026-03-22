@@ -3,6 +3,7 @@ import { updateLocalDataStore } from "@/lib/data/local-store";
 import { getBrandStrategyPack, getHotspotSignals } from "@/lib/data";
 import { BrandStrategyPack, ContentVariant, HotspotPack, HotspotSignal, Platform } from "@/lib/domain/types";
 import { getChinaMarketPromptLines } from "@/lib/services/china-market";
+import { enforceBodyMinimumWithContext, resolveMinimumCharsForVariant } from "@/lib/services/content-quality";
 import { runModelTask } from "@/lib/services/model-router";
 import { getSupabaseServerClient } from "@/lib/supabase/client";
 
@@ -149,10 +150,6 @@ function cleanParagraphText(value: string): string {
     .trim();
 }
 
-function countVisibleChars(value: string): number {
-  return value.replace(/\s+/g, "").length;
-}
-
 function actionLabel(action: HotspotSignal["recommendedAction"]): string {
   if (action === "ship-now") {
     return "立即跟进";
@@ -271,7 +268,21 @@ function createTemplateVariants(
       angle: fallback.angle,
       platforms: blueprint.platforms,
       format: blueprint.format,
-      body: fallback.body,
+      body: enforceBodyMinimumWithContext({
+        body: fallback.body,
+        title: fallback.title,
+        angle: fallback.angle,
+        whyNow: createWhyNow(hotspot),
+        whyUs: createWhyUs(brand, hotspot),
+        minimumChars: resolveMinimumCharsForVariant({
+          format: blueprint.format,
+          track: blueprint.track,
+          platforms: blueprint.platforms
+        }),
+        formatHint: blueprint.format,
+        trackHint: blueprint.track,
+        platformHint: blueprint.platforms.map((platform) => platformLabels[platform]).join(" / ")
+      }).body,
       coverHook: fallback.coverHook,
       publishWindow: blueprint.publishWindow
     };
@@ -430,20 +441,30 @@ function mergeModelVariants(
     const modelAngle = cleanSingleLine(modelVariant?.angle ?? "");
     const modelHook = cleanSingleLine(modelVariant?.coverHook ?? "");
     const modelBody = cleanParagraphText(modelVariant?.body ?? "");
-
-    const validBody = countVisibleChars(modelBody) >= blueprint.minChars;
     const validTitle = modelTitle.length >= 10;
-
-    if (!validBody || !validTitle) {
-      return fallback;
-    }
+    const minimumChars = resolveMinimumCharsForVariant({
+      format: blueprint.format,
+      track: blueprint.track,
+      platforms: blueprint.platforms
+    });
+    const nextBody = enforceBodyMinimumWithContext({
+      body: modelBody || fallback.body,
+      title: modelTitle || fallback.title,
+      angle: modelAngle || fallback.angle,
+      whyNow: createWhyNow(hotspot),
+      whyUs: createWhyUs(brand, hotspot),
+      minimumChars,
+      formatHint: blueprint.format,
+      trackHint: blueprint.track,
+      platformHint: blueprint.platforms.map((platform) => platformLabels[platform]).join(" / ")
+    }).body;
 
     return {
       ...fallback,
-      title: modelTitle,
+      title: validTitle ? modelTitle : fallback.title,
       angle: modelAngle || fallback.angle,
       coverHook: modelHook || fallback.coverHook,
-      body: modelBody
+      body: nextBody
     };
   });
 

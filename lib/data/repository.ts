@@ -9,6 +9,7 @@ import { readLocalDataStore, updateLocalDataStore } from "@/lib/data/local-store
 import {
   BrandSource,
   BrandStrategyPack,
+  ContentTrack,
   ContentVariant,
   DashboardMetric,
   HotspotPack,
@@ -18,6 +19,7 @@ import {
   PublishJob
 } from "@/lib/domain/types";
 import { prioritizeHotspots } from "@/lib/services/hotspot-engine";
+import { enforceBodyMinimumWithContext, resolveMinimumCharsForVariant } from "@/lib/services/content-quality";
 import { getSupabaseServerClient } from "@/lib/supabase/client";
 
 interface BrandRow {
@@ -219,6 +221,65 @@ function deterministicId(input: string): string {
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 }
 
+const platformLabels: Record<Platform, string> = {
+  xiaohongshu: "小红书",
+  wechat: "公众号",
+  "video-channel": "视频号",
+  douyin: "抖音"
+};
+
+function trackLabel(track: ContentTrack): string {
+  return track === "point-of-view" ? "观点" : "快反";
+}
+
+function normalizePackBodies(pack: HotspotPack): HotspotPack {
+  let changed = false;
+
+  const variants = pack.variants.map((variant) => {
+    const minimumChars = resolveMinimumCharsForVariant({
+      format: variant.format,
+      track: variant.track,
+      platforms: variant.platforms
+    });
+
+    const normalized = enforceBodyMinimumWithContext({
+      body: variant.body,
+      title: variant.title,
+      angle: variant.angle,
+      whyNow: pack.whyNow,
+      whyUs: pack.whyUs,
+      minimumChars,
+      formatHint: variant.format,
+      trackHint: variant.track,
+      platformHint: `${variant.platforms.map((platform) => platformLabels[platform]).join(" / ")} · ${trackLabel(variant.track)}`
+    });
+
+    if (!normalized.wasExpanded) {
+      return variant;
+    }
+
+    changed = true;
+
+    return {
+      ...variant,
+      body: normalized.body
+    };
+  });
+
+  if (!changed) {
+    return pack;
+  }
+
+  return {
+    ...pack,
+    variants
+  };
+}
+
+function normalizeQueueBodies(packs: HotspotPack[]): HotspotPack[] {
+  return packs.map(normalizePackBodies);
+}
+
 export async function getBrandStrategyPack(): Promise<BrandStrategyPack> {
   const supabase = getSupabaseServerClient();
 
@@ -383,7 +444,7 @@ export async function getReviewQueue(): Promise<HotspotPack[]> {
 
   if (!supabase) {
     const store = await readLocalDataStore();
-    return store.packs;
+    return normalizeQueueBodies(store.packs);
   }
 
   const { data, error } = await supabase
@@ -395,10 +456,10 @@ export async function getReviewQueue(): Promise<HotspotPack[]> {
     .returns<HotspotPackRow[]>();
 
   if (error || !data || data.length === 0) {
-    return mockHotspotPacks;
+    return normalizeQueueBodies(mockHotspotPacks);
   }
 
-  return data.map(mapPack);
+  return normalizeQueueBodies(data.map(mapPack));
 }
 
 export async function getHotspotPack(id: string): Promise<HotspotPack | undefined> {

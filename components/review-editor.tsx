@@ -7,6 +7,11 @@ import {
   type StoredDraftPayload,
   type StoredDraftSnapshot
 } from "@/lib/client/persistence";
+import {
+  countVisibleChars,
+  enforceBodyMinimumWithContext,
+  resolveMinimumCharsForLabels
+} from "@/lib/services/content-quality";
 
 interface ReviewEditorProps {
   packId: string;
@@ -81,6 +86,7 @@ export function ReviewEditor({
   const [isPending, startTransition] = useTransition();
   const initializedRef = useRef(false);
   const loadedFromStorageRef = useRef(false);
+  const [autoExpandedOnLoad, setAutoExpandedOnLoad] = useState(false);
   const storageKey = useMemo(
     () =>
       getDraftStorageKey({
@@ -90,9 +96,17 @@ export function ReviewEditor({
       }),
     [packId, platformKey, variantId]
   );
+  const minimumBodyChars = useMemo(
+    () =>
+      resolveMinimumCharsForLabels({
+        platformLabel,
+        trackLabel
+      }),
+    [platformLabel, trackLabel]
+  );
 
   const bodyStats = useMemo(() => {
-    const characters = body.replace(/\s/g, "").length;
+    const characters = countVisibleChars(body);
     const paragraphs = body
       .split("\n")
       .map((item) => item.trim())
@@ -106,30 +120,60 @@ export function ReviewEditor({
 
   useEffect(() => {
     loadedFromStorageRef.current = false;
+    setAutoExpandedOnLoad(false);
     setSaveState("loading");
     const stored = window.localStorage.getItem(storageKey);
+    const trackHint = trackLabel.includes("观点") ? "point-of-view" : "rapid-response";
 
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as StoredDraftPayload;
+        const normalized = enforceBodyMinimumWithContext({
+          body: parsed.body ?? initialBody,
+          title: parsed.title ?? initialTitle,
+          angle,
+          whyNow,
+          whyUs,
+          minimumChars: minimumBodyChars,
+          platformHint: platformLabel,
+          trackHint
+        });
+
         setTitle(parsed.title ?? initialTitle);
-        setBody(parsed.body ?? initialBody);
+        setBody(normalized.body);
         setCoverHook(parsed.coverHook ?? initialHook);
         setChangeLog(parsed.changeLog ?? []);
         setLastSavedAt(parsed.updatedAt);
         setPreviousSnapshot(parsed.previousSnapshot);
+        setAutoExpandedOnLoad(normalized.wasExpanded);
         loadedFromStorageRef.current = true;
       } catch {
         window.localStorage.removeItem(storageKey);
       }
     } else {
+      const normalized = enforceBodyMinimumWithContext({
+        body: initialBody,
+        title: initialTitle,
+        angle,
+        whyNow,
+        whyUs,
+        minimumChars: minimumBodyChars,
+        platformHint: platformLabel,
+        trackHint
+      });
+
+      setTitle(initialTitle);
+      setBody(normalized.body);
+      setCoverHook(initialHook);
+      setChangeLog([]);
       setLastSavedAt(undefined);
       setPreviousSnapshot(undefined);
+      setAutoExpandedOnLoad(normalized.wasExpanded);
     }
 
     initializedRef.current = true;
     setSaveState("saved");
-  }, [initialBody, initialHook, initialTitle, storageKey]);
+  }, [angle, initialBody, initialHook, initialTitle, minimumBodyChars, platformLabel, storageKey, trackLabel, whyNow, whyUs]);
 
   useEffect(() => {
     if (!initializedRef.current) {
@@ -368,7 +412,7 @@ export function ReviewEditor({
         <div className="editorBodyHeader">
           <span>正文</span>
           <small className="muted">
-            {bodyStats.characters} 字 · {bodyStats.paragraphs} 段
+            {bodyStats.characters} 字 · {bodyStats.paragraphs} 段 · 目标至少 {minimumBodyChars} 字
           </small>
         </div>
 
@@ -450,6 +494,9 @@ export function ReviewEditor({
         </div>
 
         {message ? <p className="muted">{message}</p> : null}
+        {autoExpandedOnLoad ? (
+          <p className="muted">检测到历史草稿长度不足，已按当前平台标准自动补齐为可发布初稿。</p>
+        ) : null}
         {saveState === "saving" ? (
           <p className="muted">当前有未完成保存的改动，刷新或关闭页面时浏览器会提醒。</p>
         ) : null}
