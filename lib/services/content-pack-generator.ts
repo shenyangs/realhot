@@ -173,8 +173,20 @@ async function persistGeneratedPack(pack: HotspotPack): Promise<{
     };
   }
 
+  const { data: workspace, error: workspaceError } = await supabase
+    .from("workspaces")
+    .select("id")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+
+  if (workspaceError || !workspace?.id) {
+    throw workspaceError ?? new Error("No workspace available for content pack persistence");
+  }
+
   const packRow = {
     id: pack.id,
+    workspace_id: workspace.id,
     brand_id: pack.brandId,
     hotspot_id: pack.hotspotId,
     status: pack.status,
