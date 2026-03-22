@@ -442,8 +442,20 @@ export async function getPrioritizedHotspots() {
 }
 
 export async function getLatestHotspotSyncSnapshot(): Promise<HotspotSyncSnapshot | null> {
-  const store = await readLocalDataStore();
-  return store.lastHotspotSync ?? null;
+  const supabase = getSupabaseServerClient();
+
+  // In deployed environments with Supabase enabled (for example Vercel),
+  // local runtime files may be unavailable or read-only.
+  if (supabase) {
+    return null;
+  }
+
+  try {
+    const store = await readLocalDataStore();
+    return store.lastHotspotSync ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function updateHotspotPackReview(

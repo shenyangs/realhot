@@ -2010,10 +2010,14 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
     providers: providerReports
   });
 
-  await updateLocalDataStore((store) => ({
-    ...store,
-    lastHotspotSync: syncSnapshot
-  }));
+  try {
+    await updateLocalDataStore((store) => ({
+      ...store,
+      lastHotspotSync: syncSnapshot
+    }));
+  } catch {
+    // Ignore snapshot persistence errors in read-only runtime environments.
+  }
 
   return {
     providers: providerReports,
