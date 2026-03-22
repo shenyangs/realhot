@@ -29,31 +29,6 @@ const reviewStatusLabels: Record<ReviewStatus, string> = {
   "needs-edit": "待改稿"
 };
 
-const statusFocusCopy: Record<
-  ReviewStatus,
-  {
-    eyebrow: string;
-    title: string;
-    description: string;
-  }
-> = {
-  pending: {
-    eyebrow: "现在要做什么",
-    title: "先做审核判断",
-    description: "先确认这版能不能发，再决定通过、退回或删除。"
-  },
-  approved: {
-    eyebrow: "现在要做什么",
-    title: "这题可以进入发布",
-    description: "可以安排发布；如果这题不需要了，也能直接删除。"
-  },
-  "needs-edit": {
-    eyebrow: "现在要做什么",
-    title: "这题先改再审",
-    description: "先把问题改清楚，再恢复到待审核。"
-  }
-};
-
 function getPackStatusTone(status: ReviewStatus) {
   if (status === "approved") {
     return "positive";
@@ -72,63 +47,11 @@ type SearchParams = Promise<{
   platform?: Platform;
   status?: ReviewStatus | "all";
   q?: string;
-  owner?: string;
-  sort?: "priority" | "deadline" | "owner";
 }>;
-
-function getPublishWindowRank(value?: string) {
-  if (!value) {
-    return Number.MAX_SAFE_INTEGER;
-  }
-
-  const match = value.match(/(\d{1,2}):(\d{2})/);
-
-  if (!match) {
-    return Number.MAX_SAFE_INTEGER;
-  }
-
-  return Number(match[1]) * 60 + Number(match[2]);
-}
-
-function getPriorityLevel(input: {
-  status: ReviewStatus;
-  publishWindow?: string;
-  variantCount: number;
-}) {
-  const deadlineScore = getPublishWindowRank(input.publishWindow);
-
-  if (input.status === "needs-edit") {
-    return "高";
-  }
-
-  if (input.status === "pending" && deadlineScore <= 12 * 60) {
-    return "高";
-  }
-
-  if (input.status === "pending" || input.variantCount >= 4) {
-    return "中";
-  }
-
-  return "低";
-}
-
-function getPriorityWeight(label: string) {
-  if (label === "高") {
-    return 0;
-  }
-
-  if (label === "中") {
-    return 1;
-  }
-
-  return 2;
-}
 
 function buildReviewHref(input: {
   status?: string;
   q?: string;
-  owner?: string;
-  sort?: string;
   pack?: string;
   variant?: string;
   platform?: string;
@@ -141,14 +64,6 @@ function buildReviewHref(input: {
 
   if (input.q) {
     params.set("q", input.q);
-  }
-
-  if (input.owner && input.owner !== "all") {
-    params.set("owner", input.owner);
-  }
-
-  if (input.sort && input.sort !== "priority") {
-    params.set("sort", input.sort);
   }
 
   if (input.pack) {
@@ -167,6 +82,27 @@ function buildReviewHref(input: {
   return (query ? `/review?${query}` : "/review") as Route;
 }
 
+function getStepCopy(status: ReviewStatus) {
+  if (status === "approved") {
+    return {
+      title: "已通过，进入发布与一键制作",
+      description: "可以直接安排发布，或触发图文+视频自动制作。"
+    };
+  }
+
+  if (status === "needs-edit") {
+    return {
+      title: "先改稿，再回到待审核",
+      description: "把问题改清楚后再提交，避免带着风险进发布。"
+    };
+  }
+
+  return {
+    title: "先看稿，再做审核决定",
+    description: "确认内容质量后，选择通过或退回修改。"
+  };
+}
+
 export default async function ReviewPage({
   searchParams
 }: {
@@ -177,18 +113,9 @@ export default async function ReviewPage({
   const [brand, packs] = await Promise.all([getBrandStrategyPack(), getReviewQueue()]);
   const statusFilter = resolvedSearchParams?.status ?? "all";
   const searchQuery = resolvedSearchParams?.q?.trim() ?? "";
-  const ownerFilter = resolvedSearchParams?.owner?.trim() ?? "all";
-  const sortBy = resolvedSearchParams?.sort ?? "priority";
 
   const filteredPacks = packs
     .filter((pack) => (statusFilter === "all" ? true : pack.status === statusFilter))
-    .filter((pack) => {
-      if (ownerFilter === "all") {
-        return true;
-      }
-
-      return pack.reviewOwner === ownerFilter;
-    })
     .filter((pack) => {
       if (!searchQuery) {
         return true;
@@ -205,39 +132,11 @@ export default async function ReviewPage({
         .toLowerCase();
 
       return haystack.includes(searchQuery.toLowerCase());
-    })
-    .sort((left, right) => {
-      const leftPrimary = left.variants[0];
-      const rightPrimary = right.variants[0];
-      const leftPriority = getPriorityLevel({
-        status: left.status,
-        publishWindow: leftPrimary?.publishWindow,
-        variantCount: left.variants.length
-      });
-      const rightPriority = getPriorityLevel({
-        status: right.status,
-        publishWindow: rightPrimary?.publishWindow,
-        variantCount: right.variants.length
-      });
-
-      if (sortBy === "deadline") {
-        return getPublishWindowRank(leftPrimary?.publishWindow) - getPublishWindowRank(rightPrimary?.publishWindow);
-      }
-
-      if (sortBy === "owner") {
-        return left.reviewOwner.localeCompare(right.reviewOwner, "zh-CN");
-      }
-
-      return (
-        getPriorityWeight(leftPriority) - getPriorityWeight(rightPriority) ||
-        getPublishWindowRank(leftPrimary?.publishWindow) - getPublishWindowRank(rightPrimary?.publishWindow)
-      );
     });
 
-  const visiblePacks = filteredPacks;
   const activePack =
-    visiblePacks.find((pack) => pack.id === resolvedSearchParams?.pack) ??
-    visiblePacks[0] ??
+    filteredPacks.find((pack) => pack.id === resolvedSearchParams?.pack) ??
+    filteredPacks[0] ??
     packs[0];
 
   if (!activePack) {
@@ -256,33 +155,16 @@ export default async function ReviewPage({
     activePack.variants.find((variant) => variant.id === resolvedSearchParams?.variant) ??
     activePack.variants[0];
 
-  const platformDrafts = activePack.variants.flatMap((variant) =>
-    variant.platforms.map((platform) => ({
-      slotId: `${variant.id}:${platform}`,
-      variant,
-      platform
-    }))
-  );
-
-  const activeDraft =
-    platformDrafts.find(
-      (draft) =>
-        draft.variant.id === activeVariant?.id &&
-        draft.platform === resolvedSearchParams?.platform
-    ) ??
-    platformDrafts.find((draft) => draft.variant.id === activeVariant?.id) ??
-    platformDrafts[0];
+  const activePlatform =
+    (resolvedSearchParams?.platform && activeVariant?.platforms.includes(resolvedSearchParams.platform)
+      ? resolvedSearchParams.platform
+      : activeVariant?.platforms[0]) ?? "xiaohongshu";
 
   const jobs = await getPublishJobsForPack(activePack.id);
   const queuedCount = jobs.filter((job) => job.status === "queued").length;
   const publishedCount = jobs.filter((job) => job.status === "published").length;
   const failedCount = jobs.filter((job) => job.status === "failed").length;
-  const priorityLabel = getPriorityLevel({
-    status: activePack.status,
-    publishWindow: activeVariant?.publishWindow,
-    variantCount: activePack.variants.length
-  });
-  const activeDraftCount = activePack.variants.length;
+  const stepCopy = getStepCopy(activePack.status);
 
   const counts = {
     all: packs.length,
@@ -304,13 +186,13 @@ export default async function ReviewPage({
             </Link>
           </>
         }
-        description="先选题，再看当前稿，再做审核决定。"
+        description="按三步走：先选题，再改稿，最后做审核与发布。"
         eyebrow="编辑台"
         facts={[
           { label: "当前品牌", value: brand.name },
-          { label: "当前状态", value: reviewStatusLabels[activePack.status] },
-          { label: "负责人", value: activePack.reviewOwner },
-          { label: "发布窗口", value: activeVariant?.publishWindow ?? "未设置" }
+          { label: "待审核", value: `${counts.pending} 条` },
+          { label: "已通过", value: `${counts.approved} 条` },
+          { label: "当前负责人", value: activePack.reviewOwner }
         ]}
         context={activeVariant?.title ?? activePack.whyNow}
         title="选题详情台"
@@ -321,22 +203,17 @@ export default async function ReviewPage({
           <section className="panel reviewRailSection" id="review-tasks">
             <div className="reviewSimpleHeader">
               <div>
-                <p className="eyebrow">选题列表</p>
+                <p className="eyebrow">步骤 1</p>
                 <h3>先选今天要处理的题</h3>
               </div>
-              <span className="muted">当前筛到 {visiblePacks.length} 条</span>
+              <span className="muted">当前 {filteredPacks.length} 条</span>
             </div>
 
             <div className="reviewFilterRow">
               <Link
                 aria-current={statusFilter === "all" ? "page" : undefined}
                 className={`filterChip ${statusFilter === "all" ? "filterChipActive" : ""}`}
-                href={buildReviewHref({
-                  status: "all",
-                  q: searchQuery,
-                  owner: ownerFilter,
-                  sort: sortBy
-                })}
+                href={buildReviewHref({ status: "all", q: searchQuery })}
               >
                 全部
                 <strong>{counts.all}</strong>
@@ -344,12 +221,7 @@ export default async function ReviewPage({
               <Link
                 aria-current={statusFilter === "pending" ? "page" : undefined}
                 className={`filterChip ${statusFilter === "pending" ? "filterChipActive" : ""}`}
-                href={buildReviewHref({
-                  status: "pending",
-                  q: searchQuery,
-                  owner: ownerFilter,
-                  sort: sortBy
-                })}
+                href={buildReviewHref({ status: "pending", q: searchQuery })}
               >
                 待审核
                 <strong>{counts.pending}</strong>
@@ -357,12 +229,7 @@ export default async function ReviewPage({
               <Link
                 aria-current={statusFilter === "needs-edit" ? "page" : undefined}
                 className={`filterChip ${statusFilter === "needs-edit" ? "filterChipActive" : ""}`}
-                href={buildReviewHref({
-                  status: "needs-edit",
-                  q: searchQuery,
-                  owner: ownerFilter,
-                  sort: sortBy
-                })}
+                href={buildReviewHref({ status: "needs-edit", q: searchQuery })}
               >
                 待改稿
                 <strong>{counts["needs-edit"]}</strong>
@@ -370,12 +237,7 @@ export default async function ReviewPage({
               <Link
                 aria-current={statusFilter === "approved" ? "page" : undefined}
                 className={`filterChip ${statusFilter === "approved" ? "filterChipActive" : ""}`}
-                href={buildReviewHref({
-                  status: "approved",
-                  q: searchQuery,
-                  owner: ownerFilter,
-                  sort: sortBy
-                })}
+                href={buildReviewHref({ status: "approved", q: searchQuery })}
               >
                 已通过
                 <strong>{counts.approved}</strong>
@@ -394,15 +256,15 @@ export default async function ReviewPage({
               </label>
               <div className="buttonRow reviewSearchActionsRow">
                 <button type="submit">应用筛选</button>
-                <Link className="buttonLike subtleButton" href={`/review?status=${statusFilter}`}>
+                <Link className="buttonLike subtleButton" href={buildReviewHref({ status: statusFilter })}>
                   清空条件
                 </Link>
               </div>
             </form>
 
-            {visiblePacks.length > 0 ? (
+            {filteredPacks.length > 0 ? (
               <div className="reviewTaskListSimple reviewTaskRailList">
-                {visiblePacks.map((pack) => {
+                {filteredPacks.map((pack) => {
                   const defaultVariant = pack.variants[0];
                   const isActive = pack.id === activePack.id;
 
@@ -412,8 +274,6 @@ export default async function ReviewPage({
                       href={buildReviewHref({
                         status: statusFilter,
                         q: searchQuery,
-                        owner: ownerFilter,
-                        sort: sortBy,
                         pack: pack.id,
                         variant: defaultVariant?.id,
                         platform: defaultVariant?.platforms[0]
@@ -427,13 +287,6 @@ export default async function ReviewPage({
                       <div className="reviewTaskRowMeta">
                         <span className={`pill pill-${getPackStatusTone(pack.status)}`}>
                           {reviewStatusLabels[pack.status]}
-                        </span>
-                        <span className="tag">
-                          优先级 {getPriorityLevel({
-                            status: pack.status,
-                            publishWindow: defaultVariant?.publishWindow,
-                            variantCount: pack.variants.length
-                          })}
                         </span>
                         <small className="muted">{pack.reviewOwner}</small>
                       </div>
@@ -457,51 +310,23 @@ export default async function ReviewPage({
           <section className="panel reviewContextPanel" id="review-context">
             <div className="reviewSimpleHeader">
               <div>
-                <p className="eyebrow">当前选题</p>
-                <h3>{activeVariant?.title ?? activePack.whyNow}</h3>
+                <p className="eyebrow">步骤 2</p>
+                <h3>改稿并确认版本</h3>
               </div>
               <span className={`pill pill-${getPackStatusTone(activePack.status)}`}>
                 {reviewStatusLabels[activePack.status]}
               </span>
             </div>
 
-            <div className="pageHeroFacts reviewContextFacts">
-              <div>
-                <span>优先级</span>
-                <strong>{priorityLabel}</strong>
-              </div>
-              <div>
-                <span>负责人</span>
-                <strong>{activePack.reviewOwner}</strong>
-              </div>
-              <div>
-                <span>发布时间</span>
-                <strong>{activeVariant?.publishWindow ?? "未设置"}</strong>
-              </div>
-              <div>
-                <span>当前平台</span>
-                <strong>{activeDraft ? platformLabels[activeDraft.platform] : "未选择"}</strong>
-              </div>
-              <div>
-                <span>版本数</span>
-                <strong>{activeDraftCount} 条</strong>
-              </div>
-              <div>
-                <span>出口状态</span>
-                <strong>排队 {queuedCount} / 发布 {publishedCount} / 失败 {failedCount}</strong>
-              </div>
-            </div>
-
             <div className="reviewContextCopy reviewContextNarrative">
+              <p><strong>当前标题：</strong>{activeVariant?.title ?? activePack.whyNow}</p>
               <p><strong>为什么现在做：</strong>{activePack.whyNow}</p>
               <p><strong>为什么和品牌相关：</strong>{activePack.whyUs}</p>
             </div>
 
             <div className="reviewPlatformStrip">
-              {platformDrafts.map((draft) => {
-                const isActive =
-                  draft.variant.id === activeDraft?.variant.id &&
-                  draft.platform === activeDraft?.platform;
+              {activePack.variants.map((variant) => {
+                const isActive = variant.id === activeVariant?.id;
 
                 return (
                   <Link
@@ -509,16 +334,37 @@ export default async function ReviewPage({
                     href={buildReviewHref({
                       status: statusFilter,
                       q: searchQuery,
-                      owner: ownerFilter,
-                      sort: sortBy,
                       pack: activePack.id,
-                      variant: draft.variant.id,
-                      platform: draft.platform
+                      variant: variant.id,
+                      platform: variant.platforms[0]
                     })}
-                    key={draft.slotId}
+                    key={variant.id}
                   >
-                    <strong>{platformLabels[draft.platform]}</strong>
-                    <small className="muted">{trackLabels[draft.variant.track]} · {draft.variant.publishWindow}</small>
+                    <strong>{trackLabels[variant.track]}版本</strong>
+                    <small className="muted">{variant.publishWindow}</small>
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="reviewPlatformStrip">
+              {activeVariant?.platforms.map((platform) => {
+                const isActive = platform === activePlatform;
+
+                return (
+                  <Link
+                    className={`reviewPlatformChip ${isActive ? "reviewPlatformChipActive" : ""}`}
+                    href={buildReviewHref({
+                      status: statusFilter,
+                      q: searchQuery,
+                      pack: activePack.id,
+                      variant: activeVariant.id,
+                      platform
+                    })}
+                    key={platform}
+                  >
+                    <strong>{platformLabels[platform]}</strong>
+                    <small className="muted">{trackLabels[activeVariant.track]}</small>
                   </Link>
                 );
               })}
@@ -529,24 +375,24 @@ export default async function ReviewPage({
             <div className="reviewSimpleHeader">
               <div>
                 <p className="eyebrow">编辑区</p>
-                <h3>当前版本</h3>
+                <h3>{platformLabels[activePlatform]}</h3>
               </div>
             </div>
 
             {activeVariant ? (
               <ReviewEditor
-                angle={activeDraft?.variant.angle ?? activeVariant.angle}
+                angle={activeVariant.angle}
                 brandName={brand.name}
                 brandTone={brand.tone}
-                initialBody={activeDraft?.variant.body ?? activeVariant.body}
-                initialHook={activeDraft?.variant.coverHook ?? activeVariant.coverHook}
-                initialTitle={activeDraft?.variant.title ?? activeVariant.title}
+                initialBody={activeVariant.body}
+                initialHook={activeVariant.coverHook}
+                initialTitle={activeVariant.title}
                 packId={activePack.id}
-                platformKey={activeDraft?.platform ?? activeVariant.platforms[0]}
-                platformLabel={activeDraft ? platformLabels[activeDraft.platform] : platformLabels[activeVariant.platforms[0]]}
+                platformKey={activePlatform}
+                platformLabel={platformLabels[activePlatform]}
                 redLines={brand.redLines}
-                trackLabel={trackLabels[activeDraft?.variant.track ?? activeVariant.track]}
-                variantId={activeDraft?.variant.id ?? activeVariant.id}
+                trackLabel={trackLabels[activeVariant.track]}
+                variantId={activeVariant.id}
                 whyNow={activePack.whyNow}
                 whyUs={activePack.whyUs}
               />
@@ -556,21 +402,17 @@ export default async function ReviewPage({
 
         <aside className="reviewActionColumn" id="review-actions">
           <section className="panel actionFocusPanel reviewActionPanel">
-            <p className="eyebrow">{statusFocusCopy[activePack.status].eyebrow}</p>
-            <h3>{statusFocusCopy[activePack.status].title}</h3>
-            <p className="muted">{statusFocusCopy[activePack.status].description}</p>
+            <p className="eyebrow">步骤 3</p>
+            <h3>{stepCopy.title}</h3>
+            <p className="muted">{stepCopy.description}</p>
           </section>
 
           <section className="panel helperPanel reviewDecisionPanel">
             <div className="listItem">
-              <strong>当前进度</strong>
+              <strong>发布状态</strong>
               <span className="pill pill-neutral">{reviewStatusLabels[activePack.status]}</span>
             </div>
             <div className="definitionList compactDefinitionList">
-              <div>
-                <span>审核优先级</span>
-                <strong>{priorityLabel}</strong>
-              </div>
               <div>
                 <span>排队中</span>
                 <strong>{queuedCount} 条</strong>
@@ -582,6 +424,10 @@ export default async function ReviewPage({
               <div>
                 <span>失败</span>
                 <strong>{failedCount} 条</strong>
+              </div>
+              <div>
+                <span>发布窗口</span>
+                <strong>{activeVariant?.publishWindow ?? "未设置"}</strong>
               </div>
             </div>
           </section>
@@ -625,22 +471,11 @@ export default async function ReviewPage({
 
           <section className="panel helperPanel reviewNextStepBlock">
             <div className="listItem">
-              <strong>选题管理</strong>
-              <span className="pill pill-warning">谨慎操作</span>
+              <strong>危险操作</strong>
+              <span className="pill pill-warning">谨慎</span>
             </div>
-            <p className="muted">如果这题不再需要，可以直接删除；关联的待发布任务也会一起移除。</p>
+            <p className="muted">这条选题不再需要时再删除；删除后关联发布任务会一起移除。</p>
             <PackDeleteButton packId={activePack.id} redirectHref="/review" />
-          </section>
-
-          <section className="panel helperPanel reviewNextStepBlock">
-            <strong>接下来怎么处理</strong>
-            <p className="muted">
-              {activePack.status === "approved"
-                ? "可进入发布安排。"
-                : activePack.status === "needs-edit"
-                  ? "调整后再进入审核。"
-                  : "当前版本等待审核确认。"}
-            </p>
           </section>
         </aside>
       </div>
