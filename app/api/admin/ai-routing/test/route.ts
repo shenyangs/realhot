@@ -3,6 +3,7 @@ import { requireApiAccess } from "@/lib/auth/api-guard";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { canAccessAdmin } from "@/lib/auth/permissions";
 import { AI_PROVIDERS, AiProvider } from "@/lib/domain/ai-routing";
+import { humanizeAiError } from "@/lib/services/ai-error";
 import { testAiProviderConnection } from "@/lib/services/model-router";
 
 export async function POST(request: NextRequest) {
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "ai_provider_connection_test_failed"
+        error: humanizeAiError(error, body.provider as AiProvider)
       },
       { status: 400 }
     );

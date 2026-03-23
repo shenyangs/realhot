@@ -1,6 +1,9 @@
 import { getBrandStrategyPack, getHotspotSignals } from "@/lib/data";
-import { decideModelRoute, runModelTask } from "@/lib/services/model-router";
+import type { AiProvider } from "@/lib/domain/ai-routing";
+import type { ModelRouteDecision } from "@/lib/domain/types";
+import { humanizeAiError, isRetryableAiError } from "@/lib/services/ai-error";
 import { getChinaHotspotRules, getChinaMarketPromptLines } from "@/lib/services/china-market";
+import { decideModelRoute, listProviderConfigs, runResolvedModelTask } from "@/lib/services/model-router";
 
 export interface HotspotInsightResult {
   route: {
@@ -182,6 +185,74 @@ function buildLocalFallback(input: {
   };
 }
 
+function isSupportedProvider(provider: string): provider is AiProvider {
+  return provider === "gemini" || provider === "minimax";
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function buildFailoverRoute(currentRoute: ModelRouteDecision): ModelRouteDecision | null {
+  if (!isSupportedProvider(currentRoute.provider)) {
+    return null;
+  }
+
+  const nextProvider: AiProvider = currentRoute.provider === "gemini" ? "minimax" : "gemini";
+  const nextConfig = listProviderConfigs("hotspot-insight").find(
+    (item) => item.provider === nextProvider && item.available
+  );
+
+  if (!nextConfig) {
+    return null;
+  }
+
+  return {
+    task: currentRoute.task,
+    provider: nextConfig.provider,
+    model: nextConfig.model,
+    reason: `主模型 ${currentRoute.provider} 临时不可用，已切换到备用模型 ${nextConfig.provider}。`
+  };
+}
+
+async function runInsightWithRetry(route: ModelRouteDecision, prompt: string) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await runResolvedModelTask(route, prompt);
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === 1 || !isRetryableAiError(error)) {
+        throw error;
+      }
+
+      await wait(450 * (attempt + 1));
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("hotspot_insight_request_failed");
+}
+
+function buildInsightResult(
+  route: ModelRouteDecision,
+  output: string,
+  fallback: ReturnType<typeof buildLocalFallback>
+): HotspotInsightResult {
+  return {
+    route,
+    productFocus: sanitizeInsightText(extractSection(output, "PRODUCT_FOCUS") || fallback.productFocus),
+    connectionPoint: sanitizeInsightText(extractSection(output, "CONNECTION_POINT") || fallback.connectionPoint),
+    communicationStrategy: sanitizeInsightText(extractSection(output, "COMMUNICATION_STRATEGY") || fallback.communicationStrategy),
+    planningDirection: sanitizeInsightText(extractSection(output, "PLANNING_DIRECTION") || fallback.planningDirection),
+    recommendedFormat: sanitizeInsightText(extractSection(output, "RECOMMENDED_FORMAT") || fallback.recommendedFormat),
+    planningScore: sanitizeInsightText(extractSection(output, "PLANNING_SCORE") || fallback.planningScore),
+    planningComment: sanitizeInsightText(extractSection(output, "PLANNING_COMMENT") || fallback.planningComment),
+    riskNote: sanitizeInsightText(extractSection(output, "RISK_NOTE") || fallback.riskNote)
+  };
+}
+
 export async function generateHotspotInsight(hotspotId: string): Promise<HotspotInsightResult> {
   const [brand, hotspots] = await Promise.all([getBrandStrategyPack(), getHotspotSignals()]);
   const hotspot = hotspots.find((item) => item.id === hotspotId);
@@ -208,49 +279,54 @@ export async function generateHotspotInsight(hotspotId: string): Promise<Hotspot
     };
   }
 
+  const prompt = buildPrompt({
+    brandName: brand.name,
+    sector: brand.sector,
+    topics: brand.topics,
+    positioning: brand.positioning,
+    tone: brand.tone,
+    redLines: brand.redLines,
+    recentMoves: brand.recentMoves,
+    title: hotspot.title,
+    summary: hotspot.summary,
+    kind: hotspot.kind,
+    source: hotspot.source,
+    relevanceScore: hotspot.relevanceScore,
+    industryScore: hotspot.industryScore,
+    velocityScore: hotspot.velocityScore,
+    riskScore: hotspot.riskScore,
+    reasons: hotspot.reasons
+  });
+
   try {
-    const output = await runModelTask(
-      "hotspot-analysis",
-      buildPrompt({
-        brandName: brand.name,
-        sector: brand.sector,
-        topics: brand.topics,
-        positioning: brand.positioning,
-        tone: brand.tone,
-        redLines: brand.redLines,
-        recentMoves: brand.recentMoves,
-        title: hotspot.title,
-        summary: hotspot.summary,
-        kind: hotspot.kind,
-        source: hotspot.source,
-        relevanceScore: hotspot.relevanceScore,
-        industryScore: hotspot.industryScore,
-        velocityScore: hotspot.velocityScore,
-        riskScore: hotspot.riskScore,
-        reasons: hotspot.reasons
-      }),
-      { feature: "hotspot-insight" }
-    );
+    const output = await runInsightWithRetry(route, prompt);
+    return buildInsightResult(route, output, fallback);
+  } catch (error) {
+    const failoverRoute = buildFailoverRoute(route);
+
+    if (failoverRoute) {
+      try {
+        const failoverOutput = await runInsightWithRetry(failoverRoute, prompt);
+        return buildInsightResult(failoverRoute, failoverOutput, fallback);
+      } catch (failoverError) {
+        return {
+          route,
+          ...fallback,
+          riskNote: `${fallback.riskNote} 当前 AI 深挖暂时拥堵，已先回退为本地建议。主链路：${humanizeAiError(
+            error,
+            route.provider
+          )} 备用链路：${humanizeAiError(failoverError, failoverRoute.provider)}`
+        };
+      }
+    }
 
     return {
       route,
-      productFocus: sanitizeInsightText(extractSection(output, "PRODUCT_FOCUS") || fallback.productFocus),
-      connectionPoint: sanitizeInsightText(extractSection(output, "CONNECTION_POINT") || fallback.connectionPoint),
-      communicationStrategy: sanitizeInsightText(extractSection(output, "COMMUNICATION_STRATEGY") || fallback.communicationStrategy),
-      planningDirection: sanitizeInsightText(extractSection(output, "PLANNING_DIRECTION") || fallback.planningDirection),
-      recommendedFormat: sanitizeInsightText(extractSection(output, "RECOMMENDED_FORMAT") || fallback.recommendedFormat),
-      planningScore: sanitizeInsightText(extractSection(output, "PLANNING_SCORE") || fallback.planningScore),
-      planningComment: sanitizeInsightText(extractSection(output, "PLANNING_COMMENT") || fallback.planningComment),
-      riskNote: sanitizeInsightText(extractSection(output, "RISK_NOTE") || fallback.riskNote)
-    };
-  } catch (error) {
-    return {
-      route,
       ...fallback,
-      riskNote:
-        error instanceof Error
-          ? `${fallback.riskNote} 当前 AI 深挖暂不可用，已回退为本地建议：${error.message}`
-          : fallback.riskNote
+      riskNote: `${fallback.riskNote} 当前 AI 深挖暂时不可用，已先回退为本地建议。${humanizeAiError(
+        error,
+        route.provider
+      )}`
     };
   }
 }
