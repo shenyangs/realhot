@@ -32,7 +32,9 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await autofillBrandStrategy(body.brandName);
-    const strategy = await updateBrandStrategyPack(result.strategy);
+    const strategy = await updateBrandStrategyPack(result.strategy, {
+      workspaceId: access.viewer.currentWorkspace?.id
+    });
 
     revalidatePath("/");
     revalidatePath("/brands");

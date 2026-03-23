@@ -60,7 +60,7 @@ export default async function AdminPage() {
         <article className="panel summaryCard summaryCardElevated">
           <p className="eyebrow">管理边界</p>
           <h3>平台侧与业务侧已拆开</h3>
-          <p className="muted">客户团队只看到内容工作台，平台管理员在这里处理全局治理。</p>
+          <p className="muted">客户团队只看到热点运营平台，平台管理员在这里处理全局治理。</p>
         </article>
         <article className="panel summaryCard summaryCardElevated">
           <p className="eyebrow">当前重点</p>

@@ -338,6 +338,19 @@
   text-transform: uppercase;
 }
 
+.hotspotFilterPanel .filterChipActive {
+  border-color: rgba(25, 36, 54, 0.45);
+  background: linear-gradient(180deg, rgba(48, 63, 87, 0.96), rgba(31, 43, 60, 0.96));
+  color: #f4f7fb;
+  box-shadow:
+    0 8px 16px rgba(20, 28, 40, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.hotspotFilterPanel .filterChipActive strong {
+  color: #f4f7fb;
+}
+
 .hotspotDecisionGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1449,6 +1462,11 @@ strong {
   gap: 0.45rem;
 }
 
+.mobileDockNavDense {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
 .mobileDockLink {
   display: inline-flex;
   flex-direction: column;
@@ -1481,6 +1499,14 @@ strong {
 
 .mobileDockLinkActive small {
   color: var(--accent-strong);
+}
+
+.mobileDockNavDense .mobileDockLink strong {
+  font-size: 0.74rem;
+}
+
+.mobileDockNavDense .mobileDockLink small {
+  font-size: 0.62rem;
 }
 
 @media (prefers-reduced-motion: no-preference) {

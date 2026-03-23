@@ -104,7 +104,7 @@ async function buildLocalViewerFromUserId(userId: string, workspaceSlug?: string
       ...profile,
       passwordSetupRequired: account?.passwordSetupRequired ?? false
     },
-    currentWorkspace: isPlatformAdmin ? null : currentWorkspace,
+    currentWorkspace,
     memberships
   };
 }

@@ -34,11 +34,9 @@ export function AdminAiProviderStatusGrid({
     return latencyMs >= HIGH_LATENCY_MS ? "warning" : "positive";
   }
 
-  function getSuccessMessage(latencyMs: number, outputPreview?: string | null) {
+  function getSuccessMessage(latencyMs: number) {
     const prefix = latencyMs >= HIGH_LATENCY_MS ? "连通正常但延时较高" : "连通正常";
-    const preview = outputPreview?.trim();
-
-    return preview ? `${prefix} · ${latencyMs}ms · 返回 ${preview}` : `${prefix} · ${latencyMs}ms`;
+    return `${prefix} · ${latencyMs}ms`;
   }
 
   async function runConnectionTest(provider: AiProvider) {
@@ -70,7 +68,6 @@ export function AdminAiProviderStatusGrid({
           provider: AiProvider;
           model: string;
           latencyMs: number;
-          outputPreview?: string | null;
         };
       };
 
@@ -91,7 +88,7 @@ export function AdminAiProviderStatusGrid({
         ...previous,
         [provider]: {
           tone: getSuccessTone(testResult.latencyMs),
-          message: getSuccessMessage(testResult.latencyMs, testResult.outputPreview)
+          message: getSuccessMessage(testResult.latencyMs)
         }
       }));
     } catch (error) {

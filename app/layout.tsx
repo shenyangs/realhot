@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/sidebar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Brand Content OS",
+  title: "热点运营平台",
   description: "面向品牌团队的热点判断、选题推进、改稿审核与发布执行工作台。",
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],

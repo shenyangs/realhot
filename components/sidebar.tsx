@@ -97,9 +97,9 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
     <aside className="sidebar">
       <div className="sidebarInner">
         <div className="sidebarBrand">
-          <span className="sidebarKicker">内容工作台</span>
+          <span className="sidebarKicker">热点运营平台</span>
           <Link className="brandLink" href="/">
-            热点驱动内容台
+            热点运营平台
           </Link>
           <p className="muted">
             从热点信号到内容发布，把判断、编辑、审核和执行收进同一套品牌操作系统。

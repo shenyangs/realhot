@@ -56,7 +56,7 @@ export function ProfileMenu({ viewer }: { viewer: ViewerContext }) {
             </div>
           </div>
 
-          {!viewer.isPlatformAdmin && viewer.memberships.length > 0 ? (
+          {viewer.memberships.length > 0 ? (
             <WorkspaceSwitcher currentSlug={viewer.currentWorkspace?.slug} workspaces={workspaces} />
           ) : null}
 
@@ -64,6 +64,11 @@ export function ProfileMenu({ viewer }: { viewer: ViewerContext }) {
             <Link href="/account" onClick={() => setOpen(false)}>
               账号中心
             </Link>
+            {viewer.memberships.length > 0 ? (
+              <Link href="/" onClick={() => setOpen(false)}>
+                业务工作台
+              </Link>
+            ) : null}
             {!viewer.isPlatformAdmin ? (
               <Link href="/team" onClick={() => setOpen(false)}>
                 成员与组织

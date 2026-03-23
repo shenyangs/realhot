@@ -72,7 +72,7 @@ export default async function ProductionStudioPage() {
           { label: "制作失败", value: `${jobs.filter((job) => job.status === "failed").length} 条` },
           { label: "模式", value: "可演示流水线" }
         ]}
-        title="最终内容工作台"
+        title="最终热点运营平台"
       />
 
       <section className="panel">

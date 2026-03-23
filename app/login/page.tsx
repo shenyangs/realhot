@@ -8,16 +8,16 @@ export default async function LoginPage() {
   const viewer = await getCurrentViewer();
   const loginMode = await getLoginMode();
 
-  if (viewer.isPlatformAdmin) {
-    redirect("/admin");
-  }
-
   if (viewer.isAuthenticated && viewer.memberships.length > 1 && !viewer.currentWorkspace) {
     redirect("/select-workspace");
   }
 
   if (viewer.isAuthenticated && viewer.currentWorkspace) {
     redirect("/");
+  }
+
+  if (viewer.isPlatformAdmin) {
+    redirect("/admin");
   }
 
   return (

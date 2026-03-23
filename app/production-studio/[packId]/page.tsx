@@ -70,7 +70,7 @@ export default async function ProductionStudioDetailPage({
           { label: "制作状态", value: latestJob ? "已生成首版" : "尚未制作" },
           { label: "负责人", value: pack.reviewOwner }
         ]}
-        title="最终内容工作台"
+        title="最终热点运营平台"
       />
 
       <section className="panel">

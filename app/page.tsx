@@ -83,7 +83,11 @@ function getFailureSummary(reason?: string) {
 export default async function HomePage() {
   const viewer = await getCurrentViewer();
 
-  if (viewer.isPlatformAdmin) {
+  if (viewer.isPlatformAdmin && !viewer.currentWorkspace) {
+    if (viewer.memberships.length > 0) {
+      redirect("/select-workspace");
+    }
+
     redirect("/admin");
   }
 

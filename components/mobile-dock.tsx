@@ -20,6 +20,7 @@ const workbenchNavItems: MobileNavItem[] = [
 ];
 
 const adminNavItems: MobileNavItem[] = [
+  { href: "/", label: "工作台", short: "返回" },
   { href: "/admin", label: "后台", short: "总览", matchPrefixes: ["/admin/vercel-usage"] },
   { href: "/admin/users", label: "用户", short: "账号" },
   { href: "/admin/workspaces", label: "组织", short: "空间" },
@@ -30,6 +31,7 @@ const adminNavItems: MobileNavItem[] = [
 export function MobileDock() {
   const pathname = usePathname();
   const navItems = pathname.startsWith("/admin") ? adminNavItems : workbenchNavItems;
+  const navClassName = `mobileDockNav ${navItems.length > 5 ? "mobileDockNavDense" : ""}`;
 
   function isItemActive(item: MobileNavItem) {
     if (item.href === "/") {
@@ -57,7 +59,7 @@ export function MobileDock() {
 
   return (
     <nav aria-label="mobile navigation" className="mobileDock">
-      <div className="mobileDockNav">
+      <div className={navClassName}>
         {navItems.map((item) => {
           const isActive = isItemActive(item);
 

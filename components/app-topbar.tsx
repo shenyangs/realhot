@@ -8,7 +8,7 @@ const routeMeta = [
   {
     href: "/",
     eyebrow: "Command Center",
-    title: "内容工作台",
+    title: "热点运营平台",
     description: "今天的优先处理顺序"
   },
   {

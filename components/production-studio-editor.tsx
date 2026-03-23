@@ -123,7 +123,7 @@ export function ProductionStudioEditor({
         return;
       }
 
-      setMessage("已保存到最终内容工作台。\n你可以继续微调后再推入发布队列。");
+      setMessage("已保存到最终热点运营平台。\n你可以继续微调后再推入发布队列。");
       router.refresh();
     });
   }

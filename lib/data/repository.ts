@@ -376,7 +376,10 @@ export async function getBrandStrategyPack(): Promise<BrandStrategyPack> {
 }
 
 export async function updateBrandStrategyPack(
-  input: BrandStrategyPack
+  input: BrandStrategyPack,
+  options: {
+    workspaceId?: string | null;
+  } = {}
 ): Promise<BrandStrategyPack> {
   const normalized: BrandStrategyPack = {
     ...input,
@@ -411,48 +414,98 @@ export async function updateBrandStrategyPack(
     return store.brand;
   }
 
-  const { data: existingBrand, error: existingBrandError } = await supabase
+  const now = new Date().toISOString();
+  const workspaceId = options.workspaceId?.trim() || undefined;
+  const existingBrandQuery = supabase
     .from("brands")
     .select("id")
     .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle<{ id: string }>();
+    .limit(1);
+  const { data: existingBrand, error: existingBrandError } = await (workspaceId
+    ? existingBrandQuery.eq("workspace_id", workspaceId)
+    : existingBrandQuery
+  ).maybeSingle<{ id: string }>();
 
-  if (existingBrandError || !existingBrand) {
-    throw existingBrandError ?? new Error("未找到可更新的品牌记录");
+  if (existingBrandError) {
+    throw existingBrandError;
   }
 
-  const brandId = existingBrand.id;
-  const now = new Date().toISOString();
+  let brandId: string;
 
-  const { error: updateError } = await supabase
-    .from("brands")
-    .update({
-      name: normalized.name,
-      slogan: normalized.slogan,
-      sector: normalized.sector,
-      audiences: normalized.audiences,
-      positioning: normalized.positioning,
-      topics: normalized.topics,
-      tone: normalized.tone,
-      red_lines: normalized.redLines,
-      competitors: normalized.competitors,
-      recent_moves: normalized.recentMoves,
-      updated_at: now
-    })
-    .eq("id", brandId);
+  if (!existingBrand) {
+    let targetWorkspaceId = workspaceId;
 
-  if (updateError) {
-    throw updateError;
-  }
+    if (!targetWorkspaceId) {
+      const { data: workspace, error: workspaceError } = await supabase
+        .from("workspaces")
+        .select("id")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle<{ id: string }>();
 
-  const { error: deleteError } = await supabase
-    .from("brand_sources")
-    .delete()
-    .eq("brand_id", brandId);
+      if (workspaceError || !workspace) {
+        throw workspaceError ?? new Error("未找到可写入的工作区");
+      }
 
-  if (deleteError) {
-    throw deleteError;
+      targetWorkspaceId = workspace.id;
+    }
+
+    const { data: insertedBrand, error: insertBrandError } = await supabase
+      .from("brands")
+      .insert({
+        workspace_id: targetWorkspaceId,
+        name: normalized.name,
+        slogan: normalized.slogan,
+        sector: normalized.sector,
+        audiences: normalized.audiences,
+        positioning: normalized.positioning,
+        topics: normalized.topics,
+        tone: normalized.tone,
+        red_lines: normalized.redLines,
+        competitors: normalized.competitors,
+        recent_moves: normalized.recentMoves,
+        updated_at: now
+      })
+      .select("id")
+      .single<{ id: string }>();
+
+    if (insertBrandError || !insertedBrand) {
+      throw insertBrandError ?? new Error("创建品牌记录失败");
+    }
+
+    brandId = insertedBrand.id;
+  } else {
+    brandId = existingBrand.id;
+
+    const { error: updateError } = await supabase
+      .from("brands")
+      .update({
+        name: normalized.name,
+        slogan: normalized.slogan,
+        sector: normalized.sector,
+        audiences: normalized.audiences,
+        positioning: normalized.positioning,
+        topics: normalized.topics,
+        tone: normalized.tone,
+        red_lines: normalized.redLines,
+        competitors: normalized.competitors,
+        recent_moves: normalized.recentMoves,
+        updated_at: now
+      })
+      .eq("id", brandId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    const { error: deleteError } = await supabase
+      .from("brand_sources")
+      .delete()
+      .eq("brand_id", brandId);
+
+    if (deleteError) {
+      throw deleteError;
+    }
   }
 
   if (normalized.sources.length > 0) {

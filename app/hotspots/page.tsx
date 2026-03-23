@@ -2,7 +2,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { BackToTopButton } from "@/components/back-to-top-button";
 import { HotspotActionButton } from "@/components/hotspot-action-button";
-import { HotspotInsightTrigger } from "@/components/hotspot-insight-trigger";
+import { HotspotDecisionBasis } from "@/components/hotspot-decision-basis";
 import { PageHero } from "@/components/page-hero";
 import { getBrandStrategyPack, getHotspotSignals, getLatestHotspotSyncSnapshot, getReviewQueue } from "@/lib/data";
 import type { HotspotKind } from "@/lib/domain/types";
@@ -16,6 +16,11 @@ type RiskFilter = "all" | "low" | "medium" | "high";
 type ConvertedFilter = "all" | "converted" | "unconverted";
 type WindowFilter = "all" | "now" | "today" | "later";
 type SortOption = "fit" | "latest" | "hottest" | "urgent" | "low-risk";
+type HeatFilterOption = Exclude<HeatFilter, "all">;
+type FitFilterOption = Exclude<FitFilter, "all">;
+type RiskFilterOption = Exclude<RiskFilter, "all">;
+type ConvertedFilterOption = Exclude<ConvertedFilter, "all">;
+type WindowFilterOption = Exclude<WindowFilter, "all">;
 
 type SearchParams = Promise<{
   family?: string;
@@ -55,12 +60,12 @@ interface AggregatedHotspotEntry {
 }
 
 const allFamilyKeys: SourceFamily[] = ["platform", "media", "community", "global"];
-const heatFilterValues: HeatFilter[] = ["all", "high", "medium", "emerging"];
-const fitFilterValues: FitFilter[] = ["all", "high", "medium", "low"];
-const riskFilterValues: RiskFilter[] = ["all", "low", "medium", "high"];
-const convertedFilterValues: ConvertedFilter[] = ["all", "converted", "unconverted"];
-const windowFilterValues: WindowFilter[] = ["all", "now", "today", "later"];
 const sortValues: SortOption[] = ["fit", "latest", "hottest", "urgent", "low-risk"];
+const heatFilterOptions: HeatFilterOption[] = ["high", "medium", "emerging"];
+const fitFilterOptions: FitFilterOption[] = ["high", "medium", "low"];
+const riskFilterOptions: RiskFilterOption[] = ["low", "medium", "high"];
+const convertedFilterOptions: ConvertedFilterOption[] = ["converted", "unconverted"];
+const windowFilterOptions: WindowFilterOption[] = ["now", "today", "later"];
 
 function cleanDisplayText(value: string) {
   return value
@@ -316,6 +321,12 @@ function parseFilterValue<T extends string>(value: string | undefined, allowed: 
   return value && allowed.includes(value as T) ? (value as T) : fallback;
 }
 
+function parseMultiFilterValue<T extends string>(value: string | undefined, allowed: readonly T[]) {
+  const parsed = parseQueryList(value).filter((item): item is T => allowed.includes(item as T));
+
+  return parsed.sort((left, right) => allowed.indexOf(left) - allowed.indexOf(right));
+}
+
 function toggleListValue<T extends string>(values: T[], target: T) {
   return values.includes(target) ? values.filter((value) => value !== target) : [...values, target];
 }
@@ -412,11 +423,7 @@ function getHeatLabel(signal: PrioritizedHotspot) {
   return "观察";
 }
 
-function getHeatFilterMatch(signal: PrioritizedHotspot, filter: HeatFilter) {
-  if (filter === "all") {
-    return true;
-  }
-
+function getHeatFilterMatch(signal: PrioritizedHotspot, filter: HeatFilterOption) {
   if (filter === "high") {
     return signal.velocityScore >= 85;
   }
@@ -440,11 +447,7 @@ function getFitLabel(score: number) {
   return "低";
 }
 
-function getFitFilterMatch(score: number, filter: FitFilter) {
-  if (filter === "all") {
-    return true;
-  }
-
+function getFitFilterMatch(score: number, filter: FitFilterOption) {
   if (filter === "high") {
     return score >= 80;
   }
@@ -480,11 +483,7 @@ function getRiskTone(score: number) {
   return "warning";
 }
 
-function getRiskFilterMatch(score: number, filter: RiskFilter) {
-  if (filter === "all") {
-    return true;
-  }
-
+function getRiskFilterMatch(score: number, filter: RiskFilterOption) {
   if (filter === "low") {
     return score <= 35;
   }
@@ -508,11 +507,7 @@ function getWindowLabel(signal: PrioritizedHotspot) {
   return "继续观察";
 }
 
-function getWindowFilterMatch(signal: PrioritizedHotspot, filter: WindowFilter) {
-  if (filter === "all") {
-    return true;
-  }
-
+function getWindowFilterMatch(signal: PrioritizedHotspot, filter: WindowFilterOption) {
   if (filter === "now") {
     return signal.velocityScore >= 85 || signal.recommendedAction === "ship-now";
   }
@@ -539,16 +534,25 @@ function getUrgencyRank(signal: PrioritizedHotspot) {
 function buildHotspotHref(input: {
   families: SourceFamily[];
   sources?: string[];
-  heat?: HeatFilter;
-  fit?: FitFilter;
-  risk?: RiskFilter;
-  converted?: ConvertedFilter;
-  window?: WindowFilter;
+  heat?: HeatFilterOption[];
+  fit?: FitFilterOption[];
+  risk?: RiskFilterOption[];
+  converted?: ConvertedFilterOption[];
+  window?: WindowFilterOption[];
   sort?: SortOption;
 }): Route {
   const params = new URLSearchParams();
   const normalizedFamilies = [...input.families].sort((left, right) => allFamilyKeys.indexOf(left) - allFamilyKeys.indexOf(right));
   const normalizedSources = [...(input.sources ?? [])].sort((left, right) => left.localeCompare(right, "zh-Hans-CN"));
+  const normalizedHeat = [...(input.heat ?? [])].sort((left, right) => heatFilterOptions.indexOf(left) - heatFilterOptions.indexOf(right));
+  const normalizedFit = [...(input.fit ?? [])].sort((left, right) => fitFilterOptions.indexOf(left) - fitFilterOptions.indexOf(right));
+  const normalizedRisk = [...(input.risk ?? [])].sort((left, right) => riskFilterOptions.indexOf(left) - riskFilterOptions.indexOf(right));
+  const normalizedConverted = [...(input.converted ?? [])].sort(
+    (left, right) => convertedFilterOptions.indexOf(left) - convertedFilterOptions.indexOf(right)
+  );
+  const normalizedWindow = [...(input.window ?? [])].sort(
+    (left, right) => windowFilterOptions.indexOf(left) - windowFilterOptions.indexOf(right)
+  );
 
   if (normalizedFamilies.length > 0 && normalizedFamilies.length < allFamilyKeys.length) {
     params.set("families", normalizedFamilies.join(","));
@@ -558,24 +562,24 @@ function buildHotspotHref(input: {
     params.set("sources", normalizedSources.join(","));
   }
 
-  if (input.heat && input.heat !== "all") {
-    params.set("heat", input.heat);
+  if (normalizedHeat.length > 0) {
+    params.set("heat", normalizedHeat.join(","));
   }
 
-  if (input.fit && input.fit !== "all") {
-    params.set("fit", input.fit);
+  if (normalizedFit.length > 0) {
+    params.set("fit", normalizedFit.join(","));
   }
 
-  if (input.risk && input.risk !== "all") {
-    params.set("risk", input.risk);
+  if (normalizedRisk.length > 0) {
+    params.set("risk", normalizedRisk.join(","));
   }
 
-  if (input.converted && input.converted !== "all") {
-    params.set("converted", input.converted);
+  if (normalizedConverted.length > 0) {
+    params.set("converted", normalizedConverted.join(","));
   }
 
-  if (input.window && input.window !== "all") {
-    params.set("window", input.window);
+  if (normalizedWindow.length > 0) {
+    params.set("window", normalizedWindow.join(","));
   }
 
   if (input.sort && input.sort !== "fit") {
@@ -715,11 +719,11 @@ export default async function HotspotsPage({
     selectedSources.length > 0
       ? visibleGroups.filter((group) => selectedSources.includes(group.displayLabel))
       : visibleGroups;
-  const heatFilter = parseFilterValue(resolvedSearchParams?.heat, heatFilterValues, "all");
-  const fitFilter = parseFilterValue(resolvedSearchParams?.fit, fitFilterValues, "all");
-  const riskFilter = parseFilterValue(resolvedSearchParams?.risk, riskFilterValues, "all");
-  const convertedFilter = parseFilterValue(resolvedSearchParams?.converted, convertedFilterValues, "all");
-  const windowFilter = parseFilterValue(resolvedSearchParams?.window, windowFilterValues, "all");
+  const heatFilters = parseMultiFilterValue(resolvedSearchParams?.heat, heatFilterOptions);
+  const fitFilters = parseMultiFilterValue(resolvedSearchParams?.fit, fitFilterOptions);
+  const riskFilters = parseMultiFilterValue(resolvedSearchParams?.risk, riskFilterOptions);
+  const convertedFilters = parseMultiFilterValue(resolvedSearchParams?.converted, convertedFilterOptions);
+  const windowFilters = parseMultiFilterValue(resolvedSearchParams?.window, windowFilterOptions);
   const sort = parseFilterValue(resolvedSearchParams?.sort, sortValues, "fit");
 
   const allFamiliesSelected = selectedFamilies.length === allFamilyKeys.length;
@@ -728,13 +732,14 @@ export default async function HotspotsPage({
     const isConverted = packByHotspotId.has(entry.signal.id);
 
     return (
-      getHeatFilterMatch(entry.signal, heatFilter) &&
-      getFitFilterMatch(entry.signal.brandFitScore, fitFilter) &&
-      getRiskFilterMatch(entry.signal.riskScore, riskFilter) &&
-      getWindowFilterMatch(entry.signal, windowFilter) &&
-      (convertedFilter === "all" ||
-        (convertedFilter === "converted" && isConverted) ||
-        (convertedFilter === "unconverted" && !isConverted))
+      (heatFilters.length === 0 || heatFilters.some((value) => getHeatFilterMatch(entry.signal, value))) &&
+      (fitFilters.length === 0 || fitFilters.some((value) => getFitFilterMatch(entry.signal.brandFitScore, value))) &&
+      (riskFilters.length === 0 || riskFilters.some((value) => getRiskFilterMatch(entry.signal.riskScore, value))) &&
+      (windowFilters.length === 0 || windowFilters.some((value) => getWindowFilterMatch(entry.signal, value))) &&
+      (convertedFilters.length === 0 ||
+        convertedFilters.some(
+          (value) => (value === "converted" && isConverted) || (value === "unconverted" && !isConverted)
+        ))
     );
   });
   const sortedEntries = sortEntries(filteredEntries, sort);
@@ -867,11 +872,11 @@ export default async function HotspotsPage({
               href={buildHotspotHref({
                 families: allFamilyKeys,
                 sources: pruneSourcesByFamilies(selectedSources, sourceGroups, allFamilyKeys),
-                heat: heatFilter,
-                fit: fitFilter,
-                risk: riskFilter,
-                converted: convertedFilter,
-                window: windowFilter,
+                heat: heatFilters,
+                fit: fitFilters,
+                risk: riskFilters,
+                converted: convertedFilters,
+                window: windowFilters,
                 sort
               })}
             >
@@ -889,11 +894,11 @@ export default async function HotspotsPage({
                   href={buildHotspotHref({
                     families: normalizedNextFamilies,
                     sources: nextSources,
-                    heat: heatFilter,
-                    fit: fitFilter,
-                    risk: riskFilter,
-                    converted: convertedFilter,
-                    window: windowFilter,
+                    heat: heatFilters,
+                    fit: fitFilters,
+                    risk: riskFilters,
+                    converted: convertedFilters,
+                    window: windowFilters,
                     sort
                   })}
                   key={family}
@@ -915,11 +920,11 @@ export default async function HotspotsPage({
                 className={`filterChip ${selectedSources.length === 0 ? "filterChipActive" : ""}`}
                 href={buildHotspotHref({
                   families: selectedFamilies,
-                  heat: heatFilter,
-                  fit: fitFilter,
-                  risk: riskFilter,
-                  converted: convertedFilter,
-                  window: windowFilter,
+                  heat: heatFilters,
+                  fit: fitFilters,
+                  risk: riskFilters,
+                  converted: convertedFilters,
+                  window: windowFilters,
                   sort
                 })}
               >
@@ -935,11 +940,11 @@ export default async function HotspotsPage({
                     href={buildHotspotHref({
                       families: selectedFamilies,
                       sources: nextSources,
-                      heat: heatFilter,
-                      fit: fitFilter,
-                      risk: riskFilter,
-                      converted: convertedFilter,
-                      window: windowFilter,
+                      heat: heatFilters,
+                      fit: fitFilters,
+                      risk: riskFilters,
+                      converted: convertedFilters,
+                      window: windowFilters,
                       sort
                     })}
                     key={`${group.market}-${group.label}`}
@@ -956,125 +961,225 @@ export default async function HotspotsPage({
           <div className="filterGroupBlock">
             <span className="filterGroupLabel">热度等级</span>
             <div className="filterChipRow">
-              {heatFilterValues.map((value) => (
+              <Link
+                aria-current={heatFilters.length === 0 ? "page" : undefined}
+                className={`filterChip ${heatFilters.length === 0 ? "filterChipActive" : ""}`}
+                href={buildHotspotHref({
+                  families: selectedFamilies,
+                  sources: selectedSources,
+                  heat: [],
+                  fit: fitFilters,
+                  risk: riskFilters,
+                  converted: convertedFilters,
+                  window: windowFilters,
+                  sort
+                })}
+              >
+                全部
+              </Link>
+              {heatFilterOptions.map((value) => {
+                const nextHeatFilters = toggleListValue(heatFilters, value);
+
+                return (
                 <Link
-                  aria-current={heatFilter === value ? "page" : undefined}
-                  className={`filterChip ${heatFilter === value ? "filterChipActive" : ""}`}
+                  aria-current={heatFilters.includes(value) ? "page" : undefined}
+                  className={`filterChip ${heatFilters.includes(value) ? "filterChipActive" : ""}`}
                   href={buildHotspotHref({
                     families: selectedFamilies,
                     sources: selectedSources,
-                    heat: value,
-                    fit: fitFilter,
-                    risk: riskFilter,
-                    converted: convertedFilter,
-                    window: windowFilter,
+                    heat: nextHeatFilters,
+                    fit: fitFilters,
+                    risk: riskFilters,
+                    converted: convertedFilters,
+                    window: windowFilters,
                     sort
                   })}
                   key={value}
                 >
-                  {value === "all" ? "全部" : value === "high" ? "高热" : value === "medium" ? "中热" : "观察"}
+                  {value === "high" ? "高热" : value === "medium" ? "中热" : "观察"}
                 </Link>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           <div className="filterGroupBlock">
             <span className="filterGroupLabel">品牌相关度</span>
             <div className="filterChipRow">
-              {fitFilterValues.map((value) => (
+              <Link
+                aria-current={fitFilters.length === 0 ? "page" : undefined}
+                className={`filterChip ${fitFilters.length === 0 ? "filterChipActive" : ""}`}
+                href={buildHotspotHref({
+                  families: selectedFamilies,
+                  sources: selectedSources,
+                  heat: heatFilters,
+                  fit: [],
+                  risk: riskFilters,
+                  converted: convertedFilters,
+                  window: windowFilters,
+                  sort
+                })}
+              >
+                全部
+              </Link>
+              {fitFilterOptions.map((value) => {
+                const nextFitFilters = toggleListValue(fitFilters, value);
+
+                return (
                 <Link
-                  aria-current={fitFilter === value ? "page" : undefined}
-                  className={`filterChip ${fitFilter === value ? "filterChipActive" : ""}`}
+                  aria-current={fitFilters.includes(value) ? "page" : undefined}
+                  className={`filterChip ${fitFilters.includes(value) ? "filterChipActive" : ""}`}
                   href={buildHotspotHref({
                     families: selectedFamilies,
                     sources: selectedSources,
-                    heat: heatFilter,
-                    fit: value,
-                    risk: riskFilter,
-                    converted: convertedFilter,
-                    window: windowFilter,
+                    heat: heatFilters,
+                    fit: nextFitFilters,
+                    risk: riskFilters,
+                    converted: convertedFilters,
+                    window: windowFilters,
                     sort
                   })}
                   key={value}
                 >
-                  {value === "all" ? "全部" : value === "high" ? "高" : value === "medium" ? "中" : "低"}
+                  {value === "high" ? "高" : value === "medium" ? "中" : "低"}
                 </Link>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           <div className="filterGroupBlock">
             <span className="filterGroupLabel">风险等级</span>
             <div className="filterChipRow">
-              {riskFilterValues.map((value) => (
+              <Link
+                aria-current={riskFilters.length === 0 ? "page" : undefined}
+                className={`filterChip ${riskFilters.length === 0 ? "filterChipActive" : ""}`}
+                href={buildHotspotHref({
+                  families: selectedFamilies,
+                  sources: selectedSources,
+                  heat: heatFilters,
+                  fit: fitFilters,
+                  risk: [],
+                  converted: convertedFilters,
+                  window: windowFilters,
+                  sort
+                })}
+              >
+                全部
+              </Link>
+              {riskFilterOptions.map((value) => {
+                const nextRiskFilters = toggleListValue(riskFilters, value);
+
+                return (
                 <Link
-                  aria-current={riskFilter === value ? "page" : undefined}
-                  className={`filterChip ${riskFilter === value ? "filterChipActive" : ""}`}
+                  aria-current={riskFilters.includes(value) ? "page" : undefined}
+                  className={`filterChip ${riskFilters.includes(value) ? "filterChipActive" : ""}`}
                   href={buildHotspotHref({
                     families: selectedFamilies,
                     sources: selectedSources,
-                    heat: heatFilter,
-                    fit: fitFilter,
-                    risk: value,
-                    converted: convertedFilter,
-                    window: windowFilter,
+                    heat: heatFilters,
+                    fit: fitFilters,
+                    risk: nextRiskFilters,
+                    converted: convertedFilters,
+                    window: windowFilters,
                     sort
                   })}
                   key={value}
                 >
-                  {value === "all" ? "全部" : value === "low" ? "低风险" : value === "medium" ? "中风险" : "高风险"}
+                  {value === "low" ? "低风险" : value === "medium" ? "中风险" : "高风险"}
                 </Link>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           <div className="filterGroupBlock">
             <span className="filterGroupLabel">是否已转题</span>
             <div className="filterChipRow">
-              {convertedFilterValues.map((value) => (
+              <Link
+                aria-current={convertedFilters.length === 0 ? "page" : undefined}
+                className={`filterChip ${convertedFilters.length === 0 ? "filterChipActive" : ""}`}
+                href={buildHotspotHref({
+                  families: selectedFamilies,
+                  sources: selectedSources,
+                  heat: heatFilters,
+                  fit: fitFilters,
+                  risk: riskFilters,
+                  converted: [],
+                  window: windowFilters,
+                  sort
+                })}
+              >
+                全部
+              </Link>
+              {convertedFilterOptions.map((value) => {
+                const nextConvertedFilters = toggleListValue(convertedFilters, value);
+
+                return (
                 <Link
-                  aria-current={convertedFilter === value ? "page" : undefined}
-                  className={`filterChip ${convertedFilter === value ? "filterChipActive" : ""}`}
+                  aria-current={convertedFilters.includes(value) ? "page" : undefined}
+                  className={`filterChip ${convertedFilters.includes(value) ? "filterChipActive" : ""}`}
                   href={buildHotspotHref({
                     families: selectedFamilies,
                     sources: selectedSources,
-                    heat: heatFilter,
-                    fit: fitFilter,
-                    risk: riskFilter,
-                    converted: value,
-                    window: windowFilter,
+                    heat: heatFilters,
+                    fit: fitFilters,
+                    risk: riskFilters,
+                    converted: nextConvertedFilters,
+                    window: windowFilters,
                     sort
                   })}
                   key={value}
                 >
-                  {value === "all" ? "全部" : value === "converted" ? "已转题" : "未转题"}
+                  {value === "converted" ? "已转题" : "未转题"}
                 </Link>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           <div className="filterGroupBlock">
             <span className="filterGroupLabel">时间窗口</span>
             <div className="filterChipRow">
-              {windowFilterValues.map((value) => (
+              <Link
+                aria-current={windowFilters.length === 0 ? "page" : undefined}
+                className={`filterChip ${windowFilters.length === 0 ? "filterChipActive" : ""}`}
+                href={buildHotspotHref({
+                  families: selectedFamilies,
+                  sources: selectedSources,
+                  heat: heatFilters,
+                  fit: fitFilters,
+                  risk: riskFilters,
+                  converted: convertedFilters,
+                  window: [],
+                  sort
+                })}
+              >
+                全部
+              </Link>
+              {windowFilterOptions.map((value) => {
+                const nextWindowFilters = toggleListValue(windowFilters, value);
+
+                return (
                 <Link
-                  aria-current={windowFilter === value ? "page" : undefined}
-                  className={`filterChip ${windowFilter === value ? "filterChipActive" : ""}`}
+                  aria-current={windowFilters.includes(value) ? "page" : undefined}
+                  className={`filterChip ${windowFilters.includes(value) ? "filterChipActive" : ""}`}
                   href={buildHotspotHref({
                     families: selectedFamilies,
                     sources: selectedSources,
-                    heat: heatFilter,
-                    fit: fitFilter,
-                    risk: riskFilter,
-                    converted: convertedFilter,
-                    window: value,
+                    heat: heatFilters,
+                    fit: fitFilters,
+                    risk: riskFilters,
+                    converted: convertedFilters,
+                    window: nextWindowFilters,
                     sort
                   })}
                   key={value}
                 >
-                  {value === "all" ? "全部" : value === "now" ? "立即处理" : value === "today" ? "今天内" : "继续观察"}
+                  {value === "now" ? "立即处理" : value === "today" ? "今天内" : "继续观察"}
                 </Link>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -1088,11 +1193,11 @@ export default async function HotspotsPage({
                   href={buildHotspotHref({
                     families: selectedFamilies,
                     sources: selectedSources,
-                    heat: heatFilter,
-                    fit: fitFilter,
-                    risk: riskFilter,
-                    converted: convertedFilter,
-                    window: windowFilter,
+                    heat: heatFilters,
+                    fit: fitFilters,
+                    risk: riskFilters,
+                    converted: convertedFilters,
+                    window: windowFilters,
                     sort: value
                   })}
                   key={value}
@@ -1184,37 +1289,19 @@ export default async function HotspotsPage({
                   />
                 </div>
 
-                <details className="hotspotBoardDetails">
-                  <summary>查看判断依据</summary>
-                  <div className="hotspotBoardDetailsBody reviewContextCopy">
-                    <p>
-                      <strong>为什么现在值得做：</strong>
-                      {reasonNow}
-                    </p>
-                    <p>
-                      <strong>为什么和品牌有关：</strong>
-                      {reasonBrand}
-                    </p>
-                    <p>
-                      <strong>可能的传播角度：</strong>
-                      {reasonAngle}
-                    </p>
-                    <div className="hotspotDetailSourceLinks">
-                      {sourceRecords.map((record) => (
-                        <a
-                          className="tag"
-                          href={buildFallbackSearchUrl(signal.title, [record])}
-                          key={`${signal.id}-${record.displayLabel}-${record.providerId ?? record.label}`}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          查看 {record.displayLabel}
-                        </a>
-                      ))}
-                    </div>
-                    <HotspotInsightTrigger hotspotId={signal.id} />
-                  </div>
-                </details>
+                <HotspotDecisionBasis
+                  fallbackReasons={{
+                    whyNow: reasonNow,
+                    whyBrand: reasonBrand,
+                    angle: reasonAngle
+                  }}
+                  hotspotId={signal.id}
+                  sourceLinks={sourceRecords.map((record) => ({
+                    key: `${signal.id}-${record.displayLabel}-${record.providerId ?? record.label}`,
+                    label: record.displayLabel,
+                    href: buildFallbackSearchUrl(signal.title, [record])
+                  }))}
+                />
               </article>
             );
           })
