@@ -876,7 +876,7 @@ export async function createWorkspaceInviteCodes(input: {
     .returns<WorkspaceInviteCodeRow[]>();
 
   if (error || !data) {
-    throw new Error("invite_code_create_failed");
+    throw new Error(error?.message ?? error?.details ?? error?.hint ?? "invite_code_create_failed");
   }
 
   const codes = data.map((code) => ({
