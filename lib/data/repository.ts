@@ -240,6 +240,10 @@ function deterministicId(input: string): string {
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 const platformLabels: Record<Platform, string> = {
   xiaohongshu: "小红书",
   wechat: "公众号",
@@ -598,7 +602,7 @@ export async function updateHotspotPackReview(
 ): Promise<HotspotPack | null> {
   const supabase = getSupabaseServerClient();
 
-  if (!supabase) {
+  if (!supabase || !isUuid(packId)) {
     return updateHotspotPackReviewInLocalStore(packId, input);
   }
 
@@ -631,7 +635,7 @@ export async function updateHotspotPackReview(
 export async function deleteHotspotPack(packId: string): Promise<boolean> {
   const supabase = getSupabaseServerClient();
 
-  if (!supabase) {
+  if (!supabase || !isUuid(packId)) {
     let removed = false;
 
     await updateLocalDataStore((store) => ({
@@ -668,7 +672,7 @@ export async function deleteHotspotPack(packId: string): Promise<boolean> {
 export async function getPublishJobsForPack(packId: string): Promise<PublishJob[]> {
   const supabase = getSupabaseServerClient();
 
-  if (!supabase) {
+  if (!supabase || !isUuid(packId)) {
     const store = await readLocalDataStore();
     return store.publishJobs
       .filter((job) => job.packId === packId)
@@ -710,7 +714,7 @@ export async function queuePublishJobs(
 
   const supabase = getSupabaseServerClient();
 
-  if (!supabase) {
+  if (!supabase || !isUuid(pack.id) || pack.variants.some((variant) => !isUuid(variant.id))) {
     const now = new Date().toISOString();
     const store = await updateLocalDataStore((current) => {
       const nextJobs = [...current.publishJobs];
@@ -803,7 +807,7 @@ export async function getQueuedPublishJobs(input?: {
 }): Promise<QueuedPublishJob[]> {
   const supabase = getSupabaseServerClient();
 
-  if (!supabase) {
+  if (!supabase || (input?.packId ? !isUuid(input.packId) : false)) {
     const store = await readLocalDataStore();
     const now = Date.now();
     const queued = store.publishJobs
@@ -885,7 +889,10 @@ export async function updatePublishJobStatus(
 ): Promise<PublishJob | null> {
   const supabase = getSupabaseServerClient();
 
-  if (!supabase) {
+  const store = await readLocalDataStore();
+  const localJobExists = store.publishJobs.some((job) => job.id === jobId);
+
+  if (!supabase || localJobExists) {
     let updatedJob: PublishJob | null = null;
 
     await updateLocalDataStore((store) => {
@@ -946,7 +953,10 @@ export async function updatePublishJobStatus(
 export async function deletePublishJob(jobId: string): Promise<boolean> {
   const supabase = getSupabaseServerClient();
 
-  if (!supabase) {
+  const store = await readLocalDataStore();
+  const localJobExists = store.publishJobs.some((job) => job.id === jobId);
+
+  if (!supabase || localJobExists) {
     let removed = false;
 
     await updateLocalDataStore((store) => ({
@@ -984,7 +994,7 @@ export async function clearQueuedPublishJobs(input?: {
 }): Promise<ClearPublishJobsResult> {
   const supabase = getSupabaseServerClient();
 
-  if (!supabase) {
+  if (!supabase || (input?.packId ? !isUuid(input.packId) : false)) {
     let removedCount = 0;
 
     await updateLocalDataStore((store) => ({
