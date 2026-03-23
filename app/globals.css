@@ -1,6 +1,6 @@
 :root {
-  --font-sans: "Avenir Next", "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
-  --font-display: "Iowan Old Style", "Songti SC", "STSong", "Times New Roman", serif;
+  --font-sans: "SF Pro Text", "PingFang SC", "Helvetica Neue", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --font-display: "SF Pro Display", "PingFang SC", "Helvetica Neue", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --font-mono: "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --bg: #eae8e2;
   --bg-muted: #e2dfd8;
@@ -109,6 +109,7 @@
 .topicEditorPanel,
 .hotspotOverviewPanel,
 .hotspotFilterPanel,
+.brandWorkbenchCard,
 .publishRuntimePanel {
   background: rgba(255, 255, 255, 0.78);
   border-color: rgba(24, 30, 41, 0.08);
@@ -132,6 +133,81 @@
 .commandBoardCard,
 .secondaryBoardCard {
   min-height: 100%;
+}
+
+.brandWorkbenchCard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(245, 243, 238, 0.86)),
+    rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(24, 30, 41, 0.09);
+  box-shadow: var(--shadow-sm);
+}
+
+.brandWorkbenchCard::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, rgba(39, 54, 76, 0.92), rgba(39, 54, 76, 0.18));
+  pointer-events: none;
+}
+
+.brandWorkbenchHead,
+.brandWorkbenchActions {
+  display: flex;
+  gap: 1rem;
+}
+
+.brandWorkbenchHead {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.brandWorkbenchHead h2 {
+  margin: 0.2rem 0 0;
+  font-size: clamp(1.9rem, 3vw, 2.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+
+.brandWorkbenchHead .muted {
+  margin: 0.55rem 0 0;
+  max-width: 44rem;
+}
+
+.brandWorkbenchActions {
+  align-items: flex-end;
+  flex-direction: column;
+}
+
+.brandWorkbenchMeta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.brandWorkbenchStat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(24, 30, 41, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.brandWorkbenchStat span {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+}
+
+.brandWorkbenchStat strong {
+  line-height: 1.45;
+  text-wrap: balance;
 }
 
 .priorityCommandList,
@@ -309,11 +385,18 @@
 .decisionMetricGrid strong,
 .publishExecutionGrid strong,
 .adminMetricGrid strong {
-  line-height: 1.45;
+  line-height: 1.58;
+  letter-spacing: -0.004em;
 }
 
 .statusFeedItem strong {
   font-size: 0.98rem;
+}
+
+.statusFeedItem span,
+.decisionMetricGrid span,
+.publishExecutionGrid span {
+  line-height: 1.55;
 }
 
 .systemFeedbackCard {
@@ -379,9 +462,11 @@
 .topicDecisionHeadline h3,
 .brandLeadText {
   margin: 0;
-  font-size: 1.18rem;
-  line-height: 1.45;
-  letter-spacing: -0.01em;
+  font-size: 1.14rem;
+  line-height: 1.52;
+  letter-spacing: -0.004em;
+  font-family: var(--font-display), "PingFang SC", sans-serif;
+  font-weight: 610;
 }
 
 .topicWorkbenchLayout {
@@ -409,13 +494,13 @@
 .editorToolSection {
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 1.05rem;
 }
 
 .topicDecisionNarrative > div,
 .editorAssistGrid > div {
   border-top: 1px solid var(--line);
-  padding-top: 0.8rem;
+  padding-top: 0.95rem;
 }
 
 .topicQueueList .reviewTaskRow {
@@ -652,6 +737,7 @@
 
   .statusFeedGrid,
   .publishRuntimePanel .statusFeedGrid,
+  .brandWorkbenchMeta,
   .decisionMetricGrid,
   .publishExecutionGrid,
   .editorAssistGrid,
@@ -669,6 +755,8 @@
 }
 
 @media (max-width: 860px) {
+  .brandWorkbenchHead,
+  .brandWorkbenchActions,
   .priorityCommandItem,
   .decisionListItem,
   .publishQueueRow,
@@ -695,7 +783,13 @@
     text-align: left;
   }
 
+  .brandWorkbenchActions {
+    align-items: flex-start;
+    width: 100%;
+  }
+
   .brandActionRow .buttonLike,
+  .brandWorkbenchActions .buttonLike,
   .compactOpportunityFooter .inlineActionStack,
   .hotspotPrimaryAction .inlineActionStack,
   .hotspotPrimaryAction .buttonLike {
@@ -724,6 +818,8 @@ body {
   overflow: hidden;
   color: var(--text);
   font-family: var(--font-sans), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  line-height: 1.62;
+  letter-spacing: 0.004em;
   background:
     radial-gradient(1200px 700px at 8% -8%, rgba(255, 255, 255, 0.76), transparent 55%),
     radial-gradient(760px 520px at 108% 0%, rgba(212, 219, 231, 0.34), transparent 60%),
@@ -896,11 +992,11 @@ strong {
 }
 
 .brandLink {
-  font-family: var(--font-display), "Songti SC", serif;
-  font-size: 1.2rem;
+  font-family: var(--font-display), "PingFang SC", sans-serif;
+  font-size: 1.16rem;
   font-weight: 620;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
+  line-height: 1.28;
+  letter-spacing: -0.006em;
 }
 
 .sidebarSection {
@@ -926,11 +1022,11 @@ strong {
 
 .topbarTitle {
   margin: 0.14rem 0 0;
-  font-size: 1.56rem;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  font-family: var(--font-display), "Songti SC", serif;
-  font-weight: 620;
+  font-size: 1.48rem;
+  line-height: 1.24;
+  letter-spacing: -0.012em;
+  font-family: var(--font-display), "PingFang SC", sans-serif;
+  font-weight: 615;
 }
 
 .topbarLead {
@@ -941,8 +1037,8 @@ strong {
 
 .topbarSubtitle {
   color: var(--text-soft);
-  font-size: 0.92rem;
-  line-height: 1.5;
+  font-size: 0.9rem;
+  line-height: 1.66;
 }
 
 .topbarMetaStrip {
@@ -1177,8 +1273,10 @@ strong {
 
 .navCard strong {
   font-size: 0.96rem;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
+  line-height: 1.34;
+  letter-spacing: -0.006em;
+  font-family: var(--font-display), "PingFang SC", sans-serif;
+  font-weight: 610;
 }
 
 .navCard span:last-child {
@@ -1657,24 +1755,24 @@ strong {
 .sidebarBrand h2,
 .onboardingHero h2 {
   margin: 0;
-  letter-spacing: -0.026em;
-  line-height: 1.1;
+  letter-spacing: -0.012em;
+  line-height: 1.22;
   text-wrap: balance;
-  font-family: var(--font-display), "Songti SC", serif;
-  font-weight: 620;
+  font-family: var(--font-display), "PingFang SC", sans-serif;
+  font-weight: 610;
 }
 
 .pageHero h1 {
-  font-size: clamp(2.3rem, 4.4vw, 3.95rem);
-  font-weight: 640;
-  max-width: 10.5ch;
+  font-size: clamp(2rem, 3.8vw, 3.3rem);
+  font-weight: 620;
+  max-width: 12ch;
 }
 
 .pageHeroUtility h1 {
   max-width: none;
-  font-size: clamp(1.3rem, 2.2vw, 1.72rem);
-  font-weight: 620;
-  letter-spacing: -0.018em;
+  font-size: clamp(1.24rem, 1.9vw, 1.56rem);
+  font-weight: 610;
+  letter-spacing: -0.01em;
 }
 
 .pageHeroContext {
@@ -1684,15 +1782,15 @@ strong {
 }
 
 .pageHeroDescription {
-  max-width: 62ch;
-  font-size: 0.98rem;
-  line-height: 1.76;
+  max-width: 54ch;
+  font-size: 0.95rem;
+  line-height: 1.74;
 }
 
 .pageHeroUtility .pageHeroDescription {
-  max-width: 78ch;
-  font-size: 0.95rem;
-  line-height: 1.62;
+  max-width: 62ch;
+  font-size: 0.93rem;
+  line-height: 1.68;
 }
 
 .pageHeroActions {
@@ -1941,7 +2039,7 @@ strong {
 }
 
 .muted {
-  line-height: 1.65;
+  line-height: 1.78;
 }
 
 .tagRow,
@@ -2034,6 +2132,23 @@ strong {
   border-color: rgba(24, 30, 41, 0.08);
 }
 
+.tag-live {
+  color: #1f6a47;
+  background: rgba(45, 180, 108, 0.12);
+  border-color: rgba(33, 133, 80, 0.26);
+}
+
+.tag-live::before {
+  content: "";
+  width: 0.46rem;
+  height: 0.46rem;
+  border-radius: 999px;
+  background: #2fcb7d;
+  box-shadow:
+    0 0 0 3px rgba(47, 203, 125, 0.18),
+    0 0 12px rgba(47, 203, 125, 0.6);
+}
+
 .summaryGrid,
 .queueGrid,
 .brandInfoGrid,
@@ -2060,9 +2175,9 @@ strong {
 .publishPackTitle,
 .reviewSimpleHeader h3,
 .panel h3 {
-  font-size: 1.14rem;
-  line-height: 1.34;
-  letter-spacing: -0.02em;
+  font-size: 1.08rem;
+  line-height: 1.46;
+  letter-spacing: -0.008em;
 }
 
 .summaryCardElevated {
@@ -2071,8 +2186,8 @@ strong {
 }
 
 .sectionTitle h2 {
-  font-size: clamp(1.22rem, 2vw, 1.62rem);
-  font-weight: 720;
+  font-size: clamp(1.18rem, 1.8vw, 1.48rem);
+  font-weight: 630;
 }
 
 .sectionLink {
@@ -3020,7 +3135,7 @@ strong {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.5rem;
 }
 
 .publishPackHeaderActions {
@@ -3071,7 +3186,7 @@ strong {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.45rem;
 }
 
 .publishVariantMeta {
@@ -3086,7 +3201,19 @@ strong {
 .publishVariantExcerpt {
   margin: 0;
   color: var(--text-soft);
-  line-height: 1.62;
+  line-height: 1.76;
+}
+
+.publishPackSummary,
+.publishVariantSummary {
+  max-width: 46ch;
+}
+
+.topicDecisionPanel .muted,
+.publishPackSummary,
+.publishVariantSummary,
+.publishVariantExcerpt {
+  font-size: 0.95rem;
 }
 
 .publishVariantOpen {
@@ -3301,8 +3428,8 @@ strong {
 .reviewSimpleSection {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1.15rem;
+  gap: 1.15rem;
+  padding: 1.3rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.8);
