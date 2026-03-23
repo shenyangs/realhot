@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireApiAccess } from "@/lib/auth/api-guard";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { canApproveContent } from "@/lib/auth/permissions";
@@ -29,6 +30,15 @@ function formatReviewRouteError(error: unknown) {
   }
 
   return "Review update failed";
+}
+
+function revalidateReviewRelatedPages(packId: string) {
+  revalidatePath("/");
+  revalidatePath("/hotspots");
+  revalidatePath("/review");
+  revalidatePath("/production-studio");
+  revalidatePath(`/production-studio/${packId}`);
+  revalidatePath("/publish");
 }
 
 export async function POST(
@@ -101,6 +111,8 @@ export async function POST(
       }
     });
 
+    revalidateReviewRelatedPages(updated.id);
+
     return NextResponse.json({
       ok: true,
       pack: updated,
@@ -153,6 +165,8 @@ export async function DELETE(
           variantTitles: pack?.variants.map((variant) => variant.title)
         }
       });
+
+      revalidateReviewRelatedPages(packId);
     }
 
     return NextResponse.json({
