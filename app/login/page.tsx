@@ -48,7 +48,7 @@ export default async function LoginPage() {
             <h1>账号登录</h1>
           </div>
         </div>
-        <p className="muted">工作台已切换为正式登录入口。未登录不能进入工作台；新成员需要先拿超级管理员生成的邀请码注册。</p>
+        <p className="muted">使用已开通账号登录工作台，新成员可通过邀请码完成注册。</p>
       </section>
 
       <section className="brandInfoGrid">
@@ -69,15 +69,14 @@ export default async function LoginPage() {
           <div className="panelHeader">
             <div>
               <p className="eyebrow">{loginMode.supportsSupabaseLogin ? "Access" : "Admin"}</p>
-              <h3>{loginMode.supportsSupabaseLogin ? "账号开通说明" : "超级管理员入口"}</h3>
+              <h3>{loginMode.supportsSupabaseLogin ? "账号开通" : "超级管理员入口"}</h3>
             </div>
           </div>
           <div className="stack">
             {loginMode.supportsSupabaseLogin ? (
               <>
-                <p className="muted">当前环境已经切到 Supabase 正式账号体系，不再展示本地 demo / 默认管理员账号。</p>
-                <p className="muted">超级管理员通过平台后台管理用户、工作组和邀请码；新成员请使用正式账号登录或通过邀请码注册。</p>
-                <p className="muted">如果你还没有账号，请联系平台超级管理员开通。</p>
+                <p className="muted">使用已开通账号登录。新成员可通过邀请码注册加入。</p>
+                <p className="muted">如需开通账号或加入组织，请联系平台管理员。</p>
               </>
             ) : (
               <>

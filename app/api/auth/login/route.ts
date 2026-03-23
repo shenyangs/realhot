@@ -32,7 +32,6 @@ export async function POST(request: NextRequest) {
   const identifier = body.identifier ?? body.email;
   const supabase = getSupabaseClient();
   const supabaseServer = getSupabaseServerClient();
-
   if (!identifier || !body.password) {
     return NextResponse.json(
       {
@@ -45,64 +44,64 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  try {
-    const result = await loginWithLocalAccount({
-      identifier,
-      password: body.password
-    });
-    await writeAuditLog({
-      actorUserId: result.userId,
-      actorDisplayName: identifier,
-      entityType: "auth_session",
-      entityId: result.userId,
-      action: "auth.login_success",
-      payload: {
+  if (!supabase || !supabaseServer) {
+    try {
+      const result = await loginWithLocalAccount({
         identifier,
-        mode: "local"
-      }
-    });
-    const response = NextResponse.json({
-      ok: true,
-      hasWorkspace: Boolean(result.workspaceSlug),
-      requiresWorkspaceSelection: result.requiresWorkspaceSelection
-    });
+        password: body.password
+      });
+      await writeAuditLog({
+        actorUserId: result.userId,
+        actorDisplayName: identifier,
+        entityType: "auth_session",
+        entityId: result.userId,
+        action: "auth.login_success",
+        payload: {
+          identifier,
+          mode: "local"
+        }
+      });
+      const response = NextResponse.json({
+        ok: true,
+        hasWorkspace: Boolean(result.workspaceSlug),
+        requiresWorkspaceSelection: result.requiresWorkspaceSelection
+      });
 
-    response.cookies.set(
-      sessionCookieNames.appSession,
-      await createAppSessionToken(result.userId),
-      getSessionCookieOptions(APP_SESSION_TTL_SECONDS)
-    );
-    response.cookies.delete(sessionCookieNames.accessToken);
-    response.cookies.delete(sessionCookieNames.refreshToken);
-    response.cookies.delete(sessionCookieNames.legacyUserId);
-    response.cookies.delete(sessionCookieNames.demoRole);
-
-    if (result.workspaceSlug) {
       response.cookies.set(
-        sessionCookieNames.workspaceSlug,
-        result.workspaceSlug,
+        sessionCookieNames.appSession,
+        await createAppSessionToken(result.userId),
         getSessionCookieOptions(APP_SESSION_TTL_SECONDS)
       );
-    } else {
-      response.cookies.delete(sessionCookieNames.workspaceSlug);
+      response.cookies.delete(sessionCookieNames.accessToken);
+      response.cookies.delete(sessionCookieNames.refreshToken);
+      response.cookies.delete(sessionCookieNames.legacyUserId);
+      response.cookies.delete(sessionCookieNames.demoRole);
+
+      if (result.workspaceSlug) {
+        response.cookies.set(
+          sessionCookieNames.workspaceSlug,
+          result.workspaceSlug,
+          getSessionCookieOptions(APP_SESSION_TTL_SECONDS)
+        );
+      } else {
+        response.cookies.delete(sessionCookieNames.workspaceSlug);
+      }
+
+      return response;
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "invalid_credentials") {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: error instanceof Error ? error.message : "login_failed"
+          },
+          {
+            status: 401
+          }
+        );
+      }
     }
 
-    return response;
-  } catch (error) {
-    if (!(error instanceof Error) || error.message !== "invalid_credentials") {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: error instanceof Error ? error.message : "login_failed"
-        },
-        {
-          status: 401
-        }
-      );
-    }
-  }
-
-  if (!supabase || !supabaseServer) {
     await writeAuditLog({
       actorDisplayName: identifier,
       entityType: "auth_session",
