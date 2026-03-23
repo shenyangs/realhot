@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { AdminAiProviderStatusGrid } from "@/components/admin-ai-provider-status-grid";
 import { AdminAiRoutingForm } from "@/components/admin-ai-routing-form";
 import { PageHero } from "@/components/page-hero";
 import { AI_FEATURES, aiFeatureLabels, AiProvider } from "@/lib/domain/ai-routing";
 import { buildEffectiveFeatureRoutes, getAiRoutingConfig } from "@/lib/services/ai-routing-config";
+import { listProviderConfigs } from "@/lib/services/model-router";
 
 const providerLabels: Record<AiProvider, string> = {
   gemini: "Gemini",
@@ -12,18 +14,7 @@ const providerLabels: Record<AiProvider, string> = {
 export default async function AdminAiRoutingPage() {
   const config = await getAiRoutingConfig();
   const effectiveRoutes = buildEffectiveFeatureRoutes(config);
-  const providerStatus = [
-    {
-      provider: "gemini" as const,
-      model: process.env.GEMINI_MODEL?.trim() || "gemini-2.5-pro",
-      available: Boolean(process.env.GEMINI_API_KEY?.trim())
-    },
-    {
-      provider: "minimax" as const,
-      model: process.env.MINIMAX_MODEL?.trim() || "MiniMax-M2.7",
-      available: Boolean(process.env.MINIMAX_API_KEY?.trim())
-    }
-  ];
+  const providerStatus = listProviderConfigs("content-generation");
   const availableProviders = providerStatus.filter((item) => item.available).length;
 
   return (
@@ -51,13 +42,7 @@ export default async function AdminAiRoutingPage() {
       />
 
       <section className="summaryGrid adminSummaryGrid">
-        {providerStatus.map((item) => (
-          <article className="panel summaryCard" key={item.provider}>
-            <p className="eyebrow">{providerLabels[item.provider]}</p>
-            <h3>{item.available ? "已接入" : "未接入"}</h3>
-            <p className="muted">当前模型：{item.model}</p>
-          </article>
-        ))}
+        <AdminAiProviderStatusGrid providerStatus={providerStatus} />
         <article className="panel summaryCard">
           <p className="eyebrow">推荐动作</p>
           <h3>先定默认，再做覆写</h3>

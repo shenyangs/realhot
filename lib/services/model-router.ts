@@ -29,6 +29,13 @@ export interface ModelRouteOptions {
   feature?: AiFeature;
 }
 
+export interface AiProviderConnectionTestResult {
+  provider: AiProvider;
+  model: string;
+  latencyMs: number;
+  outputPreview: string | null;
+}
+
 function resolveFeature(task: LlmTask, options?: ModelRouteOptions): AiFeature {
   return options?.feature ?? taskFeatureDefaults[task];
 }
@@ -63,6 +70,10 @@ function getProviderConfigs(feature: AiFeature): ProviderConfig[] {
       missingEnvKey: hasMiniMaxKey ? undefined : "MINIMAX_API_KEY"
     }
   ];
+}
+
+export function listProviderConfigs(feature: AiFeature = "content-generation"): ProviderConfig[] {
+  return getProviderConfigs(feature);
 }
 
 function getProviderLabel(provider: string): string {
@@ -156,6 +167,60 @@ export async function runModelTask(
     `Provider ${route.provider} is configured in the router but not implemented yet.`,
     "Fallback to template output."
   ].join("\n");
+}
+
+export async function testAiProviderConnection(
+  provider: AiProvider,
+  feature: AiFeature = "content-generation"
+): Promise<AiProviderConnectionTestResult> {
+  const providerConfig = getProviderConfigs(feature).find((item) => item.provider === provider);
+
+  if (!providerConfig) {
+    throw new Error("unsupported_ai_provider");
+  }
+
+  if (!providerConfig.available) {
+    throw new Error(providerConfig.missingEnvKey ? `未检测到 ${providerConfig.missingEnvKey}` : "provider_not_available");
+  }
+
+  const startedAt = Date.now();
+  const prompt = "Reply with OK.";
+  let outputPreview: string | null = null;
+
+  if (provider === "gemini") {
+    const payload = await requestGeminiContent({
+      model: providerConfig.model,
+      contents: [createUserTextContent(prompt)],
+      timeoutMs: 15000,
+      generationConfig: {
+        responseMimeType: "text/plain"
+      }
+    });
+
+    outputPreview = extractGeminiText(payload);
+  } else if (provider === "minimax") {
+    const payload = await requestMiniMaxChatCompletion({
+      model: providerConfig.model,
+      messages: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      timeoutMs: 15000
+    });
+
+    outputPreview = extractMiniMaxText(payload);
+  } else {
+    throw new Error("unsupported_ai_provider");
+  }
+
+  return {
+    provider,
+    model: providerConfig.model,
+    latencyMs: Math.max(Date.now() - startedAt, 1),
+    outputPreview: outputPreview?.slice(0, 120) ?? null
+  };
 }
 
 async function runGeminiTask(model: string, prompt: string): Promise<string> {

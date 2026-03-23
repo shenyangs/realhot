@@ -4,25 +4,6 @@ import { LoginForm } from "@/components/login-form";
 import { getLoginMode } from "@/lib/auth/repository";
 import { getCurrentViewer } from "@/lib/auth/session";
 
-const roleNotes = [
-  {
-    title: "超级管理员",
-    description: "负责平台级配置、组织管理、邀请码生成、用户状态控制与异常处理。"
-  },
-  {
-    title: "组织管理员",
-    description: "负责自己组织的成员、品牌、工作区设置、邀请码和日常协作规则。"
-  },
-  {
-    title: "内容操盘手",
-    description: "负责热点捕捉、传播策划、内容生成、改稿与提审，是生产主力。"
-  },
-  {
-    title: "审核者",
-    description: "负责内容审核、退回意见、风险把关，以及是否允许导出和发布。"
-  }
-];
-
 export default async function LoginPage() {
   const viewer = await getCurrentViewer();
   const loginMode = await getLoginMode();
@@ -96,20 +77,7 @@ export default async function LoginPage() {
       </section>
 
       <section className="panel">
-        <div className="panelHeader sectionTitle">
-          <div>
-            <p className="eyebrow">角色说明</p>
-            <h2>不同身份看到的权限和职责</h2>
-          </div>
-        </div>
-        <div className="onboardingGrid">
-          {roleNotes.map((item) => (
-            <article className="onboardingCard" key={item.title}>
-              <strong>{item.title}</strong>
-              <p className="muted">{item.description}</p>
-            </article>
-          ))}
-        </div>
+        <p className="muted">不同账号的可见范围和操作权限由管理员统一配置。</p>
       </section>
     </div>
   );

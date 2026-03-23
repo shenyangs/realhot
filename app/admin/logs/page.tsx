@@ -18,6 +18,7 @@ const actionLabels: Record<string, string> = {
   "workspace.invite_codes_created": "生成邀请码",
   "workspace.updated": "修改工作组",
   "platform.ai_routing_updated": "修改模型路由",
+  "platform.ai_provider_connection_tested": "测试模型连通性",
   "hotspot.insight_generated": "生成热点深挖",
   "content.pack_generated": "生成内容包",
   "content.pack_exported": "导出内容包",
