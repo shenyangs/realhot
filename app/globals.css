@@ -2640,6 +2640,29 @@ strong {
   gap: 0.8rem;
 }
 
+.reviewBatchToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-bottom: 0.8rem;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(251, 250, 246, 0.88);
+}
+
+.reviewBatchMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.reviewBatchActions {
+  justify-content: flex-end;
+}
+
 .reviewTaskRow {
   align-items: center;
   justify-content: space-between;
@@ -2654,6 +2677,37 @@ strong {
   border-color: var(--line-strong);
   background: rgba(255, 255, 255, 0.88);
   transform: translateY(-1px);
+}
+
+.reviewSelectableRow {
+  gap: 0.7rem;
+}
+
+.reviewTaskRowChecked {
+  border-color: rgba(39, 54, 76, 0.28);
+  background: rgba(248, 248, 245, 0.94);
+}
+
+.reviewRowCheckbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.reviewRowCheckbox input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+}
+
+.reviewTaskRowLink {
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
 }
 
 .reviewTaskRowMain,
@@ -3946,6 +4000,15 @@ strong {
 
   .buttonRow {
     width: 100%;
+  }
+
+  .reviewBatchToolbar,
+  .reviewBatchMeta,
+  .reviewBatchActions,
+  .reviewTaskRowLink {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .buttonLike,

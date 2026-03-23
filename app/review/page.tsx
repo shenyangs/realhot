@@ -4,9 +4,10 @@ import { OneClickProductionButton } from "@/components/one-click-production-butt
 import { PackDeleteButton } from "@/components/pack-delete-button";
 import { PageHero } from "@/components/page-hero";
 import { PublishActions } from "@/components/publish-actions";
+import { ReviewQueueBatchList } from "@/components/review-queue-batch-list";
 import { ReviewActions } from "@/components/review-actions";
 import { ReviewEditor } from "@/components/review-editor";
-import { roleLabels } from "@/lib/auth";
+import { canApproveContent, roleLabels } from "@/lib/auth";
 import { listWorkspaceMembers } from "@/lib/auth/repository";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { getCurrentViewer } from "@/lib/auth/session";
@@ -76,7 +77,7 @@ function getPriorityLevel(input: {
   status: ReviewStatus;
   publishWindow?: string;
   variantCount: number;
-}) {
+}): "高" | "中" | "低" {
   const deadlineScore = getPublishWindowRank(input.publishWindow);
 
   if (input.status === "needs-edit") {
@@ -367,6 +368,25 @@ export default async function ReviewPage({
     "needs-edit": packs.filter((pack) => pack.status === "needs-edit").length,
     approved: packs.filter((pack) => pack.status === "approved").length
   };
+  const canBatchReview = canApproveContent(viewer);
+  const queueItems = visiblePacks.map((pack) => {
+    const defaultVariant = pack.variants[0];
+
+    return {
+      id: pack.id,
+      status: pack.status,
+      reviewOwner: pack.reviewOwner,
+      variantId: defaultVariant?.id,
+      variantTitle: defaultVariant?.title ?? pack.whyNow,
+      publishWindow: defaultVariant?.publishWindow,
+      firstPlatform: defaultVariant?.platforms[0],
+      priorityLabel: getPriorityLevel({
+        status: pack.status,
+        publishWindow: defaultVariant?.publishWindow,
+        variantCount: pack.variants.length
+      })
+    };
+  });
 
   return (
     <div className="page topicWorkbenchPage">
@@ -460,41 +480,13 @@ export default async function ReviewPage({
           </form>
 
           {visiblePacks.length > 0 ? (
-            <div className="reviewTaskListSimple topicQueueList">
-              {visiblePacks.map((pack) => {
-                const defaultVariant = pack.variants[0];
-                const isActive = pack.id === activePack.id;
-
-                return (
-                  <Link
-                    className={`reviewTaskRow reviewLeanTaskRow ${isActive ? "reviewTaskRowActive" : ""}`}
-                    href={buildReviewHref({
-                      status: statusFilter,
-                      q: searchQuery,
-                      pack: pack.id,
-                      variant: defaultVariant?.id,
-                      platform: defaultVariant?.platforms[0]
-                    })}
-                    key={pack.id}
-                  >
-                    <div className="reviewTaskRowMain">
-                      <strong className="reviewTaskTitle">{defaultVariant?.title ?? pack.whyNow}</strong>
-                      <p className="muted reviewTaskSummary">
-                        {pack.reviewOwner} · {defaultVariant?.publishWindow ?? "未设置发布时间"}
-                      </p>
-                    </div>
-                    <div className="reviewTaskRowMeta reviewLeanTaskMeta">
-                      <span className={`pill pill-${getPackStatusTone(pack.status)}`}>{reviewStatusLabels[pack.status]}</span>
-                      <small className="muted">优先级 {getPriorityLevel({
-                        status: pack.status,
-                        publishWindow: defaultVariant?.publishWindow,
-                        variantCount: pack.variants.length
-                      })}</small>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+            <ReviewQueueBatchList
+              activePackId={activePack.id}
+              canBatchReview={canBatchReview}
+              items={queueItems}
+              searchQuery={searchQuery}
+              statusFilter={statusFilter}
+            />
           ) : (
             <div className="systemFeedbackCard">
               <strong>当前筛选下没有任务</strong>

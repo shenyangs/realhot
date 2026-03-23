@@ -62,6 +62,7 @@ export async function POST(
       note?: string;
       reviewer?: string;
     };
+    const reviewerName = payload.reviewer?.trim() || viewer.user.displayName;
 
     if (!payload.status) {
       return NextResponse.json(
@@ -77,7 +78,7 @@ export async function POST(
     const updated = await updateHotspotPackReview(packId, {
       status: payload.status,
       note: payload.note,
-      reviewer: payload.reviewer
+      reviewer: reviewerName
     });
 
     if (!updated) {
@@ -105,7 +106,7 @@ export async function POST(
       payload: {
         hotspotTitle: hotspot?.title,
         status: updated.status,
-        reviewer: payload.reviewer,
+        reviewer: reviewerName,
         note: payload.note,
         variantTitles: updated.variants.map((variant) => variant.title)
       }
