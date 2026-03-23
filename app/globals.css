@@ -17,6 +17,8 @@
   --accent-strong: #1d293b;
   --positive: #20644a;
   --positive-soft: rgba(32, 100, 74, 0.1);
+  --danger: #8c3b3b;
+  --danger-soft: rgba(140, 59, 59, 0.12);
   --warning: #8a6632;
   --warning-soft: rgba(138, 102, 50, 0.12);
   --neutral: #55647d;
@@ -1211,8 +1213,26 @@ strong {
   width: 8px;
   height: 8px;
   border-radius: 999px;
+}
+
+.statusDot-positive {
   background: var(--positive);
   box-shadow: 0 0 0 6px rgba(32, 100, 74, 0.09);
+}
+
+.statusDot-warning {
+  background: var(--warning);
+  box-shadow: 0 0 0 6px rgba(138, 102, 50, 0.12);
+}
+
+.statusDot-negative {
+  background: var(--danger);
+  box-shadow: 0 0 0 6px rgba(140, 59, 59, 0.12);
+}
+
+.statusDot-neutral {
+  background: var(--neutral);
+  box-shadow: 0 0 0 6px rgba(85, 100, 125, 0.1);
 }
 
 .mainContent {
@@ -1908,6 +1928,11 @@ strong {
 .pill-positive {
   background: var(--positive-soft);
   color: var(--positive);
+}
+
+.pill-negative {
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .pill-warning {
