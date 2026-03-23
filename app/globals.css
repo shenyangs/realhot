@@ -1212,6 +1212,8 @@ strong {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  flex-shrink: 0;
+  white-space: nowrap;
   color: var(--accent-strong);
   font-size: 0.9rem;
   font-weight: 620;
@@ -1898,6 +1900,31 @@ strong {
   align-items: start;
 }
 
+.publishPackHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.95rem;
+}
+
+.publishPackHeading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.publishPackHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-end;
+}
+
+.publishPackAction {
+  white-space: nowrap;
+}
+
 .publishMainColumn,
 .publishAsideColumn {
   display: flex;
@@ -1906,7 +1933,7 @@ strong {
 }
 
 .publishPackMeta {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .publishVariantList {
@@ -1916,6 +1943,47 @@ strong {
 
 .publishVariantItem {
   align-items: center;
+}
+
+.publishVariantLink {
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.publishVariantLink:hover {
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.publishVariantMain {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.publishVariantMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.publishVariantExcerpt {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.62;
+}
+
+.publishVariantOpen {
+  color: var(--accent-strong);
+  font-size: 0.84rem;
+  font-weight: 620;
 }
 
 .publishStats {
@@ -2406,6 +2474,14 @@ strong {
     min-width: 0;
   }
 
+  .publishPackHeader {
+    flex-direction: column;
+  }
+
+  .publishPackHeaderActions {
+    justify-content: flex-start;
+  }
+
   .productionPackList,
   .productionStageGrid,
   .productionPreviewGrid {
@@ -2537,6 +2613,15 @@ strong {
   .publishActions,
   .reviewActions {
     width: 100%;
+  }
+
+  .publishPackHeaderActions {
+    width: 100%;
+  }
+
+  .publishVariantMeta {
+    width: 100%;
+    align-items: flex-start;
   }
 
   .hotspotLinkRow {

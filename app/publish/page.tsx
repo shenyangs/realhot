@@ -16,6 +16,16 @@ const platformLabels: Record<Platform, string> = {
   douyin: "抖音"
 };
 
+function getBodyPreview(body: string) {
+  const normalized = body.replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= 110) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 110)}...`;
+}
+
 export default async function PublishPage() {
   const [brand, packs] = await Promise.all([getBrandStrategyPack(), getReviewQueue()]);
 
@@ -116,18 +126,27 @@ export default async function PublishPage() {
                   const queuedCount = jobs.filter((job) => job.status === "queued").length;
                   const publishedCount = jobs.filter((job) => job.status === "published").length;
                   const failedCount = jobs.filter((job) => job.status === "failed").length;
+                  const defaultVariant = pack.variants[0];
 
                   return (
                     <article className="publishPackCard" key={pack.id}>
-                      <div className="panelHeader sectionTitle">
-                        <div>
+                      <div className="publishPackHeader">
+                        <div className="publishPackHeading">
                           <p className="eyebrow">热点包 {pack.id}</p>
                           <h3 className="publishPackTitle">{pack.variants[0]?.title ?? pack.whyNow}</h3>
                           <p className="muted publishPackSummary">{pack.whyUs}</p>
                         </div>
-                        <Link className="sectionLink" href={`/review?pack=${pack.id}&variant=${pack.variants[0]?.id ?? ""}`}>
-                          进入选题编辑
-                        </Link>
+                        <div className="publishPackHeaderActions">
+                          <Link
+                            className="buttonLike subtleButton publishPackAction"
+                            href={`/review?pack=${pack.id}&variant=${defaultVariant?.id ?? ""}`}
+                          >
+                            查看选题详情
+                          </Link>
+                          <Link className="buttonLike subtleButton publishPackAction" href={`/production-studio/${pack.id}`}>
+                            打开内容制作台
+                          </Link>
+                        </div>
                       </div>
 
                       <div className="publishPackMeta">
@@ -143,17 +162,31 @@ export default async function PublishPage() {
                           <span>最佳发布时间</span>
                           <strong>{pack.variants[0]?.publishWindow ?? "未设置"}</strong>
                         </div>
+                        <div>
+                          <span>发布进度</span>
+                          <strong>
+                            排队 {queuedCount} / 发布 {publishedCount} / 失败 {failedCount}
+                          </strong>
+                        </div>
                       </div>
 
                       <div className="publishVariantList">
                         {pack.variants.map((variant) => (
-                          <div className="publishVariantItem" key={variant.id}>
-                            <div>
+                          <Link
+                            className="publishVariantItem publishVariantLink"
+                            href={`/review?pack=${pack.id}&variant=${variant.id}&platform=${variant.platforms[0] ?? ""}`}
+                            key={variant.id}
+                          >
+                            <div className="publishVariantMain">
                               <strong className="publishVariantTitle">{variant.title}</strong>
                               <p className="muted publishVariantSummary">{variant.angle}</p>
+                              <p className="muted publishVariantExcerpt">{getBodyPreview(variant.body)}</p>
                             </div>
-                            <span className="muted">{variant.platforms.map((platform) => platformLabels[platform]).join(" / ")}</span>
-                          </div>
+                            <div className="publishVariantMeta">
+                              <span className="muted">{variant.platforms.map((platform) => platformLabels[platform]).join(" / ")}</span>
+                              <span className="publishVariantOpen">查看详情</span>
+                            </div>
+                          </Link>
                         ))}
                       </div>
 
