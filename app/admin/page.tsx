@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminHealthPanel } from "@/components/admin-health-panel";
 import { PageHero } from "@/components/page-hero";
 import { getCurrentViewer } from "@/lib/auth/session";
 
@@ -67,6 +68,8 @@ export default async function AdminPage() {
           <p className="muted">用最短路径排查权限、归属和运行异常。</p>
         </article>
       </section>
+
+      <AdminHealthPanel />
 
       <section className="panel">
         <div className="panelHeader sectionTitle">
