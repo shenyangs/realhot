@@ -54,7 +54,7 @@ export function LoginForm({ enabled }: { enabled: boolean }) {
         <input
           disabled={!enabled || isPending}
           onChange={(event) => setIdentifier(event.target.value)}
-          placeholder="admin 或 you@company.com"
+          placeholder="输入账号或邮箱"
           type="text"
           value={identifier}
         />

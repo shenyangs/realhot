@@ -68,15 +68,25 @@ export default async function LoginPage() {
         <article className="panel">
           <div className="panelHeader">
             <div>
-              <p className="eyebrow">Admin</p>
-              <h3>超级管理员入口</h3>
+              <p className="eyebrow">{loginMode.supportsSupabaseLogin ? "Access" : "Admin"}</p>
+              <h3>{loginMode.supportsSupabaseLogin ? "账号开通说明" : "超级管理员入口"}</h3>
             </div>
           </div>
           <div className="stack">
-            <p className="muted">本地默认超级管理员账号已固定为：</p>
-            <p className="muted">账号：<code>admin</code></p>
-            <p className="muted">密码：<code>qingman0525</code></p>
-            <p className="muted">登录后可手动添加账号、指定用户组，并生成绑定用户组的邀请码。</p>
+            {loginMode.supportsSupabaseLogin ? (
+              <>
+                <p className="muted">当前环境已经切到 Supabase 正式账号体系，不再展示本地 demo / 默认管理员账号。</p>
+                <p className="muted">超级管理员通过平台后台管理用户、工作组和邀请码；新成员请使用正式账号登录或通过邀请码注册。</p>
+                <p className="muted">如果你还没有账号，请联系平台超级管理员开通。</p>
+              </>
+            ) : (
+              <>
+                <p className="muted">当前还未接通 Supabase，本地默认超级管理员账号已固定为：</p>
+                <p className="muted">账号：<code>admin</code></p>
+                <p className="muted">密码：<code>qingman0525</code></p>
+                <p className="muted">登录后可手动添加账号、指定用户组，并生成绑定用户组的邀请码。</p>
+              </>
+            )}
           </div>
           <div className="inlineActions">
             <Link className="buttonLike subtleButton" href="/register">
