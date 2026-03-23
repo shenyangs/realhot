@@ -146,7 +146,6 @@ export function HotspotDecisionBasis({
             <button className="buttonLike subtleButton" disabled={isPending} onClick={loadAiReasons} type="button">
               {isPending ? "AI判断中..." : isAiLoaded ? "重新AI判断" : "AI单独判断"}
             </button>
-            <span className="muted">每条热点独立判断，不复用固定模板。</span>
           </div>
         ) : (
           <p className="muted">当前角色仅可查看基础判断依据。</p>

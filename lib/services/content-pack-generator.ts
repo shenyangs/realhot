@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { updateLocalDataStore } from "@/lib/data/local-store";
 import { getBrandStrategyPack, getHotspotSignals } from "@/lib/data";
+import { AiProvider } from "@/lib/domain/ai-routing";
 import { BrandStrategyPack, ContentVariant, HotspotPack, HotspotSignal, Platform } from "@/lib/domain/types";
 import { getChinaMarketPromptLines } from "@/lib/services/china-market";
 import { enforceBodyMinimumWithContext, resolveMinimumCharsForVariant } from "@/lib/services/content-quality";
@@ -860,6 +861,41 @@ function normalizeGeneratedVariant(
   };
 }
 
+async function runContentGenerationWithProviderFallback(
+  prompt: string,
+  options: {
+    primaryProvider: AiProvider;
+    fallbackProvider: AiProvider;
+  }
+): Promise<{
+  output: string;
+  provider: AiProvider;
+  fallbackReason?: string;
+}> {
+  try {
+    const output = await runModelTask("content-generation", prompt, {
+      feature: "content-generation",
+      desiredProvider: options.primaryProvider
+    });
+
+    return {
+      output,
+      provider: options.primaryProvider
+    };
+  } catch (error) {
+    const fallbackOutput = await runModelTask("content-generation", prompt, {
+      feature: "content-generation",
+      desiredProvider: options.fallbackProvider
+    });
+
+    return {
+      output: fallbackOutput,
+      provider: options.fallbackProvider,
+      fallbackReason: error instanceof Error ? error.message : "unknown_provider_error"
+    };
+  }
+}
+
 async function tryModelGeneration(
   brand: BrandStrategyPack,
   hotspot: HotspotSignal,
@@ -872,13 +908,20 @@ async function tryModelGeneration(
 }> {
   let plannerOutput: string | undefined;
   let plannerPayload: PlannedBriefPayload | null = null;
+  let plannerFallbackReason: string | undefined;
+  let plannerProvider: AiProvider = "gemini";
 
   try {
-    plannerOutput = await runModelTask(
-      "content-generation",
+    const plannerResult = await runContentGenerationWithProviderFallback(
       buildBriefPlannerPrompt(brand, hotspot, blueprints),
-      { feature: "content-generation", desiredProvider: "gemini" }
+      {
+        primaryProvider: "gemini",
+        fallbackProvider: "minimax"
+      }
     );
+    plannerOutput = plannerResult.output;
+    plannerProvider = plannerResult.provider;
+    plannerFallbackReason = plannerResult.fallbackReason;
     plannerPayload = parseJsonPayload<PlannedBriefPayload>(plannerOutput);
   } catch {
     plannerPayload = null;
@@ -888,23 +931,25 @@ async function tryModelGeneration(
   const slotResults = await Promise.all(
     blueprints.map(async (blueprint) => {
       try {
-        const output = await runModelTask(
-          "content-generation",
-          buildSlotGenerationPrompt(
-            brand,
-            hotspot,
-            blueprint,
-            planned.briefs[blueprint.slot],
-            planned.whyNow,
-            planned.whyUs
-          ),
-          { feature: "content-generation" }
+        const slotPrompt = buildSlotGenerationPrompt(
+          brand,
+          hotspot,
+          blueprint,
+          planned.briefs[blueprint.slot],
+          planned.whyNow,
+          planned.whyUs
         );
+        const generationResult = await runContentGenerationWithProviderFallback(slotPrompt, {
+          primaryProvider: "gemini",
+          fallbackProvider: "minimax"
+        });
 
         return {
           slot: blueprint.slot,
-          output,
-          payload: parseJsonPayload<ModelGeneratedVariant>(output)
+          output: generationResult.output,
+          provider: generationResult.provider,
+          fallbackReason: generationResult.fallbackReason,
+          payload: parseJsonPayload<ModelGeneratedVariant>(generationResult.output)
         };
       } catch {
         return {
@@ -917,9 +962,25 @@ async function tryModelGeneration(
 
   return {
     output: [
-      plannerOutput ? `[planner]\n${plannerOutput}` : null,
+      plannerOutput
+        ? [
+            `[planner:${plannerProvider}]`,
+            plannerFallbackReason ? `[planner-fallback-from:gemini]\n${plannerFallbackReason}` : null,
+            plannerOutput
+          ]
+            .filter(Boolean)
+            .join("\n")
+        : null,
       ...slotResults.map((result) =>
-        result.output ? `[${result.slot}]\n${result.output}` : null
+        result.output
+          ? [
+              `[${result.slot}:${result.provider ?? "unknown"}]`,
+              result.fallbackReason ? `[${result.slot}-fallback-from:gemini]\n${result.fallbackReason}` : null,
+              result.output
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : null
       )
     ]
       .filter(Boolean)

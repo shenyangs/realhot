@@ -765,6 +765,45 @@ export default async function HotspotsPage({
   const convertedCount = scoredHotspots.filter((item) => packByHotspotId.has(item.id)).length;
   const lowRiskCount = scoredHotspots.filter((item) => item.riskScore <= 35).length;
   const providerRows = [...syncProviders].sort((left, right) => right.fetched - left.fetched);
+  const providerStatusCounts = providerRows.reduce(
+    (counts, provider) => {
+      if (provider.fetchStatus === "ok") {
+        counts.ok += 1;
+      } else if (provider.fetchStatus === "empty") {
+        counts.empty += 1;
+      } else if (provider.fetchStatus === "failed") {
+        counts.failed += 1;
+      } else {
+        counts.unknown += 1;
+      }
+
+      return counts;
+    },
+    { ok: 0, empty: 0, failed: 0, unknown: 0 }
+  );
+  const unreachableProviders = providerRows.filter(
+    (provider) => provider.pageChecked && provider.pageReachable === false
+  ).length;
+  const gatedProviders = providerRows.filter((provider) => provider.pageGated).length;
+  const totalFetched = providerRows.reduce((sum, provider) => sum + provider.fetched, 0);
+  const totalPersisted = providerRows.reduce((sum, provider) => sum + provider.persisted, 0);
+  const persistedRate = totalFetched > 0 ? Math.round((totalPersisted / totalFetched) * 100) : 0;
+  const issueProviders = providerRows.filter(
+    (provider) =>
+      provider.fetchStatus === "failed" ||
+      provider.fetchStatus === "empty" ||
+      (provider.pageChecked && provider.pageReachable === false) ||
+      provider.pageGated
+  ).length;
+  const providerHealthMessage =
+    failedProviders > 0
+      ? `优先处理 ${failedProviders} 个抓取失败来源，避免热点漏抓。`
+      : providerStatusCounts.empty > 0
+        ? `有 ${providerStatusCounts.empty} 个来源返回为空，建议核对关键词或页面结构。`
+        : unreachableProviders > 0
+          ? `有 ${unreachableProviders} 个来源页面不可达，建议检查网络或反爬策略。`
+          : "来源运行稳定，可直接聚焦热点筛选与审核。";
+  const shouldOpenProviderDetails = issueProviders > 0;
 
   return (
     <div className="page hotspotBoardPageV2">
@@ -837,9 +876,44 @@ export default async function HotspotsPage({
           </div>
         </div>
 
-        <details className="hotspotBoardDetails">
-          <summary>查看来源执行明细</summary>
+        <div className="hotspotBoardDetailsPreview">
+          <div>
+            <p className="hotspotBoardDetailsLabel">本轮建议动作</p>
+            <p className="hotspotBoardDetailsMessage">{providerHealthMessage}</p>
+          </div>
+          <div className="hotspotBoardDetailsStats">
+            <span>成功 {providerStatusCounts.ok}</span>
+            <span>空返回 {providerStatusCounts.empty}</span>
+            <span>失败 {providerStatusCounts.failed}</span>
+          </div>
+        </div>
+
+        <details className="hotspotBoardDetails" open={shouldOpenProviderDetails}>
+          <summary>
+            <span>查看来源执行明细</span>
+            <span className="hotspotBoardDetailsSummaryMeta">最近同步：{formatDateTime(syncSnapshot?.executedAt)}</span>
+          </summary>
           <div className="hotspotBoardDetailsBody">
+            <div className="hotspotBoardDetailsOverview">
+              <div className="hotspotBoardDetailsKpi">
+                <span>本轮抓取</span>
+                <strong>{totalFetched} 条</strong>
+              </div>
+              <div className="hotspotBoardDetailsKpi">
+                <span>入库条数</span>
+                <strong>
+                  {totalPersisted} 条 ({persistedRate}%)
+                </strong>
+              </div>
+              <div className="hotspotBoardDetailsKpi">
+                <span>页面不可达</span>
+                <strong>{unreachableProviders} 个</strong>
+              </div>
+              <div className="hotspotBoardDetailsKpi">
+                <span>疑似受限</span>
+                <strong>{gatedProviders} 个</strong>
+              </div>
+            </div>
             <div className="providerHealthTable">
               {providerRows.map((provider) => (
                 <div className="providerHealthRow" key={provider.id}>

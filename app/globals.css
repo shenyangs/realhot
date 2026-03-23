@@ -3680,11 +3680,60 @@ strong {
   padding-top: 0.75rem;
 }
 
+.hotspotBoardDetailsPreview {
+  margin-top: 0.2rem;
+  margin-bottom: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(251, 250, 247, 0.92), rgba(246, 244, 239, 0.82));
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem 1.25rem;
+  flex-wrap: wrap;
+}
+
+.hotspotBoardDetailsLabel {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  margin: 0;
+}
+
+.hotspotBoardDetailsMessage {
+  margin: 0.22rem 0 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.hotspotBoardDetailsStats {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.hotspotBoardDetailsStats span {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.28rem 0.62rem;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(24, 30, 41, 0.12);
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 .hotspotBoardDetails summary {
   list-style: none;
   cursor: pointer;
   color: var(--text-soft);
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
 }
 
 .hotspotBoardDetails summary::-webkit-details-marker {
@@ -3692,15 +3741,52 @@ strong {
 }
 
 .hotspotBoardDetails summary::after {
-  content: " +";
+  content: "▾";
+  margin-left: auto;
+  font-size: 0.82rem;
+  color: var(--text-faint);
+  transition: transform 0.2s ease;
 }
 
 .hotspotBoardDetails[open] summary::after {
-  content: " -";
+  transform: rotate(180deg);
 }
 
 .hotspotBoardDetailsBody {
   padding-top: 0.75rem;
+}
+
+.hotspotBoardDetailsSummaryMeta {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+.hotspotBoardDetailsOverview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.hotspotBoardDetailsKpi {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 0.58rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
+}
+
+.hotspotBoardDetailsKpi span {
+  color: var(--text-faint);
+  font-size: 0.76rem;
+}
+
+.hotspotBoardDetailsKpi strong {
+  color: var(--text);
+  font-size: 0.93rem;
 }
 
 .providerHealthTable {
