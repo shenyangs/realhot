@@ -215,6 +215,9 @@ create table if not exists hotspots (
   kind hotspot_kind not null,
   source text not null,
   source_url text,
+  source_title text,
+  source_excerpt text,
+  source_fetched_at timestamptz,
   detected_at timestamptz not null,
   relevance_score int not null,
   industry_score int not null,
@@ -224,6 +227,10 @@ create table if not exists hotspots (
   reasons text[] not null default '{}',
   created_at timestamptz not null default now()
 );
+
+alter table hotspots add column if not exists source_title text;
+alter table hotspots add column if not exists source_excerpt text;
+alter table hotspots add column if not exists source_fetched_at timestamptz;
 
 create table if not exists hotspot_scores (
   id uuid primary key default gen_random_uuid(),

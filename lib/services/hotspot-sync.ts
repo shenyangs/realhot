@@ -15,6 +15,7 @@ import {
 } from "@/lib/domain/types";
 import { getChinaHotspotRules } from "@/lib/services/china-market";
 import { GeneratedPackResult, generateContentPackForEntities } from "@/lib/services/content-pack-generator";
+import { fetchSourceMaterial } from "@/lib/services/source-material-extractor";
 import { getSupabaseServerClient } from "@/lib/supabase/client";
 
 interface FeedItem {
@@ -106,6 +107,67 @@ interface TrendRadarProviderConfig {
   trendRadarSourceId: string;
 }
 
+interface MarketingCalendarEventDefinition {
+  id: string;
+  title: string;
+  description: string;
+  searchTerms: string[];
+  month: number;
+  day: number;
+  market?: "china" | "global";
+  windowBeforeDays?: number;
+  windowAfterDays?: number;
+  years?: number[];
+}
+
+interface SuperIpProviderConfig {
+  id: string;
+  label: string;
+  source: string;
+  eventIds: string[];
+  market?: "china" | "global";
+}
+
+const marketingCalendarProviderId = "ai-calendar-marketing";
+const marketingCalendarSourceLabel = "AI Marketing Calendar";
+const superIpProviderConfigs: SuperIpProviderConfig[] = [
+  {
+    id: "ai-super-ip-sports",
+    label: "AI Search / 超级IP / 全民赛事型",
+    source: "AI Super IP Sports",
+    eventIds: ["world-cup", "nba-finals"],
+    market: "global"
+  },
+  {
+    id: "ai-super-ip-entertainment",
+    label: "AI Search / 超级IP / 文娱盛典型",
+    source: "AI Super IP Entertainment",
+    eventIds: ["oscars", "spring-festival-gala"],
+    market: "global"
+  },
+  {
+    id: "ai-super-ip-tech-launch",
+    label: "AI Search / 超级IP / 科技发布型",
+    source: "AI Super IP Tech Launch",
+    eventIds: ["apple-wwdc", "apple-fall-event"],
+    market: "global"
+  },
+  {
+    id: "ai-super-ip-platform-ecosystem",
+    label: "AI Search / 超级IP / 平台生态型",
+    source: "AI Super IP Platform Ecosystem",
+    eventIds: ["wechat-open-class", "xiaohongshu-will"],
+    market: "china"
+  },
+  {
+    id: "ai-super-ip-national-culture",
+    label: "AI Search / 超级IP / 国民文化型",
+    source: "AI Super IP National Culture",
+    eventIds: ["spring-festival-gala", "gaokao-season"],
+    market: "china"
+  }
+];
+
 const baseProviderConfigs: HotspotProvider[] = [
   {
     id: "rss-36kr",
@@ -171,7 +233,7 @@ const baseProviderConfigs: HotspotProvider[] = [
     kind: "brand",
     source: "Google News RSS",
     market: "china",
-    buildUrl: (brand) => {
+    buildUrl: (brand: BrandStrategyPack) => {
       const companyTerms = [brand.name, ...brand.competitors.slice(0, 3)]
         .filter(Boolean)
         .map((term) => `"${term}"`)
@@ -192,6 +254,218 @@ const baseProviderConfigs: HotspotProvider[] = [
         region: "US",
         edition: "US:en"
       })
+  },
+  {
+    id: marketingCalendarProviderId,
+    label: "AI Search / 营销日历",
+    kind: "mass",
+    source: marketingCalendarSourceLabel,
+    market: "china",
+    fetchItems: (brand: BrandStrategyPack) => Promise.resolve(buildMarketingCalendarItems(brand))
+  },
+  ...superIpProviderConfigs.map((config) => ({
+    id: config.id,
+    label: config.label,
+    kind: "mass" as const,
+    source: config.source,
+    market: config.market ?? "global",
+    fetchItems: (brand: BrandStrategyPack) => Promise.resolve(buildSuperIpItems(brand, config.eventIds))
+  }))
+];
+
+const marketingCalendarDefinitions: MarketingCalendarEventDefinition[] = [
+  {
+    id: "spring-season",
+    title: "春季焕新与出游季",
+    description: "适合围绕春日消费、出行效率、上新焕新和组织活力做内容策划。",
+    searchTerms: ["春季营销", "春日活动", "品牌案例"],
+    month: 4,
+    day: 1,
+    windowBeforeDays: 21,
+    windowAfterDays: 21
+  },
+  {
+    id: "qingming",
+    title: "清明假期窗口",
+    description: "适合围绕短途出游、返乡情绪、节假日服务体验和品牌陪伴感策划内容。",
+    searchTerms: ["清明 假期", "品牌营销", "传播案例"],
+    month: 4,
+    day: 4,
+    windowBeforeDays: 14,
+    windowAfterDays: 7
+  },
+  {
+    id: "may-day",
+    title: "五一黄金周",
+    description: "适合围绕出行、消费、门店活动、劳动价值和生活方式切入。",
+    searchTerms: ["五一 黄金周", "品牌营销", "活动案例"],
+    month: 5,
+    day: 1,
+    windowBeforeDays: 28,
+    windowAfterDays: 10
+  },
+  {
+    id: "618",
+    title: "618 大促窗口",
+    description: "适合围绕消费决策、种草转化、平台玩法和品牌心智抢占做传播策划。",
+    searchTerms: ["618", "品牌营销", "平台玩法"],
+    month: 6,
+    day: 18,
+    windowBeforeDays: 40,
+    windowAfterDays: 10
+  },
+  {
+    id: "summer-season",
+    title: "暑期消费季",
+    description: "适合围绕旅行、亲子、线上娱乐、清凉需求和暑期活动做场景策划。",
+    searchTerms: ["暑期 营销", "品牌案例", "场景传播"],
+    month: 7,
+    day: 10,
+    windowBeforeDays: 35,
+    windowAfterDays: 21
+  },
+  {
+    id: "back-to-school",
+    title: "开学季窗口",
+    description: "适合围绕返校、效率工具、学习成长和新学期目标做品牌表达。",
+    searchTerms: ["开学季", "品牌营销", "传播案例"],
+    month: 9,
+    day: 1,
+    windowBeforeDays: 28,
+    windowAfterDays: 14
+  },
+  {
+    id: "national-holiday",
+    title: "国庆黄金周",
+    description: "适合围绕出游、人流消费、城市活动、节庆情绪和品牌陪伴做内容策划。",
+    searchTerms: ["国庆 黄金周", "品牌营销", "案例"],
+    month: 10,
+    day: 1,
+    windowBeforeDays: 30,
+    windowAfterDays: 10
+  },
+  {
+    id: "double-11",
+    title: "双11 大促窗口",
+    description: "适合围绕抢占心智、平台玩法、价格沟通和品牌复购做传播策划。",
+    searchTerms: ["双11", "品牌营销", "平台活动"],
+    month: 11,
+    day: 11,
+    windowBeforeDays: 45,
+    windowAfterDays: 10
+  },
+  {
+    id: "year-end",
+    title: "年终总结与跨年节点",
+    description: "适合围绕年度复盘、趋势判断、用户陪伴和来年计划做观点内容。",
+    searchTerms: ["年终 总结", "跨年 营销", "品牌案例"],
+    month: 12,
+    day: 20,
+    windowBeforeDays: 28,
+    windowAfterDays: 14
+  }
+];
+
+const superIpDefinitions: MarketingCalendarEventDefinition[] = [
+  {
+    id: "oscars",
+    title: "奥斯卡颁奖季",
+    description: "适合围绕审美、作品表达、年度话题和品牌态度做借势传播。",
+    searchTerms: ["奥斯卡", "品牌营销", "借势案例"],
+    month: 3,
+    day: 10,
+    market: "global",
+    windowBeforeDays: 28,
+    windowAfterDays: 21
+  },
+  {
+    id: "nba-finals",
+    title: "NBA 总决赛窗口",
+    description: "适合围绕竞技情绪、冠军叙事、团队协作和高光时刻做品牌借势。",
+    searchTerms: ["NBA 总决赛", "品牌营销", "借势案例"],
+    month: 6,
+    day: 5,
+    market: "global",
+    windowBeforeDays: 35,
+    windowAfterDays: 14
+  },
+  {
+    id: "apple-wwdc",
+    title: "苹果 WWDC 窗口",
+    description: "适合围绕技术发布、生态变化、开发者叙事和创新表达做传播规划。",
+    searchTerms: ["Apple WWDC", "苹果 发布会", "品牌营销"],
+    month: 6,
+    day: 10,
+    market: "global",
+    windowBeforeDays: 45,
+    windowAfterDays: 10
+  },
+  {
+    id: "world-cup",
+    title: "世界杯窗口",
+    description: "适合围绕全民情绪、国家队话题、熬夜看球、竞猜互动和超级流量节点借势。",
+    searchTerms: ["世界杯", "品牌营销", "借势案例"],
+    month: 6,
+    day: 15,
+    market: "global",
+    windowBeforeDays: 90,
+    windowAfterDays: 35,
+    years: [2026, 2030, 2034]
+  },
+  {
+    id: "spring-festival-gala",
+    title: "春晚窗口",
+    description: "适合围绕国民记忆、家庭场景、节庆情绪和全民共识做品牌借势。",
+    searchTerms: ["春晚", "品牌营销", "借势案例"],
+    month: 2,
+    day: 1,
+    market: "china",
+    windowBeforeDays: 30,
+    windowAfterDays: 10
+  },
+  {
+    id: "apple-fall-event",
+    title: "苹果秋季发布会窗口",
+    description: "适合围绕新品发布、消费关注度、设计语言和科技美学做借势传播。",
+    searchTerms: ["苹果 秋季发布会", "新品 发布", "品牌营销"],
+    month: 9,
+    day: 10,
+    market: "global",
+    windowBeforeDays: 45,
+    windowAfterDays: 14
+  },
+  {
+    id: "wechat-open-class",
+    title: "微信公开课窗口",
+    description: "适合围绕平台规则、生态方向、创作者机会和商业化变化做观点传播。",
+    searchTerms: ["微信公开课", "平台生态", "品牌营销"],
+    month: 1,
+    day: 10,
+    market: "china",
+    windowBeforeDays: 30,
+    windowAfterDays: 14
+  },
+  {
+    id: "xiaohongshu-will",
+    title: "小红书商业生态大会窗口",
+    description: "适合围绕种草机制、平台内容方法、品牌经营和生态趋势做借势表达。",
+    searchTerms: ["小红书 商业大会", "平台生态", "品牌营销"],
+    month: 9,
+    day: 20,
+    market: "china",
+    windowBeforeDays: 30,
+    windowAfterDays: 14
+  },
+  {
+    id: "gaokao-season",
+    title: "高考季窗口",
+    description: "适合围绕代际情绪、成长叙事、城市公共话题和国民关注度做品牌表达。",
+    searchTerms: ["高考", "品牌营销", "传播案例"],
+    month: 6,
+    day: 7,
+    market: "china",
+    windowBeforeDays: 21,
+    windowAfterDays: 14
   }
 ];
 
@@ -561,19 +835,21 @@ async function fetchTextResponse(url: string, options: TextRequestOptions = {}):
 }
 
 function getProviderConfigs(): HotspotProvider[] {
-  const providers = baseProviderConfigs.filter((provider) => isBaseProviderEnabled(provider.id));
+  const providers: HotspotProvider[] = [...baseProviderConfigs.filter((provider) => isBaseProviderEnabled(provider.id))];
 
   if (isTrendRadarSourcesEnabled()) {
     providers.push(
-      ...trendRadarProviderConfigs.map((config) => ({
-        id: config.id,
-        label: config.label,
-        kind: config.kind,
-        source: config.source,
-        market: config.market,
-        pageUrl: config.pageUrl,
-        fetchItems: () => fetchTrendRadarItems(config)
-      }))
+      ...trendRadarProviderConfigs.map(
+        (config): HotspotProvider => ({
+          id: config.id,
+          label: config.label,
+          kind: config.kind,
+          source: config.source,
+          market: config.market,
+          pageUrl: config.pageUrl,
+          fetchItems: () => fetchTrendRadarItems(config)
+        })
+      )
     );
   }
 
@@ -581,24 +857,22 @@ function getProviderConfigs(): HotspotProvider[] {
     providers.push(
       ...auxiliaryJsonProviderConfigs
         .filter((config) => config.isEnabled())
-        .map(
-          (config) => {
-            const fetchItems =
-              config.id === "weibo-realtime-multi"
-                ? () => fetchWeiboRealtimeMultiChannelItems()
-                : () => fetchJsonProviderItems(config);
+        .map((config): HotspotProvider => {
+          const fetchItems =
+            config.id === "weibo-realtime-multi"
+              ? () => fetchWeiboRealtimeMultiChannelItems()
+              : () => fetchJsonProviderItems(config);
 
-            return {
-              id: config.id,
-              label: config.label,
-              kind: config.kind,
-              source: config.source,
-              market: config.market,
-              pageUrl: config.pageUrl,
-              fetchItems
-            } satisfies HotspotProvider;
-          }
-        )
+          return {
+            id: config.id,
+            label: config.label,
+            kind: config.kind,
+            source: config.source,
+            market: config.market,
+            pageUrl: config.pageUrl,
+            fetchItems
+          };
+        })
     );
   }
 
@@ -735,6 +1009,140 @@ function normalizeTimestamp(value: number | string | null | undefined): string {
   }
 
   return new Date().toISOString();
+}
+
+function createDateAtNoon(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+}
+
+function startOfUtcDay(value: Date): Date {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate(), 0, 0, 0));
+}
+
+function diffDaysFromReference(reference: Date, target: Date): number {
+  return Math.round((startOfUtcDay(target).getTime() - startOfUtcDay(reference).getTime()) / 86_400_000);
+}
+
+function formatMonthDayLabel(date: Date): string {
+  return `${date.getUTCMonth() + 1} 月 ${date.getUTCDate()} 日`;
+}
+
+function buildMarketingCalendarSearchUrl(title: string, searchTerms: string[], market: "china" | "global") {
+  const query = encodeURIComponent([...searchTerms, title, "品牌营销", "传播案例"].join(" "));
+
+  if (market === "global") {
+    return `https://news.google.com/search?q=${query}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans`;
+  }
+
+  return `https://www.baidu.com/s?wd=${query}`;
+}
+
+function buildMarketingCalendarItems(brand: BrandStrategyPack): FeedItem[] {
+  const now = new Date();
+
+  return marketingCalendarDefinitions
+    .flatMap((definition) => {
+      const candidateYears = [now.getUTCFullYear() - 1, now.getUTCFullYear(), now.getUTCFullYear() + 1];
+      const datedCandidates = candidateYears
+        .filter((year) => !definition.years || definition.years.includes(year))
+        .map((year) => createDateAtNoon(year, definition.month, definition.day))
+        .map((date) => ({
+          date,
+          diffDays: diffDaysFromReference(now, date)
+        }))
+        .filter(({ diffDays }) => {
+          const beforeWindow = definition.windowBeforeDays ?? 30;
+          const afterWindow = definition.windowAfterDays ?? 14;
+          return diffDays >= -afterWindow && diffDays <= beforeWindow;
+        })
+        .sort((left, right) => Math.abs(left.diffDays) - Math.abs(right.diffDays));
+
+      const candidate = datedCandidates[0];
+
+      if (!candidate) {
+        return [];
+      }
+
+      const timingLabel =
+        candidate.diffDays > 0
+          ? `${candidate.diffDays} 天后进入节点`
+          : candidate.diffDays < 0
+            ? `节点已过 ${Math.abs(candidate.diffDays)} 天，仍在讨论窗口`
+            : "节点就在今天";
+      const market = definition.market ?? "china";
+
+      return [
+        {
+          title: definition.title,
+          summary: [
+            definition.description,
+            `节点时间: ${formatMonthDayLabel(candidate.date)}`,
+            `窗口判断: ${timingLabel}`,
+            "策划价值: 这是品牌传播的公共议题源，适合作为全品牌可复用的最大公约数",
+            "AI 搜索建议: 先检索用户情绪、平台热度、品牌借势案例和内容切入角度",
+            `品牌适配: ${brand.name} 可以围绕行业趋势、用户场景和品牌态度提前策划`
+          ].join(" | "),
+          url: buildMarketingCalendarSearchUrl(definition.title, definition.searchTerms, market),
+          publishedAt: candidate.date.toISOString()
+        } satisfies FeedItem
+      ];
+    })
+    .sort((left, right) => Date.parse(left.publishedAt) - Date.parse(right.publishedAt))
+    .slice(0, 12);
+}
+
+function buildSuperIpItems(brand: BrandStrategyPack, eventIds: string[]): FeedItem[] {
+  const now = new Date();
+
+  return superIpDefinitions
+    .filter((definition) => eventIds.includes(definition.id))
+    .flatMap((definition) => {
+      const candidateYears = [now.getUTCFullYear() - 1, now.getUTCFullYear(), now.getUTCFullYear() + 1];
+      const datedCandidates = candidateYears
+        .filter((year) => !definition.years || definition.years.includes(year))
+        .map((year) => createDateAtNoon(year, definition.month, definition.day))
+        .map((date) => ({
+          date,
+          diffDays: diffDaysFromReference(now, date)
+        }))
+        .filter(({ diffDays }) => {
+          const beforeWindow = definition.windowBeforeDays ?? 45;
+          const afterWindow = definition.windowAfterDays ?? 21;
+          return diffDays >= -afterWindow && diffDays <= beforeWindow;
+        })
+        .sort((left, right) => Math.abs(left.diffDays) - Math.abs(right.diffDays));
+
+      const candidate = datedCandidates[0];
+
+      if (!candidate) {
+        return [];
+      }
+
+      const timingLabel =
+        candidate.diffDays > 0
+          ? `${candidate.diffDays} 天后进入爆发窗口`
+          : candidate.diffDays < 0
+            ? `超级IP已过 ${Math.abs(candidate.diffDays)} 天，仍在余热窗口`
+            : "超级IP就在今天";
+
+      return [
+        {
+          title: definition.title,
+          summary: [
+            definition.description,
+            `节点时间: ${formatMonthDayLabel(candidate.date)}`,
+            `窗口判断: ${timingLabel}`,
+            "策划价值: 这是全民共识度最高的传播议题，适合作为品牌借势传播的最大公约数",
+            "AI 搜索建议: 重点补齐情绪走向、平台话题、用户讨论点和品牌借势案例",
+            `品牌适配: ${brand.name} 可以提前准备观点、海报、短视频和互动选题`
+          ].join(" | "),
+          url: buildMarketingCalendarSearchUrl(definition.title, definition.searchTerms, "global"),
+          publishedAt: candidate.date.toISOString()
+        } satisfies FeedItem
+      ];
+    })
+    .sort((left, right) => Date.parse(left.publishedAt) - Date.parse(right.publishedAt))
+    .slice(0, 8);
 }
 
 function readArrayPayload(payload: unknown): Array<Record<string, unknown>> {
@@ -1536,6 +1944,14 @@ function countMassNoiseHits(titleText: string): number {
 }
 
 function getProviderPriorityBoost(provider: HotspotProvider): number {
+  if (provider.id === marketingCalendarProviderId) {
+    return 10;
+  }
+
+  if (provider.id.startsWith("ai-super-ip-")) {
+    return 12;
+  }
+
   if (provider.id.startsWith("trendradar-") && isTrendRadarFallbackOnly()) {
     return -5;
   }
@@ -1555,6 +1971,10 @@ function getProviderPriorityBoost(provider: HotspotProvider): number {
 }
 
 function getProviderSourceType(provider: HotspotProvider): HotspotSourceType {
+  if (provider.id === marketingCalendarProviderId || provider.id.startsWith("ai-super-ip-")) {
+    return "ai-search";
+  }
+
   if (provider.id.startsWith("rss-")) {
     return "rss";
   }
@@ -1592,6 +2012,14 @@ function getProviderPriorityAdjustment(
   scores: Pick<SyncedHotspot, "relevanceScore" | "industryScore" | "velocityScore">
 ): number {
   let adjustment = getProviderPriorityBoost(provider);
+
+  if (provider.id === marketingCalendarProviderId && scores.velocityScore >= 80) {
+    adjustment += 6;
+  }
+
+  if (provider.id.startsWith("ai-super-ip-") && scores.velocityScore >= 80) {
+    adjustment += 8;
+  }
 
   if (
     (provider.id === "rss-36kr" || provider.id === "rss-ithome") &&
@@ -1736,6 +2164,24 @@ async function fetchProviderItems(provider: HotspotProvider, brand: BrandStrateg
   return parseFeedItems(response.text);
 }
 
+function isMissingHotspotSourceColumnsError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const code = "code" in error ? (error as { code?: unknown }).code : undefined;
+  const message = "message" in error ? (error as { message?: unknown }).message : undefined;
+  const details = "details" in error ? (error as { details?: unknown }).details : undefined;
+  const text = [message, details]
+    .filter((item): item is string => typeof item === "string")
+    .join(" ");
+
+  const mentionsSourceColumn =
+    /source_title|source_excerpt|source_fetched_at/.test(text);
+
+  return code === "42703" || (code === "PGRST204" && mentionsSourceColumn) || mentionsSourceColumn;
+}
+
 async function persistHotspots(brand: BrandStrategyPack, hotspots: SyncedHotspot[]) {
   const supabase = getSupabaseServerClient();
 
@@ -1755,6 +2201,9 @@ async function persistHotspots(brand: BrandStrategyPack, hotspots: SyncedHotspot
         kind: hotspot.kind,
         source: hotspot.source,
         sourceUrl: hotspot.url,
+        sourceTitle: hotspot.sourceTitle,
+        sourceExcerpt: hotspot.sourceExcerpt,
+        sourceFetchedAt: hotspot.sourceFetchedAt,
         detectedAt: hotspot.detectedAt,
         relevanceScore: hotspot.relevanceScore,
         industryScore: hotspot.industryScore,
@@ -1786,6 +2235,9 @@ async function persistHotspots(brand: BrandStrategyPack, hotspots: SyncedHotspot
     kind: hotspot.kind,
     source: hotspot.source,
     source_url: hotspot.url,
+    source_title: hotspot.sourceTitle ?? null,
+    source_excerpt: hotspot.sourceExcerpt ?? null,
+    source_fetched_at: hotspot.sourceFetchedAt ?? null,
     detected_at: hotspot.detectedAt,
     relevance_score: hotspot.relevanceScore,
     industry_score: hotspot.industryScore,
@@ -1800,7 +2252,25 @@ async function persistHotspots(brand: BrandStrategyPack, hotspots: SyncedHotspot
     .upsert(hotspotRows, { onConflict: "id" });
 
   if (hotspotError) {
-    throw hotspotError;
+    if (isMissingHotspotSourceColumnsError(hotspotError)) {
+      console.warn(
+        "[hotspot-sync] hotspots 表尚未完成 source_* 字段迁移，已自动回退为旧字段写入。",
+        hotspotError
+      );
+
+      const fallbackRows = hotspotRows.map(
+        ({ source_title, source_excerpt, source_fetched_at, ...rest }) => rest
+      );
+      const { error: fallbackHotspotError } = await supabase
+        .from("hotspots")
+        .upsert(fallbackRows, { onConflict: "id" });
+
+      if (fallbackHotspotError) {
+        throw fallbackHotspotError;
+      }
+    } else {
+      throw hotspotError;
+    }
   }
 
   const scoreRows = hotspots.map((hotspot) => ({
@@ -1834,11 +2304,46 @@ function shouldAutoGenerate(action: HotspotSignal["recommendedAction"]): boolean
   return configuredActions.includes(action);
 }
 
+function resolveSourceEnrichmentMaxItems(): number {
+  const parsed = Number.parseInt(process.env.HOTSPOT_SOURCE_ENRICH_MAX_ITEMS ?? "6", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 6;
+}
+
+async function enrichHotspotsWithSourceMaterial(hotspots: SyncedHotspot[]): Promise<SyncedHotspot[]> {
+  const maxItems = resolveSourceEnrichmentMaxItems();
+  const candidates = hotspots
+    .filter((hotspot) => hotspot.url && hotspot.recommendedAction !== "discard")
+    .slice(0, maxItems);
+  const enrichedMap = new Map<string, Awaited<ReturnType<typeof fetchSourceMaterial>>>();
+
+  await Promise.all(
+    candidates.map(async (hotspot) => {
+      const result = await fetchSourceMaterial(hotspot.url);
+      enrichedMap.set(hotspot.id, result);
+    })
+  );
+
+  return hotspots.map((hotspot) => {
+    const enriched = enrichedMap.get(hotspot.id);
+
+    if (!enriched) {
+      return hotspot;
+    }
+
+    return {
+      ...hotspot,
+      sourceTitle: enriched.title ?? hotspot.sourceTitle,
+      sourceExcerpt: enriched.excerpt ?? hotspot.sourceExcerpt,
+      sourceFetchedAt: enriched.fetchedAt ?? hotspot.sourceFetchedAt
+    };
+  });
+}
+
 async function autoGeneratePacks(
   brand: BrandStrategyPack,
   hotspots: SyncedHotspot[]
 ): Promise<GeneratedPackResult[]> {
-  const enabled = (process.env.AUTO_GENERATE_CONTENT_PACKS ?? "true").toLowerCase() !== "false";
+  const enabled = (process.env.AUTO_GENERATE_CONTENT_PACKS ?? "false").toLowerCase() === "true";
 
   if (!enabled) {
     return [];
@@ -1935,7 +2440,24 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
           const localizedBoost = provider.market === "china" ? 6 : 0;
           const providerAdjustment = getProviderPriorityAdjustment(provider, scores);
           const priorityScore = Math.min(98, Math.max(0, scores.priorityScore + localizedBoost + providerAdjustment));
-          const reasons = [...scores.reasons, ...getChinaHotspotRules().slice(0, 1)];
+          const reasons =
+            provider.id === marketingCalendarProviderId
+              ? [
+                  `营销节点信号：${item.title} 属于可提前规划的公共传播节点，适合尽早准备选题与素材。`,
+                  `借势路径：优先把节点翻译成 ${brand.name} 的用户场景、行业趋势或品牌态度，不只复述事件本身。`,
+                  "执行节奏：先做 AI 搜索摸底，补齐平台热度、用户情绪和品牌案例，再决定快反或观点内容。",
+                  ...scores.reasons,
+                  ...getChinaHotspotRules().slice(0, 1)
+                ]
+              : provider.id.startsWith("ai-super-ip-")
+                ? [
+                    `超级IP信号：${item.title} 属于高共识度的大众议题，适合单独策划借势传播。`,
+                    `借势路径：优先判断这个超级IP和 ${brand.name} 的品牌态度、用户情绪或场景需求怎么连接。`,
+                    "执行节奏：先做 AI 搜索摸底，确认热度趋势、关键话题、平台玩法和过往借势案例，再决定打法。",
+                    ...scores.reasons,
+                    ...getChinaHotspotRules().slice(0, 1)
+                  ]
+              : [...scores.reasons, ...getChinaHotspotRules().slice(0, 1)];
           const recommendedAction =
             priorityScore >= 75 && scores.riskScore < 55
               ? "ship-now"
@@ -1985,9 +2507,10 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
   );
 
   const deduped = mergeHotspotsByTitle(providerResults.flatMap((result) => result.hotspots));
+  const enrichedHotspots = await enrichHotspotsWithSourceMaterial(deduped);
 
-  const storage = await persistHotspots(brand, deduped);
-  const generatedPacks = await autoGeneratePacks(brand, deduped);
+  const storage = await persistHotspots(brand, enrichedHotspots);
+  const generatedPacks = await autoGeneratePacks(brand, enrichedHotspots);
   const providerReports = providerResults.map((result) => ({
     id: result.provider.id,
     label: result.provider.label,
@@ -2006,7 +2529,7 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
   const executedAt = new Date().toISOString();
   const syncSnapshot = buildHotspotSyncSnapshot({
     executedAt,
-    hotspotCount: deduped.length,
+    hotspotCount: enrichedHotspots.length,
     providers: providerReports
   });
 
@@ -2021,7 +2544,7 @@ export async function syncHotspots(): Promise<HotspotSyncResult> {
 
   return {
     providers: providerReports,
-    hotspots: deduped,
+    hotspots: enrichedHotspots,
     generatedPacks: generatedPacks.map((result) => ({
       hotspotId: result.pack.hotspotId,
       packId: result.pack.id,

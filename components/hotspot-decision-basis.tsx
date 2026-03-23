@@ -1,11 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { HotspotInsightTrigger } from "@/components/hotspot-insight-trigger";
+import {
+  fetchHotspotInsightPreviewWithCache,
+  readCachedHotspotInsightPreview,
+  scheduleHotspotInsightIdleWarmup,
+  subscribeHotspotInsightCache,
+  type HotspotInsightPreviewClientPayload
+} from "@/lib/client/hotspot-insight";
 
 interface HotspotDecisionBasisProps {
   hotspotId: string;
-  allowAiActions?: boolean;
+  allowAiActions: boolean;
   fallbackReasons: {
     whyNow: string;
     whyBrand: string;
@@ -18,150 +25,196 @@ interface HotspotDecisionBasisProps {
   }>;
 }
 
-interface HotspotInsightPayload {
-  productFocus: string;
-  connectionPoint: string;
-  communicationStrategy: string;
-  planningDirection: string;
-  recommendedFormat: string;
-  planningScore: string;
-  planningComment: string;
-  riskNote: string;
-}
-
-function pickFirstSentence(text: string) {
-  const normalized = text.replace(/\s+/g, " ").trim();
-
-  if (!normalized) {
-    return "";
-  }
-
-  const stopIndex = normalized.search(/[。！？!?]/);
-
-  if (stopIndex === -1) {
-    return normalized;
-  }
-
-  return normalized.slice(0, stopIndex + 1).trim();
-}
-
-function extractPlanningPoint(text: string) {
-  const lines = text
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const numbered = lines.find((line) => /^\d+[).、．]/.test(line) || /^\d+\s*[\/.]/.test(line));
-
-  if (numbered) {
-    return numbered.replace(/^\d+[).、．]\s*/, "").replace(/^\d+\s*[\/.]\s*/, "").trim();
-  }
-
-  return pickFirstSentence(lines.join(" "));
-}
-
-function mapInsightToReasons(payload: HotspotInsightPayload, fallback: HotspotDecisionBasisProps["fallbackReasons"]) {
-  return {
-    whyNow: pickFirstSentence(payload.communicationStrategy) || fallback.whyNow,
-    whyBrand: pickFirstSentence(payload.connectionPoint) || fallback.whyBrand,
-    angle: extractPlanningPoint(payload.planningDirection) || fallback.angle
-  };
-}
-
 export function HotspotDecisionBasis({
   hotspotId,
-  allowAiActions = true,
+  allowAiActions,
   fallbackReasons,
   sourceLinks
 }: HotspotDecisionBasisProps) {
-  const [reasons, setReasons] = useState(fallbackReasons);
-  const [isAiLoaded, setIsAiLoaded] = useState(false);
+  const [preview, setPreview] = useState<HotspotInsightPreviewClientPayload | null>(null);
   const [message, setMessage] = useState("");
+  const [hasAutoRequested, setHasAutoRequested] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const blockRef = useRef<HTMLDivElement | null>(null);
 
-  function loadAiReasons() {
-    if (isPending) {
+  useEffect(() => {
+    const cached = readCachedHotspotInsightPreview(hotspotId);
+    setPreview(cached);
+    setHasAutoRequested(Boolean(cached));
+    setMessage("");
+  }, [hotspotId]);
+
+  useEffect(() => {
+    return subscribeHotspotInsightCache((detail) => {
+      if (detail.hotspotId !== hotspotId || detail.kind !== "preview") {
+        return;
+      }
+
+      const cached = readCachedHotspotInsightPreview(hotspotId);
+      if (cached) {
+        setPreview(cached);
+      }
+    });
+  }, [hotspotId]);
+
+  function loadPreview(trigger: "auto" | "manual" = "manual") {
+    if (!allowAiActions || isPending) {
       return;
     }
 
     startTransition(async () => {
-      setMessage("");
+      if (trigger === "manual") {
+        setMessage("");
+      }
 
-      const response = await fetch("/api/hotspots/insight", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          hotspotId
-        })
-      });
+      const payload = await fetchHotspotInsightPreviewWithCache(hotspotId);
 
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            ok?: boolean;
-            insight?: HotspotInsightPayload;
-            error?: string;
-          }
-        | null;
-
-      if (!response.ok || !payload?.ok || !payload.insight) {
-        setMessage(payload?.error ?? "AI 判断暂不可用，已展示基础依据");
+      if (!payload.ok) {
+        if (trigger === "manual") {
+          setMessage(payload.error || "获取 AI 快速判断失败");
+        }
         return;
       }
 
-      setReasons(mapInsightToReasons(payload.insight, fallbackReasons));
-      setIsAiLoaded(true);
+      setPreview(payload.preview);
+      if (trigger === "manual") {
+        setMessage("已更新这条热点的 AI 快速判断。");
+      }
     });
   }
 
-  return (
-    <details
-      className="hotspotBoardDetails"
-      onToggle={(event) => {
-        const target = event.currentTarget as HTMLDetailsElement;
+  useEffect(() => {
+    if (!allowAiActions || hasAutoRequested || preview || !blockRef.current) {
+      return;
+    }
 
-        if (allowAiActions && target.open && !isAiLoaded && !isPending) {
-          loadAiReasons();
+    const target = blockRef.current;
+    let cancelIdleWarmup: () => void = () => {};
+    let hasScheduledWarmup = false;
+    let hasTriggered = false;
+
+    const triggerAutoLoad = () => {
+      if (hasTriggered) {
+        return;
+      }
+
+      hasTriggered = true;
+      setHasAutoRequested(true);
+      loadPreview("auto");
+    };
+
+    const warmupObserver = new IntersectionObserver(
+      (entries) => {
+        if (hasScheduledWarmup || !entries.some((entry) => entry.isIntersecting)) {
+          return;
         }
-      }}
-    >
-      <summary>查看判断依据{isAiLoaded ? "（AI）" : ""}</summary>
-      <div className="hotspotBoardDetailsBody reviewContextCopy">
-        <p>
-          <strong>为什么现在值得做：</strong>
-          {isPending ? "正在生成该条热点的 AI 判断..." : reasons.whyNow}
-        </p>
-        <p>
-          <strong>为什么和品牌有关：</strong>
-          {isPending ? "正在分析品牌结合路径..." : reasons.whyBrand}
-        </p>
-        <p>
-          <strong>可能的传播角度：</strong>
-          {isPending ? "正在提炼该条热点的执行切口..." : reasons.angle}
-        </p>
 
+        hasScheduledWarmup = true;
+        cancelIdleWarmup = scheduleHotspotInsightIdleWarmup(() => {
+          triggerAutoLoad();
+        });
+        warmupObserver.disconnect();
+      },
+      {
+        rootMargin: "0px 0px 1200px 0px",
+        threshold: 0.01
+      }
+    );
+
+    const executeObserver = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) {
+          return;
+        }
+
+        cancelIdleWarmup();
+        triggerAutoLoad();
+        warmupObserver.disconnect();
+        executeObserver.disconnect();
+      },
+      {
+        rootMargin: "0px 0px 260px 0px",
+        threshold: 0.1
+      }
+    );
+
+    warmupObserver.observe(target);
+    executeObserver.observe(target);
+
+    return () => {
+      cancelIdleWarmup();
+      warmupObserver.disconnect();
+      executeObserver.disconnect();
+    };
+  }, [allowAiActions, hasAutoRequested, hotspotId, isPending, preview]);
+
+  const reasons = {
+    whyNow: preview?.whyNow || fallbackReasons.whyNow,
+    whyBrand: preview?.whyBrand || fallbackReasons.whyBrand,
+    angle: preview?.angle || fallbackReasons.angle
+  };
+
+  return (
+    <div className="hotspotInsightBlock" ref={blockRef}>
+      <div className="hotspotInsightActions">
+        <span className="muted">
+          {preview
+            ? `当前展示的是${preview.source === "ai" ? "AI 快速判断" : "本地规则判断"}。`
+            : "先给你一版可直接用的判断依据，滑到附近时会自动预取 AI 快速判断。"}
+        </span>
         {allowAiActions ? (
-          <div className="inlineActions">
-            <button className="buttonLike subtleButton" disabled={isPending} onClick={loadAiReasons} type="button">
-              {isPending ? "AI判断中..." : isAiLoaded ? "重新AI判断" : "AI单独判断"}
-            </button>
-          </div>
-        ) : (
-          <p className="muted">当前角色仅可查看基础判断依据。</p>
-        )}
-
-        {message ? <p className="muted inlineActionMessage">{message}</p> : null}
-
-        <div className="hotspotDetailSourceLinks">
-          {sourceLinks.map((link) => (
-            <a className="tag" href={link.href} key={link.key} rel="noreferrer" target="_blank">
-              查看 {link.label}
-            </a>
-          ))}
-        </div>
-        <HotspotInsightTrigger disabled={!allowAiActions} hotspotId={hotspotId} />
+          <button
+            className="buttonLike subtleButton"
+            disabled={isPending}
+            onClick={() => loadPreview("manual")}
+            type="button"
+          >
+            {isPending ? "判断中..." : preview ? "刷新 AI 判断" : "补一版 AI 判断"}
+          </button>
+        ) : null}
       </div>
-    </details>
+
+      {message ? <p className="muted inlineActionMessage">{message}</p> : null}
+
+      <div className="hotspotInsightCard">
+        <div className="tagRow">
+          <span className="tag">判断来源：{preview?.source === "ai" ? "AI" : "本地规则"}</span>
+          <span className="tag">证据链接：{sourceLinks.length} 条</span>
+        </div>
+
+        <div className="hotspotInsightList">
+          <div>
+            <span>为什么现在做</span>
+            <p className="hotspotInsightText">{reasons.whyNow}</p>
+          </div>
+          <div>
+            <span>为什么和品牌有关</span>
+            <p className="hotspotInsightText">{reasons.whyBrand}</p>
+          </div>
+          <div>
+            <span>建议角度</span>
+            <p className="hotspotInsightText">{reasons.angle}</p>
+          </div>
+          <div>
+            <span>可回看的来源</span>
+            {sourceLinks.length > 0 ? (
+              <ul className="simpleList">
+                {sourceLinks.slice(0, 4).map((link) => (
+                  <li key={link.key}>
+                    <a href={link.href} rel="noreferrer" target="_blank">
+                      {link.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="hotspotInsightText">当前没有可直接打开的来源链接。</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <HotspotInsightTrigger disabled={!allowAiActions} hotspotId={hotspotId} />
+    </div>
   );
 }

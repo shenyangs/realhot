@@ -172,7 +172,9 @@ export default async function ProductionStudioPage() {
                             <p className="eyebrow">{jobTypeLabels[jobType]}</p>
                           </div>
                           <h3>{jobStatusLabel(job?.status)}</h3>
-                          <p className="muted">{jobTypeDescriptions[jobType]}</p>
+                          <p className="muted">
+                            {jobType === "article" ? "当前优先交付" : `${jobTypeDescriptions[jobType]}，暂不作为当前重点`}
+                          </p>
                           <span className={`pill pill-${tone}`}>{getJobUpdatedAtLabel(job)}</span>
                         </article>
                       );

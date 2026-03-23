@@ -3,7 +3,12 @@ import type { AiProvider } from "@/lib/domain/ai-routing";
 import type { ModelRouteDecision } from "@/lib/domain/types";
 import { humanizeAiError, isRetryableAiError } from "@/lib/services/ai-error";
 import { getChinaHotspotRules, getChinaMarketPromptLines } from "@/lib/services/china-market";
-import { decideModelRoute, listProviderConfigs, runResolvedModelTask } from "@/lib/services/model-router";
+import {
+  decideModelRoute,
+  listProviderConfigs,
+  runResolvedModelTask,
+  runResolvedModelTaskStream
+} from "@/lib/services/model-router";
 
 export interface HotspotInsightResult {
   route: {
@@ -21,10 +26,62 @@ export interface HotspotInsightResult {
   riskNote: string;
 }
 
+export interface HotspotInsightPreviewResult {
+  whyNow: string;
+  whyBrand: string;
+  angle: string;
+  source: "local" | "ai";
+}
+
+export interface HotspotInsightStreamEvent {
+  type: "route" | "partial" | "complete" | "status";
+  route?: HotspotInsightResult["route"];
+  partial?: Partial<Omit<HotspotInsightResult, "route">>;
+  insight?: HotspotInsightResult;
+  message?: string;
+}
+
+const HOTSPOT_INSIGHT_SECTIONS = [
+  ["PRODUCT_FOCUS", "productFocus"],
+  ["CONNECTION_POINT", "connectionPoint"],
+  ["COMMUNICATION_STRATEGY", "communicationStrategy"],
+  ["PLANNING_DIRECTION", "planningDirection"],
+  ["RECOMMENDED_FORMAT", "recommendedFormat"],
+  ["PLANNING_SCORE", "planningScore"],
+  ["PLANNING_COMMENT", "planningComment"],
+  ["RISK_NOTE", "riskNote"]
+] as const;
+
 function extractSection(content: string, label: string) {
   const pattern = new RegExp(`${label}:([\\s\\S]*?)(?:\\n[A-Z_]+:|$)`);
   const match = content.match(pattern);
   return match?.[1]?.trim() ?? "";
+}
+
+function extractSectionProgress(content: string, label: string) {
+  const marker = `${label}:`;
+  const startIndex = content.indexOf(marker);
+
+  if (startIndex === -1) {
+    return "";
+  }
+
+  const contentStart = startIndex + marker.length;
+  let endIndex = content.length;
+
+  for (const [nextLabel] of HOTSPOT_INSIGHT_SECTIONS) {
+    if (nextLabel === label) {
+      continue;
+    }
+
+    const nextIndex = content.indexOf(`\n${nextLabel}:`, contentStart);
+
+    if (nextIndex !== -1 && nextIndex < endIndex) {
+      endIndex = nextIndex;
+    }
+  }
+
+  return content.slice(contentStart, endIndex).trim();
 }
 
 function sanitizeInsightText(raw: string): string {
@@ -39,6 +96,57 @@ function sanitizeInsightText(raw: string): string {
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function mergeStreamChunk(accumulated: string, incoming: string) {
+  if (!incoming) {
+    return accumulated;
+  }
+
+  if (!accumulated) {
+    return incoming;
+  }
+
+  if (incoming.startsWith(accumulated)) {
+    return incoming;
+  }
+
+  if (accumulated.endsWith(incoming)) {
+    return accumulated;
+  }
+
+  return `${accumulated}${incoming}`;
+}
+
+function pickFirstSentence(text: string) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return "";
+  }
+
+  const stopIndex = normalized.search(/[。！？!?]/);
+
+  if (stopIndex === -1) {
+    return normalized;
+  }
+
+  return normalized.slice(0, stopIndex + 1).trim();
+}
+
+function extractPlanningPoint(text: string) {
+  const lines = text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const numbered = lines.find((line) => /^\d+[).、．]/.test(line) || /^\d+\s*[\/.]/.test(line));
+
+  if (numbered) {
+    return numbered.replace(/^\d+[).、．]\s*/, "").replace(/^\d+\s*[\/.]\s*/, "").trim();
+  }
+
+  return pickFirstSentence(lines.join(" "));
 }
 
 function buildPrompt(input: {
@@ -235,6 +343,30 @@ async function runInsightWithRetry(route: ModelRouteDecision, prompt: string) {
   throw lastError instanceof Error ? lastError : new Error("hotspot_insight_request_failed");
 }
 
+async function* runInsightStreamWithRetry(
+  route: ModelRouteDecision,
+  prompt: string
+): AsyncGenerator<string> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      yield* runResolvedModelTaskStream(route, prompt);
+      return;
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === 1 || !isRetryableAiError(error)) {
+        throw error;
+      }
+
+      await wait(450 * (attempt + 1));
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("hotspot_insight_stream_failed");
+}
+
 function buildInsightResult(
   route: ModelRouteDecision,
   output: string,
@@ -251,6 +383,62 @@ function buildInsightResult(
     planningComment: sanitizeInsightText(extractSection(output, "PLANNING_COMMENT") || fallback.planningComment),
     riskNote: sanitizeInsightText(extractSection(output, "RISK_NOTE") || fallback.riskNote)
   };
+}
+
+function buildInsightPartial(output: string): Partial<Omit<HotspotInsightResult, "route">> {
+  const partial: Partial<Omit<HotspotInsightResult, "route">> = {};
+
+  for (const [label, key] of HOTSPOT_INSIGHT_SECTIONS) {
+    const value = sanitizeInsightText(extractSectionProgress(output, label));
+
+    if (value) {
+      partial[key] = value;
+    }
+  }
+
+  return partial;
+}
+
+export function buildHotspotInsightPreview(input: {
+  communicationStrategy: string;
+  connectionPoint: string;
+  planningDirection: string;
+  source: "local" | "ai";
+}): HotspotInsightPreviewResult {
+  return {
+    whyNow: pickFirstSentence(input.communicationStrategy),
+    whyBrand: pickFirstSentence(input.connectionPoint),
+    angle: extractPlanningPoint(input.planningDirection),
+    source: input.source
+  };
+}
+
+export async function generateHotspotInsightPreview(
+  hotspotId: string
+): Promise<HotspotInsightPreviewResult> {
+  const [brand, hotspots] = await Promise.all([getBrandStrategyPack(), getHotspotSignals()]);
+  const hotspot = hotspots.find((item) => item.id === hotspotId);
+
+  if (!hotspot) {
+    throw new Error("找不到这条热点");
+  }
+
+  const fallback = buildLocalFallback({
+    brandName: brand.name,
+    title: hotspot.title,
+    summary: hotspot.summary,
+    relevanceScore: hotspot.relevanceScore,
+    industryScore: hotspot.industryScore,
+    velocityScore: hotspot.velocityScore,
+    riskScore: hotspot.riskScore
+  });
+
+  return buildHotspotInsightPreview({
+    communicationStrategy: fallback.communicationStrategy,
+    connectionPoint: fallback.connectionPoint,
+    planningDirection: fallback.planningDirection,
+    source: "local"
+  });
 }
 
 export async function generateHotspotInsight(hotspotId: string): Promise<HotspotInsightResult> {
@@ -327,6 +515,171 @@ export async function generateHotspotInsight(hotspotId: string): Promise<Hotspot
         error,
         route.provider
       )}`
+    };
+  }
+}
+
+export async function* generateHotspotInsightStream(
+  hotspotId: string
+): AsyncGenerator<HotspotInsightStreamEvent> {
+  const [brand, hotspots] = await Promise.all([getBrandStrategyPack(), getHotspotSignals()]);
+  const hotspot = hotspots.find((item) => item.id === hotspotId);
+
+  if (!hotspot) {
+    throw new Error("找不到这条热点");
+  }
+
+  const route = await decideModelRoute("hotspot-analysis", { feature: "hotspot-insight" });
+  const fallback = buildLocalFallback({
+    brandName: brand.name,
+    title: hotspot.title,
+    summary: hotspot.summary,
+    relevanceScore: hotspot.relevanceScore,
+    industryScore: hotspot.industryScore,
+    velocityScore: hotspot.velocityScore,
+    riskScore: hotspot.riskScore
+  });
+
+  const prompt = buildPrompt({
+    brandName: brand.name,
+    sector: brand.sector,
+    topics: brand.topics,
+    positioning: brand.positioning,
+    tone: brand.tone,
+    redLines: brand.redLines,
+    recentMoves: brand.recentMoves,
+    title: hotspot.title,
+    summary: hotspot.summary,
+    kind: hotspot.kind,
+    source: hotspot.source,
+    relevanceScore: hotspot.relevanceScore,
+    industryScore: hotspot.industryScore,
+    velocityScore: hotspot.velocityScore,
+    riskScore: hotspot.riskScore,
+    reasons: hotspot.reasons
+  });
+
+  if (route.provider === "mock") {
+    const insight = {
+      route,
+      ...fallback
+    };
+
+    yield {
+      type: "route",
+      route
+    };
+    yield {
+      type: "partial",
+      partial: fallback
+    };
+    yield {
+      type: "complete",
+      insight
+    };
+    return;
+  }
+
+  yield {
+    type: "route",
+    route
+  };
+
+  const tryStream = async function* (
+    activeRoute: ModelRouteDecision
+  ): AsyncGenerator<HotspotInsightStreamEvent, HotspotInsightResult> {
+    let output = "";
+    let previousSnapshot = "";
+
+    for await (const chunk of runInsightStreamWithRetry(activeRoute, prompt)) {
+      output = mergeStreamChunk(output, chunk);
+
+      const partial = buildInsightPartial(output);
+      const snapshot = JSON.stringify(partial);
+
+      if (snapshot !== previousSnapshot && Object.keys(partial).length > 0) {
+        previousSnapshot = snapshot;
+        yield {
+          type: "partial",
+          partial
+        };
+      }
+    }
+
+    return buildInsightResult(activeRoute, output, fallback);
+  };
+
+  try {
+    const primaryStream = tryStream(route);
+
+    while (true) {
+      const next = await primaryStream.next();
+
+      if (next.done) {
+        yield {
+          type: "complete",
+          insight: next.value
+        };
+        return;
+      }
+
+      yield next.value;
+    }
+  } catch (error) {
+    const failoverRoute = buildFailoverRoute(route);
+
+    if (failoverRoute) {
+      yield {
+        type: "status",
+        message: failoverRoute.reason
+      };
+      yield {
+        type: "route",
+        route: failoverRoute
+      };
+
+      try {
+        const failoverStream = tryStream(failoverRoute);
+
+        while (true) {
+          const next = await failoverStream.next();
+
+          if (next.done) {
+            yield {
+              type: "complete",
+              insight: next.value
+            };
+            return;
+          }
+
+          yield next.value;
+        }
+      } catch (failoverError) {
+        yield {
+          type: "complete",
+          insight: {
+            route,
+            ...fallback,
+            riskNote: `${fallback.riskNote} 当前 AI 深挖暂时拥堵，已先回退为本地建议。主链路：${humanizeAiError(
+              error,
+              route.provider
+            )} 备用链路：${humanizeAiError(failoverError, failoverRoute.provider)}`
+          }
+        };
+        return;
+      }
+    }
+
+    yield {
+      type: "complete",
+      insight: {
+        route,
+        ...fallback,
+        riskNote: `${fallback.riskNote} 当前 AI 深挖暂时不可用，已先回退为本地建议。${humanizeAiError(
+          error,
+          route.provider
+        )}`
+      }
     };
   }
 }

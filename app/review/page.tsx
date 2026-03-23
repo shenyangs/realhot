@@ -4,6 +4,7 @@ import { OneClickProductionButton } from "@/components/one-click-production-butt
 import { PackDeleteButton } from "@/components/pack-delete-button";
 import { PageHero } from "@/components/page-hero";
 import { PublishActions } from "@/components/publish-actions";
+import { ReviewPackContinuationTrigger } from "@/components/review-pack-continuation-trigger";
 import { ReviewQueueBatchList } from "@/components/review-queue-batch-list";
 import { ReviewActions } from "@/components/review-actions";
 import { ReviewEditor } from "@/components/review-editor";
@@ -13,7 +14,9 @@ import { writeAuditLog } from "@/lib/auth/audit";
 import { getCurrentViewer } from "@/lib/auth/session";
 import { getBrandStrategyPack, getPrioritizedHotspots, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
 import { getAiRoutingConfig } from "@/lib/services/ai-routing-config";
+import { getHotspotPlanningLabels } from "@/lib/services/hotspot-planning-labels";
 import { resolveFeatureProviderConfig } from "@/lib/services/model-router";
+import { fetchSourceMaterial } from "@/lib/services/source-material-extractor";
 import type { ContentTrack, Platform, ReviewStatus } from "@/lib/domain/types";
 
 const platformLabels: Record<Platform, string> = {
@@ -188,6 +191,24 @@ function getNextActionHint(status: ReviewStatus) {
   return "先判断是否值得做，再决定通过还是退回修改。";
 }
 
+function formatReviewTime(value?: string) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Shanghai"
+  }).format(date);
+}
+
 export default async function ReviewPage({
   searchParams
 }: {
@@ -217,6 +238,7 @@ export default async function ReviewPage({
       const haystack = [
         pack.whyNow,
         pack.whyUs,
+        pack.reviewNote,
         pack.reviewOwner,
         ...pack.variants.map((variant) => variant.title),
         ...pack.variants.map((variant) => variant.angle)
@@ -366,7 +388,25 @@ export default async function ReviewPage({
     publishWindow: activeVariant?.publishWindow,
     variantCount: activePack.variants.length
   });
-  const activeSignal = prioritizedHotspots.find((item) => item.id === activePack.hotspotId);
+  const activeSignalBase = prioritizedHotspots.find((item) => item.id === activePack.hotspotId);
+  const activeSignal =
+    activeSignalBase?.sourceUrl && !activeSignalBase.sourceExcerpt
+      ? await (async () => {
+          const extracted = await fetchSourceMaterial(activeSignalBase.sourceUrl!);
+
+          if (!extracted.title && !extracted.excerpt && !extracted.fetchedAt) {
+            return activeSignalBase;
+          }
+
+          return {
+            ...activeSignalBase,
+            sourceTitle: extracted.title ?? activeSignalBase.sourceTitle,
+            sourceExcerpt: extracted.excerpt ?? activeSignalBase.sourceExcerpt,
+            sourceFetchedAt: extracted.fetchedAt ?? activeSignalBase.sourceFetchedAt
+          };
+        })()
+      : activeSignalBase;
+  const planningLabels = activeSignal ? getHotspotPlanningLabels(activeSignal) : null;
   const counts = {
     all: packs.length,
     pending: packs.filter((pack) => pack.status === "pending").length,
@@ -514,6 +554,12 @@ export default async function ReviewPage({
           <div className="topicDecisionHeadline">
             <h3>{activeVariant?.title ?? activePack.whyNow}</h3>
             <p className="muted">{getNextActionHint(activePack.status)}</p>
+            {planningLabels ? (
+              <div className="tagRow">
+                <span className="pill pill-neutral">{planningLabels.borrowStyle}</span>
+                <span className="pill pill-neutral">{planningLabels.windowStage}</span>
+              </div>
+            ) : null}
           </div>
 
           <div className="decisionMetricGrid">
@@ -560,6 +606,40 @@ export default async function ReviewPage({
                 ))}
               </ul>
             </div>
+            <div>
+              <strong>AI 源头判断</strong>
+              {activePack.reviewNote ? (
+                activePack.reviewNote
+                  .split("\n")
+                  .map((line) => line.trim())
+                  .filter(Boolean)
+                  .map((line, index) => (
+                    <p className="muted" key={`${line}-${index}`}>
+                      {line}
+                    </p>
+                  ))
+              ) : (
+                <p className="muted">这条内容暂时还没有生成 AI 源头判断。</p>
+              )}
+            </div>
+            <div>
+              <strong>原始来源线索</strong>
+              <p className="muted">{activeSignal?.sourceTitle || "暂未抓到原始页面标题"}</p>
+              <p className="muted">
+                {activeSignal?.sourceExcerpt || "暂未抓到原始页面正文片段，当前主要依据热点摘要与品牌资料判断。"}
+              </p>
+              {activeSignal?.sourceFetchedAt ? (
+                <p className="muted">抓取时间：{formatReviewTime(activeSignal.sourceFetchedAt)}</p>
+              ) : null}
+              {activeSignal?.sourceUrl ? (
+                <p className="muted">
+                  原文链接：
+                  <a href={activeSignal.sourceUrl} rel="noreferrer" target="_blank">
+                    查看原始来源
+                  </a>
+                </p>
+              ) : null}
+            </div>
           </div>
         </section>
 
@@ -597,6 +677,11 @@ export default async function ReviewPage({
           </div>
         </section>
 
+        <ReviewPackContinuationTrigger
+          currentVariantCount={activePack.variants.length}
+          packId={activePack.id}
+        />
+
         <section className="panel topicEditorPanel">
           <div className="panelHeader sectionTitle">
             <div>
@@ -622,6 +707,11 @@ export default async function ReviewPage({
               variantId={activeDraft?.variant.id ?? activeVariant.id}
               whyNow={activePack.whyNow}
               whyUs={activePack.whyUs}
+              reviewNote={activePack.reviewNote}
+              sourceExcerpt={activeSignal?.sourceExcerpt}
+              sourceFetchedAt={activeSignal?.sourceFetchedAt}
+              sourceTitle={activeSignal?.sourceTitle}
+              sourceUrl={activeSignal?.sourceUrl}
             />
           ) : null}
         </section>

@@ -5,8 +5,17 @@ import {
   resolveModelOverrideForFeature,
   resolveProviderForFeature
 } from "@/lib/services/ai-routing-config";
-import { createUserTextContent, extractGeminiText, requestGeminiContent } from "@/lib/services/gemini-client";
-import { extractMiniMaxText, requestMiniMaxChatCompletion } from "@/lib/services/minimax-client";
+import {
+  createUserTextContent,
+  extractGeminiText,
+  requestGeminiContent,
+  requestGeminiContentStream
+} from "@/lib/services/gemini-client";
+import {
+  extractMiniMaxText,
+  requestMiniMaxChatCompletion,
+  requestMiniMaxChatCompletionStream
+} from "@/lib/services/minimax-client";
 
 export interface ProviderConfig {
   provider: AiProvider;
@@ -230,6 +239,37 @@ export async function runResolvedModelTask(route: ModelRouteDecision, prompt: st
   ].join("\n");
 }
 
+export async function* runResolvedModelTaskStream(
+  route: ModelRouteDecision,
+  prompt: string
+): AsyncGenerator<string> {
+  if (route.provider === "mock") {
+    yield [
+      `[${route.task}]`,
+      route.reason,
+      "Prompt summary:",
+      prompt.slice(0, 220)
+    ].join("\n");
+    return;
+  }
+
+  if (route.provider === "gemini") {
+    yield* runGeminiTaskStream(route.model, prompt);
+    return;
+  }
+
+  if (route.provider === "minimax") {
+    yield* runMiniMaxTaskStream(route.model, prompt);
+    return;
+  }
+
+  yield [
+    `[${route.task}]`,
+    `Provider ${route.provider} is configured in the router but not implemented yet.`,
+    "Fallback to template output."
+  ].join("\n");
+}
+
 export async function runModelTaskWithRoute(
   task: LlmTask,
   prompt: string,
@@ -324,6 +364,17 @@ async function runGeminiTask(model: string, prompt: string): Promise<string> {
   return outputText ?? "No text returned from Gemini generateContent.";
 }
 
+async function* runGeminiTaskStream(model: string, prompt: string): AsyncGenerator<string> {
+  yield* requestGeminiContentStream({
+    model,
+    contents: [createUserTextContent(prompt)],
+    timeoutMs: 60000,
+    generationConfig: {
+      responseMimeType: "text/plain"
+    }
+  });
+}
+
 async function runMiniMaxTask(model: string, prompt: string): Promise<string> {
   const payload = await requestMiniMaxChatCompletion({
     model,
@@ -338,4 +389,17 @@ async function runMiniMaxTask(model: string, prompt: string): Promise<string> {
   const outputText = extractMiniMaxText(payload);
 
   return outputText ?? "No text returned from MiniMax chat completions.";
+}
+
+async function* runMiniMaxTaskStream(model: string, prompt: string): AsyncGenerator<string> {
+  yield* requestMiniMaxChatCompletionStream({
+    model,
+    messages: [
+      {
+        role: "user",
+        content: prompt
+      }
+    ],
+    timeoutMs: 60000
+  });
 }

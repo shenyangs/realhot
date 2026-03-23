@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { AiProvider } from "@/lib/domain/ai-routing";
+import type { ProductionJobRecord } from "@/lib/services/production-studio";
 
 type ProductionJobType = "article" | "video" | "one_click";
 
@@ -17,6 +18,35 @@ const jobTypeLabels: Record<ProductionJobType, string> = {
   video: "视频",
   one_click: "图文+视频"
 };
+
+function parseApiErrorMessage(raw: string, jobType: ProductionJobType) {
+  const fallback = `${jobTypeLabels[jobType]}生成失败`;
+
+  if (!raw) {
+    return fallback;
+  }
+
+  try {
+    const payload = JSON.parse(raw) as {
+      ok?: boolean;
+      error?: string;
+    };
+
+    return payload?.error?.trim() || fallback;
+  } catch {
+    const normalized = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+    if (!normalized) {
+      return fallback;
+    }
+
+    if (normalized.toLowerCase().includes("<!doctype") || normalized.toLowerCase().includes("<html")) {
+      return `${fallback}，服务端返回了非接口格式内容，请检查 Vercel 部署日志。`;
+    }
+
+    return normalized.slice(0, 180);
+  }
+}
 
 export function OneClickProductionButton({
   packId,
@@ -69,19 +99,46 @@ export function OneClickProductionButton({
           })
         });
 
-        const payload = (await response.json().catch(() => null)) as
+        const raw = await response.text().catch(() => "");
+        const payload = (() => {
+          if (!raw) {
+            return null;
+          }
+
+          try {
+            return JSON.parse(raw) as {
+              ok?: boolean;
+              error?: string;
+              job?: ProductionJobRecord;
+            };
+          } catch {
+            return null;
+          }
+        })() as
           | {
               ok?: boolean;
               error?: string;
+              job?: ProductionJobRecord;
             }
           | null;
 
         if (!response.ok || !payload?.ok) {
-          setMessage(payload?.error ?? "一键制作失败");
+          if (payload?.error?.trim()) {
+            setMessage(payload.error.trim());
+            return;
+          }
+
+          setMessage(parseApiErrorMessage(raw, jobType));
           return;
         }
 
-        setMessage(`已使用${providerLabels[provider]}生成${jobTypeLabels[jobType]}首版内容，正在跳转到内容制作页...`);
+        const articlePhase = payload?.job?.outputs.draftProgress.articlePhase;
+
+        setMessage(
+          articlePhase === "initial"
+            ? `已使用${providerLabels[provider]}生成首屏图文，打开制作台后继续往下滑，系统会自动补全后半段。`
+            : `已使用${providerLabels[provider]}生成${jobTypeLabels[jobType]}首版内容，正在跳转到内容制作页...`
+        );
         router.push(`/production-studio/${packId}`);
         router.refresh();
       } catch (error) {
@@ -95,7 +152,7 @@ export function OneClickProductionButton({
   return (
     <div className="subPanel productionQuickStart">
       <div className="listItem">
-        <strong>{compact ? "一键制作" : "一键制作图文 + 视频"}</strong>
+        <strong>{compact ? "图文制作" : "先把图文做出来"}</strong>
         <span className={`pill ${disabled ? "pill-neutral" : "pill-positive"}`}>
           {disabled ? "待通过" : "可执行"}
         </span>
@@ -104,8 +161,8 @@ export function OneClickProductionButton({
       {!compact ? (
         <p className="muted">
           {disabled
-            ? disabledReason ?? "选题通过后可自动生成图文、视频、口播与字幕。"
-            : "现在支持拆开执行：可以单独生成图文、单独生成视频，或者一键全做。"}
+            ? disabledReason ?? "选题通过后可生成图文首版。"
+            : "当前优先生成图文首版：标题、正文和封面提示词先跑通，视频能力后续再补。"}
         </p>
       ) : null}
 
@@ -138,18 +195,7 @@ export function OneClickProductionButton({
         <span className="muted">只影响图片提示词规划，实际生图引擎保持不变。</span>
       </label>
 
-      <label className="field fieldCompact">
-        <span>视频策划模型</span>
-        <select
-          disabled={isPending || disabled}
-          onChange={(event) => setVideoProvider(event.target.value as AiProvider)}
-          value={videoProvider}
-        >
-          <option value="minimax">MiniMax M2.7（默认）</option>
-          <option value="gemini">Gemini</option>
-        </select>
-        <span className="muted">只影响视频提示词规划，实际生视频引擎保持不变。</span>
-      </label>
+      <p className="muted productionDeferredHint">视频生成与展示能力暂时后放，当前页面先把图文稿生成和编辑做好。</p>
 
       <div className="buttonRow">
         <button
@@ -157,23 +203,7 @@ export function OneClickProductionButton({
           onClick={() => runProduction("article")}
           type="button"
         >
-          {isPending && pendingJobType === "article" ? "生成中..." : compact ? "生成图文" : "仅生成图文"}
-        </button>
-        <button
-          className="buttonLike subtleButton"
-          disabled={isPending || disabled}
-          onClick={() => runProduction("video")}
-          type="button"
-        >
-          {isPending && pendingJobType === "video" ? "生成中..." : compact ? "生成视频" : "仅生成视频"}
-        </button>
-        <button
-          className="buttonLike subtleButton"
-          disabled={isPending || disabled}
-          onClick={() => runProduction("one_click")}
-          type="button"
-        >
-          {isPending && pendingJobType === "one_click" ? "制作中..." : compact ? "一键全做" : "一键制作图文+视频"}
+          {isPending && pendingJobType === "article" ? "生成中..." : compact ? "生成图文" : "开始生成图文"}
         </button>
         <Link className="buttonLike subtleButton" href={`/production-studio/${packId}`}>
           打开制作台

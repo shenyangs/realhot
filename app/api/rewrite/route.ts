@@ -22,6 +22,11 @@ export async function POST(request: NextRequest) {
       trackLabel?: string;
       whyNow?: string;
       whyUs?: string;
+      reviewNote?: string;
+      sourceTitle?: string;
+      sourceExcerpt?: string;
+      sourceUrl?: string;
+      sourceFetchedAt?: string;
       brandName?: string;
       brandTone?: string[];
       redLines?: string[];
@@ -48,6 +53,11 @@ export async function POST(request: NextRequest) {
       trackLabel: body.trackLabel,
       whyNow: body.whyNow ?? "",
       whyUs: body.whyUs ?? "",
+      reviewNote: body.reviewNote ?? "",
+      sourceTitle: body.sourceTitle ?? "",
+      sourceExcerpt: body.sourceExcerpt ?? "",
+      sourceUrl: body.sourceUrl ?? "",
+      sourceFetchedAt: body.sourceFetchedAt ?? "",
       brandName: body.brandName ?? "品牌内容团队",
       brandTone: body.brandTone ?? [],
       redLines: body.redLines ?? [],

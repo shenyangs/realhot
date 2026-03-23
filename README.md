@@ -119,11 +119,12 @@ docker compose up -d
 
 同步结果里的 `providers` 现在会额外返回 `fetchStatus` 和 `fetchNote`，便于线上快速区分“抓取成功但为空”与“请求本身失败”。
 
-默认情况下，同步完成后会自动对 `ship-now` 热点生成内容包，并写入 `hotspot_packs` 与 `content_variants`。相关开关：
+默认情况下，同步完成后不会自动批量生成内容包。这样可以先让人看过题、或先让 Source-First AI 判断完，再决定是否进入生成。需要开启时可显式打开以下开关：
 
 - `AUTO_GENERATE_CONTENT_PACKS`
 - `AUTO_GENERATE_RECOMMENDED_ACTIONS`
 - `AUTO_GENERATE_MAX_PACKS`
+- `HOTSPOT_SOURCE_ENRICH_MAX_ITEMS`
 
 ### Manual Run
 

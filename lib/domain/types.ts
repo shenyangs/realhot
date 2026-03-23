@@ -8,7 +8,7 @@ export type ReviewStatus = "pending" | "approved" | "needs-edit";
 
 export type PublishStatus = "queued" | "published" | "failed" | "canceled";
 export type HotspotFetchStatus = "ok" | "empty" | "failed";
-export type HotspotSourceType = "direct" | "rss" | "aggregator";
+export type HotspotSourceType = "direct" | "rss" | "aggregator" | "ai-search";
 export type HotspotProviderRole = "primary" | "fallback";
 
 export type LlmTask =
@@ -48,6 +48,9 @@ export interface HotspotSignal {
   kind: HotspotKind;
   source: string;
   sourceUrl?: string;
+  sourceTitle?: string;
+  sourceExcerpt?: string;
+  sourceFetchedAt?: string;
   detectedAt: string;
   relevanceScore: number;
   industryScore: number;

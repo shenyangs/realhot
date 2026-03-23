@@ -50,6 +50,9 @@ interface HotspotRow {
   kind: HotspotSignal["kind"];
   source: string | null;
   source_url?: string | null;
+  source_title?: string | null;
+  source_excerpt?: string | null;
+  source_fetched_at?: string | null;
   detected_at: string | null;
   relevance_score: number | null;
   industry_score: number | null;
@@ -174,6 +177,9 @@ function mapHotspot(row: HotspotRow): HotspotSignal {
     kind: row.kind,
     source: (row.source ?? "").trim() || "未标注信源",
     sourceUrl: row.source_url ?? undefined,
+    sourceTitle: row.source_title?.trim() || undefined,
+    sourceExcerpt: row.source_excerpt?.trim() || undefined,
+    sourceFetchedAt: row.source_fetched_at ?? undefined,
     detectedAt: row.detected_at ?? new Date(0).toISOString(),
     relevanceScore: row.relevance_score ?? 0,
     industryScore: row.industry_score ?? 0,
@@ -274,7 +280,8 @@ function normalizePackBodies(pack: HotspotPack): HotspotPack {
       minimumChars,
       formatHint: variant.format,
       trackHint: variant.track,
-      platformHint: `${variant.platforms.map((platform) => platformLabels[platform]).join(" / ")} · ${trackLabel(variant.track)}`
+      platformHint: `${variant.platforms.map((platform) => platformLabels[platform]).join(" / ")} · ${trackLabel(variant.track)}`,
+      strategy: "preserve"
     });
 
     if (!normalized.wasExpanded) {

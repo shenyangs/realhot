@@ -109,7 +109,9 @@ export function HotspotActionButton({
         platform: nextPlatform
       });
 
-      if (payload.usedMockStorage) {
+      if (payload.pack.variants && payload.pack.variants.length <= 1) {
+        setMessage("已先生成首条主稿，进入审核台后继续往下看，系统会自动补剩余方案。");
+      } else if (payload.usedMockStorage) {
         setMessage("已生成并保存到本地试用数据，正在进入选题库。");
       }
 

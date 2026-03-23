@@ -10,6 +10,7 @@ interface EnsureBodyInput {
   formatHint?: ContentVariant["format"];
   trackHint?: ContentTrack;
   platformHint?: string;
+  strategy?: "expand" | "preserve";
 }
 
 function cleanLine(value: string): string {
@@ -181,15 +182,27 @@ export function enforceBodyMinimumWithContext(input: EnsureBodyInput): {
   body: string;
   wasExpanded: boolean;
   charCount: number;
+  isBelowMinimum: boolean;
 } {
   const cleanedBody = cleanParagraphs(input.body);
   let nextBody = cleanedBody || `核心观点：${fallback(input.title, "这条内容的关键判断")}。`;
+  const strategy = input.strategy ?? "expand";
 
   if (countVisibleChars(nextBody) >= input.minimumChars) {
     return {
       body: nextBody,
       wasExpanded: false,
-      charCount: countVisibleChars(nextBody)
+      charCount: countVisibleChars(nextBody),
+      isBelowMinimum: false
+    };
+  }
+
+  if (strategy === "preserve") {
+    return {
+      body: nextBody,
+      wasExpanded: false,
+      charCount: countVisibleChars(nextBody),
+      isBelowMinimum: true
     };
   }
 
@@ -230,6 +243,7 @@ export function enforceBodyMinimumWithContext(input: EnsureBodyInput): {
   return {
     body: nextBody,
     wasExpanded: true,
-    charCount: countVisibleChars(nextBody)
+    charCount: countVisibleChars(nextBody),
+    isBelowMinimum: countVisibleChars(nextBody) < input.minimumChars
   };
 }

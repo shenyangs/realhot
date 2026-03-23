@@ -85,6 +85,7 @@ export default async function ProductionStudioDetailPage({
 
   const canRun = pack.status === "approved";
   const productionRoute = resolveFeatureProviderConfig("production-generation", aiRoutingConfig);
+  const preferredJob = latestArticleJob ?? latestJob;
 
   if (viewer.isAuthenticated) {
     await writeAuditLog({
@@ -127,8 +128,8 @@ export default async function ProductionStudioDetailPage({
           { label: "当前品牌", value: brand.name },
           { label: "审核状态", value: canRun ? "已通过" : pack.status === "pending" ? "待审核" : "待改稿" },
           { label: "图文任务", value: jobStatusLabel(latestArticleJob?.status) },
-          { label: "视频任务", value: jobStatusLabel(latestVideoJob?.status) },
-          { label: "一键全做", value: jobStatusLabel(latestOneClickJob?.status) },
+          { label: "当前重点", value: "图文成稿" },
+          { label: "视频能力", value: "后续开放" },
           { label: "负责人", value: pack.reviewOwner }
         ]}
         title="把通过的方案做成最终稿"
@@ -137,8 +138,8 @@ export default async function ProductionStudioDetailPage({
       <section className="panel">
         <div className="panelHeader sectionTitle">
           <div>
-            <p className="eyebrow">任务状态</p>
-            <h3>图文与视频分开看</h3>
+            <p className="eyebrow">当前重点</p>
+            <h3>图文成稿优先</h3>
           </div>
         </div>
 
@@ -156,14 +157,16 @@ export default async function ProductionStudioDetailPage({
                 <p className="eyebrow">{jobTypeLabels[jobType]}</p>
               </div>
               <h3>{jobStatusLabel(job?.status)}</h3>
-              <p className="muted">{jobTypeDescriptions[jobType]}</p>
+              <p className="muted">
+                {jobType === "article" ? "当前正式交付目标" : `${jobTypeDescriptions[jobType]}，暂不作为当前页面重点`}
+              </p>
               <span className={`pill pill-${jobStatusTone(job?.status)}`}>{getJobUpdatedAtLabel(job)}</span>
             </article>
           ))}
         </div>
 
         <p className="muted">
-          最近一次更新：{latestJob ? new Date(latestJob.updatedAt).toLocaleString("zh-CN") : "暂无制作记录"}
+          最近一次更新：{preferredJob ? new Date(preferredJob.updatedAt).toLocaleString("zh-CN") : "暂无制作记录"}
         </p>
       </section>
 
@@ -181,7 +184,7 @@ export default async function ProductionStudioDetailPage({
         canRun={canRun}
         defaultModel={productionRoute.model}
         defaultProvider={productionRoute.provider}
-        initialJob={latestJob}
+        initialJob={preferredJob}
         packId={pack.id}
       />
     </div>

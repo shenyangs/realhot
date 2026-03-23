@@ -1,3 +1,5 @@
+import { parseServerSentEvents } from "@/lib/shared/server-sent-events";
+
 interface GeminiPart {
   text?: string;
 }
@@ -181,6 +183,72 @@ export async function requestGeminiContent(
     }
 
     throw lastError ?? new Error("Gemini request failed with unknown error");
+  } finally {
+    if (allowInsecureTls) {
+      if (previousTlsSetting === undefined) {
+        delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+      } else {
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = previousTlsSetting;
+      }
+    }
+  }
+}
+
+export async function* requestGeminiContentStream(
+  input: GeminiGenerateContentRequest
+): AsyncGenerator<string> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+
+  if (!apiKey) {
+    throw new Error("未检测到 GEMINI_API_KEY");
+  }
+
+  const allowInsecureTls = isGeminiTlsRelaxed();
+  const previousTlsSetting = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+
+  if (allowInsecureTls) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  }
+
+  try {
+    const response = await fetch(`${getGeminiBaseUrl()}/models/${input.model}:streamGenerateContent?alt=sse`, {
+      method: "POST",
+      signal: AbortSignal.timeout(input.timeoutMs ?? 60000),
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify({
+        contents: input.contents,
+        systemInstruction: input.systemInstruction,
+        tools: input.tools,
+        generationConfig: input.generationConfig
+      })
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`Gemini stream request failed with status ${response.status}: ${detail || "Unknown upstream error"}`);
+    }
+
+    if (!response.body) {
+      throw new Error("Gemini stream response body is empty");
+    }
+
+    for await (const event of parseServerSentEvents(response.body)) {
+      const payload = JSON.parse(event.data) as GeminiGenerateContentResponse;
+
+      if (payload?.error) {
+        const detail = payload.error.message ?? payload.error.status ?? "Unknown upstream error";
+        throw new Error(`Gemini stream returned an error payload: ${detail}`);
+      }
+
+      const text = extractGeminiText(payload);
+
+      if (text) {
+        yield text;
+      }
+    }
   } finally {
     if (allowInsecureTls) {
       if (previousTlsSetting === undefined) {

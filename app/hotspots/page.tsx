@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BackToTopButton } from "@/components/back-to-top-button";
 import { HotspotActionButton } from "@/components/hotspot-action-button";
 import { HotspotDecisionBasis } from "@/components/hotspot-decision-basis";
+import { HotspotSyncTrigger } from "@/components/hotspot-sync-trigger";
 import { PageAutoRefresh } from "@/components/page-auto-refresh";
 import { PageHero } from "@/components/page-hero";
 import { canGenerateContent, canUseHotspotInsight } from "@/lib/auth";
@@ -11,9 +12,10 @@ import { getBrandStrategyPack, getHotspotSignals, getLatestHotspotSyncSnapshot, 
 import { ensureHotspotsFresh } from "@/lib/services/hotspot-auto-sync";
 import type { HotspotKind } from "@/lib/domain/types";
 import { prioritizeHotspots, type PrioritizedHotspot } from "@/lib/services/hotspot-engine";
+import { getHotspotPlanningLabels } from "@/lib/services/hotspot-planning-labels";
 
 type HotspotMarket = "china" | "global" | "unknown";
-type SourceFamily = "platform" | "media" | "community" | "global";
+type SourceFamily = "platform" | "media" | "community" | "calendar" | "super-ip" | "global";
 type HeatFilter = "all" | "high" | "medium" | "emerging";
 type FitFilter = "all" | "high" | "medium" | "low";
 type RiskFilter = "all" | "low" | "medium" | "high";
@@ -45,7 +47,7 @@ interface SourceRecord {
   displayLabel: string;
   family: SourceFamily;
   providerId?: string;
-  sourceType: "direct" | "rss" | "aggregator" | "unknown";
+  sourceType: "direct" | "rss" | "aggregator" | "ai-search" | "unknown";
 }
 
 interface SourceGroup {
@@ -63,7 +65,7 @@ interface AggregatedHotspotEntry {
   sourceRecords: SourceRecord[];
 }
 
-const allFamilyKeys: SourceFamily[] = ["platform", "media", "community", "global"];
+const allFamilyKeys: SourceFamily[] = ["platform", "media", "community", "calendar", "super-ip", "global"];
 const sortValues: SortOption[] = ["fit", "latest", "hottest", "urgent", "low-risk"];
 const heatFilterOptions: HeatFilterOption[] = ["high", "medium", "emerging"];
 const fitFilterOptions: FitFilterOption[] = ["high", "medium", "low"];
@@ -111,13 +113,23 @@ function getSourceDisplayLabel(label: string) {
     "虎嗅 RSS": "虎嗅",
     "爱范儿 RSS": "爱范儿",
     "Google News RSS": "谷歌新闻",
-    "Entobit Hot Search": "热搜神器"
+    "Entobit Hot Search": "热搜神器",
+    "AI Marketing Calendar": "营销日历",
+    "AI Super IP Sports": "全民赛事型",
+    "AI Super IP Entertainment": "文娱盛典型",
+    "AI Super IP Tech Launch": "科技发布型",
+    "AI Super IP Platform Ecosystem": "平台生态型",
+    "AI Super IP National Culture": "国民文化型"
   };
 
   return sourceMap[label] ?? label;
 }
 
 function getSourceTypeLabel(sourceType: SourceRecord["sourceType"], providerId?: string) {
+  if (providerId === "ai-calendar-marketing" || providerId?.startsWith("ai-super-ip-") || sourceType === "ai-search") {
+    return "AI 搜索策划";
+  }
+
   if (providerId?.startsWith("trendradar-")) {
     return "备用聚合";
   }
@@ -190,11 +202,9 @@ function getSourceFamily(record: {
   displayLabel: string;
   market: HotspotMarket;
 }): SourceFamily {
-  if (record.market === "global") {
-    return "global";
-  }
-
   const platformLabels = new Set(["微博", "知乎", "哔哩哔哩", "今日头条", "百度", "小红书", "抖音"]);
+  const calendarLabels = new Set(["营销日历"]);
+  const superIpLabels = new Set(["全民赛事型", "文娱盛典型", "科技发布型", "平台生态型", "国民文化型"]);
   const mediaLabels = new Set([
     "36氪",
     "IT之家",
@@ -213,6 +223,14 @@ function getSourceFamily(record: {
 
   if (platformLabels.has(record.displayLabel)) {
     return "platform";
+  }
+
+  if (calendarLabels.has(record.displayLabel)) {
+    return "calendar";
+  }
+
+  if (superIpLabels.has(record.displayLabel)) {
+    return "super-ip";
   }
 
   if (communityLabels.has(record.displayLabel)) {
@@ -237,6 +255,14 @@ function getFamilyLabel(family: SourceFamily) {
 
   if (family === "community") {
     return "社区来源";
+  }
+
+  if (family === "calendar") {
+    return "营销日历";
+  }
+
+  if (family === "super-ip") {
+    return "超级IP";
   }
 
   return "海外来源";
@@ -288,7 +314,9 @@ function parseSourceRecords(source: string | null | undefined): SourceRecord[] {
         }),
         providerId: parts[2],
         sourceType:
-          parts[2]?.startsWith("trendradar-")
+          parts[2] === "ai-calendar-marketing" || parts[2]?.startsWith("ai-super-ip-")
+            ? "ai-search"
+            : parts[2]?.startsWith("trendradar-")
             ? "aggregator"
             : parts[2]?.startsWith("rss-")
               ? "rss"
@@ -361,6 +389,10 @@ function buildFallbackSearchUrl(title: string, sourceRecords: SourceRecord[]) {
 
   if (primaryRecord?.displayLabel === "今日头条") {
     return `https://so.toutiao.com/search?keyword=${query}`;
+  }
+
+  if (primaryRecord?.family === "calendar" || primaryRecord?.family === "super-ip") {
+    return `https://www.baidu.com/s?wd=${encodeURIComponent(`${title} 品牌营销 借势 案例`)}`;
   }
 
   if (primaryRecord?.family === "global") {
@@ -649,6 +681,7 @@ export default async function HotspotsPage({
   const directProviders = syncProviders.filter((provider) => provider.sourceType === "direct").length;
   const rssProviders = syncProviders.filter((provider) => provider.sourceType === "rss").length;
   const aggregatorProviders = syncProviders.filter((provider) => provider.sourceType === "aggregator").length;
+  const aiSearchProviders = syncProviders.filter((provider) => provider.sourceType === "ai-search").length;
 
   const packByHotspotId = new Map(
     packs.map((pack) => [
@@ -753,10 +786,12 @@ export default async function HotspotsPage({
     );
   });
   const sortedEntries = sortEntries(filteredEntries, sort);
-  const counts = {
+  const counts: Record<SourceFamily | "all", number> = {
     platform: sourceGroups.filter((group) => group.family === "platform").length,
     media: sourceGroups.filter((group) => group.family === "media").length,
     community: sourceGroups.filter((group) => group.family === "community").length,
+    calendar: sourceGroups.filter((group) => group.family === "calendar").length,
+    "super-ip": sourceGroups.filter((group) => group.family === "super-ip").length,
     global: sourceGroups.filter((group) => group.family === "global").length,
     all: sourceGroups.length
   };
@@ -843,6 +878,7 @@ export default async function HotspotsPage({
             <p className="eyebrow">运行总览</p>
             <h2>机会池当前状态</h2>
           </div>
+          <HotspotSyncTrigger lastSyncText={`最近同步：${formatDateTime(syncSnapshot?.executedAt)}`} />
         </div>
 
         <div className="statusFeedGrid">
@@ -851,9 +887,9 @@ export default async function HotspotsPage({
             <strong>{sourceGroups.length} 组</strong>
           </div>
           <div className="statusFeedItem">
-            <span>直连 / RSS / 聚合</span>
+            <span>直连 / RSS / 聚合 / AI 节点</span>
             <strong>
-              {directProviders} / {rssProviders} / {aggregatorProviders}
+              {directProviders} / {rssProviders} / {aggregatorProviders} / {aiSearchProviders}
             </strong>
           </div>
           <div className="statusFeedItem">
@@ -920,7 +956,9 @@ export default async function HotspotsPage({
                   <div className="providerHealthSource">
                     <strong>{provider.label}</strong>
                     <p className="muted">
-                      {provider.sourceType === "direct"
+                      {provider.sourceType === "ai-search"
+                        ? "AI 节点"
+                        : provider.sourceType === "direct"
                         ? "直连"
                         : provider.sourceType === "rss"
                           ? "RSS"
@@ -1309,6 +1347,7 @@ export default async function HotspotsPage({
           sortedEntries.map((entry) => {
             const { signal, selectedSourceLabels, sourceRecords } = entry;
             const existingPack = packByHotspotId.get(signal.id);
+            const planningLabels = getHotspotPlanningLabels(signal);
             const sourceTypeSummary = Array.from(
               new Set(sourceRecords.map((record) => getSourceTypeLabel(record.sourceType, record.providerId)))
             );
@@ -1332,6 +1371,8 @@ export default async function HotspotsPage({
                     <span className="pill pill-neutral">
                       {getHeatLabel(signal)} · {signal.velocityScore}
                     </span>
+                    <span className="pill pill-neutral">{planningLabels.borrowStyle}</span>
+                    <span className="pill pill-neutral">{planningLabels.windowStage}</span>
                     <span className={`pill pill-${getRiskTone(signal.riskScore)}`}>风险 {getRiskLabel(signal.riskScore)}</span>
                     {existingPack ? <span className="pill pill-positive">已转题</span> : null}
                   </div>

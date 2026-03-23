@@ -14,6 +14,13 @@ export type ProductionJobStatus = "queued" | "running" | "completed" | "failed";
 export type ProductionStageStatus = "pending" | "processing" | "done" | "failed";
 export type ProductionStageKey = "script" | "image" | "video" | "voice" | "subtitle" | "finalize";
 export type ProductionJobType = "article" | "video" | "one_click";
+export type ProductionArticlePhase = "initial" | "expanded";
+
+export interface ProductionDraftProgress {
+  articlePhase: ProductionArticlePhase;
+  shouldAutoExpandOnScroll: boolean;
+  expandedAt: string | null;
+}
 
 export interface ProductionStage {
   key: ProductionStageKey;
@@ -38,6 +45,7 @@ export interface ProductionOutputs {
   imagePreviewUrl: string;
   videoPreviewUrl: string;
   audioPreviewUrl: string;
+  draftProgress: ProductionDraftProgress;
 }
 
 export interface ProductionRouteInfo {
@@ -153,7 +161,12 @@ function buildDefaultOutputs(packId = "production"): ProductionOutputs {
     voiceoverText: "",
     imagePreviewUrl: `https://picsum.photos/seed/${encodeURIComponent(`${packId}-cover`)}/1080/1920`,
     videoPreviewUrl: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-    audioPreviewUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+    audioPreviewUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    draftProgress: {
+      articlePhase: "expanded",
+      shouldAutoExpandOnScroll: false,
+      expandedAt: null
+    }
   };
 }
 
@@ -213,6 +226,10 @@ function normalizeStages(value: Array<Partial<ProductionStage>> | null | undefin
 
 function normalizeOutputs(value: Partial<ProductionOutputs> | null | undefined, packId: string): ProductionOutputs {
   const defaults = buildDefaultOutputs(packId);
+  const rawProgress =
+    value && "draftProgress" in value && typeof value.draftProgress === "object" && value.draftProgress !== null
+      ? (value.draftProgress as Partial<ProductionDraftProgress>)
+      : null;
 
   return {
     articleTitle: typeof value?.articleTitle === "string" ? value.articleTitle : defaults.articleTitle,
@@ -226,7 +243,15 @@ function normalizeOutputs(value: Partial<ProductionOutputs> | null | undefined, 
     voiceoverText: typeof value?.voiceoverText === "string" ? value.voiceoverText : defaults.voiceoverText,
     imagePreviewUrl: typeof value?.imagePreviewUrl === "string" ? value.imagePreviewUrl : defaults.imagePreviewUrl,
     videoPreviewUrl: typeof value?.videoPreviewUrl === "string" ? value.videoPreviewUrl : defaults.videoPreviewUrl,
-    audioPreviewUrl: typeof value?.audioPreviewUrl === "string" ? value.audioPreviewUrl : defaults.audioPreviewUrl
+    audioPreviewUrl: typeof value?.audioPreviewUrl === "string" ? value.audioPreviewUrl : defaults.audioPreviewUrl,
+    draftProgress: {
+      articlePhase: rawProgress?.articlePhase === "initial" ? "initial" : "expanded",
+      shouldAutoExpandOnScroll:
+        rawProgress?.articlePhase === "initial"
+          ? rawProgress?.shouldAutoExpandOnScroll !== false
+          : rawProgress?.shouldAutoExpandOnScroll === true,
+      expandedAt: typeof rawProgress?.expandedAt === "string" && rawProgress.expandedAt.trim() ? rawProgress.expandedAt : null
+    }
   };
 }
 
@@ -255,8 +280,29 @@ function isMissingProductionJobsTable(error: unknown) {
   );
 }
 
+function isMissingProductionJobsColumn(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "42703"
+  );
+}
+
+function isRecoverableProductionJobsReadError(error: unknown) {
+  return isMissingProductionJobsTable(error) || isMissingProductionJobsColumn(error);
+}
+
+function logProductionJobsReadFallback(context: string, error: unknown) {
+  console.warn(`[production-studio] ${context} fallback`, error);
+}
+
 function getHostedJobPersistenceError() {
   return new Error("线上环境尚未创建 production_jobs 表，请先执行最新的 db/schema.sql。");
+}
+
+function getHostedJobSchemaUpgradeError() {
+  return new Error("线上环境的 production_jobs 表字段不完整，请重新执行最新的 db/schema.sql。");
 }
 
 async function listProductionJobsFromSupabase(): Promise<ProductionJobRecord[]> {
@@ -273,7 +319,8 @@ async function listProductionJobsFromSupabase(): Promise<ProductionJobRecord[]> 
     .returns<ProductionJobRow[]>();
 
   if (error || !data) {
-    if (isMissingProductionJobsTable(error)) {
+    if (isRecoverableProductionJobsReadError(error)) {
+      logProductionJobsReadFallback("listProductionJobsFromSupabase", error);
       return [];
     }
 
@@ -317,6 +364,10 @@ async function upsertProductionJob(job: ProductionJobRecord): Promise<void> {
   if (error) {
     if (isMissingProductionJobsTable(error)) {
       throw getHostedJobPersistenceError();
+    }
+
+    if (isMissingProductionJobsColumn(error)) {
+      throw getHostedJobSchemaUpgradeError();
     }
 
     throw error;
@@ -556,6 +607,20 @@ interface ProductionAssetExecutionResult extends ProductionStageExecutionResult 
   audioPreviewUrl?: string;
 }
 
+function buildDraftProgress(
+  articlePhase: ProductionArticlePhase,
+  options?: {
+    shouldAutoExpandOnScroll?: boolean;
+    expandedAt?: string | null;
+  }
+): ProductionDraftProgress {
+  return {
+    articlePhase,
+    shouldAutoExpandOnScroll: options?.shouldAutoExpandOnScroll ?? articlePhase === "initial",
+    expandedAt: options?.expandedAt ?? (articlePhase === "expanded" ? new Date().toISOString() : null)
+  };
+}
+
 function getProviderLabel(provider: string): string {
   if (provider === "minimax") {
     return "MiniMax";
@@ -587,6 +652,52 @@ function normalizePromptText(value: string): string {
     .replace(/^(提示词|prompt|image prompt|video prompt)\s*[:：]\s*/gim, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function sliceTextByCharacters(value: string, maxChars: number) {
+  const normalized = value.replace(/\r/g, "").trim();
+  const chars = Array.from(normalized);
+
+  if (chars.length <= maxChars) {
+    return normalized;
+  }
+
+  return `${chars.slice(0, maxChars).join("").trimEnd()}...`;
+}
+
+function buildInitialArticlePreviewBody(value: string) {
+  const paragraphs = value
+    .split(/\n+/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  if (paragraphs.length === 0) {
+    return "";
+  }
+
+  const previewParagraphs = paragraphs.slice(0, 3).map((paragraph, index) => {
+    if (index === 2) {
+      return sliceTextByCharacters(paragraph, 110);
+    }
+
+    return sliceTextByCharacters(paragraph, 160);
+  });
+
+  return sliceTextByCharacters(previewParagraphs.join("\n\n"), 320);
+}
+
+function stripStoredBrandPrefix(articleBody: string) {
+  return articleBody.replace(/^【品牌：[^】]+】\s*\n\n/, "").trim();
+}
+
+function prependBrandPrefix(brandName: string, articleBody: string) {
+  const cleanBody = stripStoredBrandPrefix(articleBody);
+
+  if (!cleanBody) {
+    return `【品牌：${brandName}】`;
+  }
+
+  return `【品牌：${brandName}】\n\n${cleanBody}`;
 }
 
 function parseJsonCandidate(input: string): Record<string, unknown> | null {
@@ -653,7 +764,10 @@ function buildOutputs(pack: HotspotPack): ProductionOutputs {
     voiceoverText: videoScript,
     imagePreviewUrl: `https://picsum.photos/seed/${encodeURIComponent(`${pack.id}-cover`)}/1080/1920`,
     videoPreviewUrl: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-    audioPreviewUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+    audioPreviewUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    draftProgress: buildDraftProgress("expanded", {
+      shouldAutoExpandOnScroll: false
+    })
   };
 }
 
@@ -671,7 +785,8 @@ function mergeOutputs(base: ProductionOutputs, generated: ProductionDraftPayload
     imagePrompt: generated?.imagePrompt ?? base.imagePrompt,
     videoPrompt: generated?.videoPrompt ?? base.videoPrompt,
     subtitleSrt: buildSubtitleSrt(videoScript),
-    voiceoverText
+    voiceoverText,
+    draftProgress: base.draftProgress
   };
 }
 
@@ -714,6 +829,66 @@ function buildProductionPrompt(input: {
     input.base.articleBody,
     "当前视频脚本参考:",
     input.base.videoScript
+  ].join("\n");
+}
+
+function buildInitialArticlePrompt(input: {
+  brandName: string;
+  pack: HotspotPack;
+  hotspotTitle?: string;
+  hotspotSummary?: string;
+  base: ProductionOutputs;
+}) {
+  const articleVariant = pickVariant(input.pack, (variant) => variant.format === "article" || variant.platforms.includes("wechat"));
+
+  return [
+    "你是中国品牌内容主编，要先输出一版用户点开后首屏就能看到的图文首版。",
+    "请只返回 JSON，不要解释，不要 markdown。",
+    'JSON 字段固定为: articleTitle, articleBody。',
+    "要求：",
+    "- 全部使用简体中文。",
+    "- articleBody 只写首屏预览版，控制在 3 段以内，先给结论，再给判断，不要把整篇长文一次写完。",
+    "- 首屏预览版要像已经能给人看，不要像提纲、不要像占位符。",
+    `品牌: ${input.brandName}`,
+    `热点标题: ${input.hotspotTitle ?? input.pack.whyNow}`,
+    `热点摘要: ${input.hotspotSummary ?? input.pack.whyNow}`,
+    `为什么现在做: ${input.pack.whyNow}`,
+    `为什么品牌适合做: ${input.pack.whyUs}`,
+    `图文角度: ${articleVariant.angle}`,
+    `当前标题参考: ${input.base.articleTitle}`,
+    "当前正文参考:",
+    stripStoredBrandPrefix(input.base.articleBody)
+  ].join("\n");
+}
+
+function buildExpandedArticlePrompt(input: {
+  brandName: string;
+  pack: HotspotPack;
+  hotspotTitle?: string;
+  hotspotSummary?: string;
+  base: ProductionOutputs;
+}) {
+  const articleVariant = pickVariant(input.pack, (variant) => variant.format === "article" || variant.platforms.includes("wechat"));
+
+  return [
+    "你是中国品牌内容主编，现在要把首屏预览版扩成完整图文成稿。",
+    "请只返回 JSON，不要解释，不要 markdown。",
+    'JSON 字段固定为: articleTitle, articleBody, imagePrompt。',
+    "要求：",
+    "- 全部使用简体中文。",
+    "- articleBody 输出完整正文，适合公众号 / 小红书长图文首版，结构完整，不要写成提纲。",
+    "- 正文要明显比首屏预览版更完整，至少包含判断、原因、动作建议三个层次。",
+    "- imagePrompt 输出 1 条中文封面/配图提示词，突出主体、构图、中文标题可读性。",
+    `品牌: ${input.brandName}`,
+    `热点标题: ${input.hotspotTitle ?? input.pack.whyNow}`,
+    `热点摘要: ${input.hotspotSummary ?? input.pack.whyNow}`,
+    `为什么现在做: ${input.pack.whyNow}`,
+    `为什么品牌适合做: ${input.pack.whyUs}`,
+    `图文角度: ${articleVariant.angle}`,
+    "当前首屏预览版标题:",
+    input.base.articleTitle,
+    "当前首屏预览版正文:",
+    stripStoredBrandPrefix(input.base.articleBody)
   ].join("\n");
 }
 
@@ -764,6 +939,110 @@ async function generateDraftWithAi(
       route,
       payload: null,
       note: `AI 调用失败，已回退到模板草稿。${error instanceof Error ? error.message : "Unknown error"}`
+    };
+  }
+}
+
+async function generateInitialArticleDraftWithAi(
+  pack: HotspotPack,
+  baseOutputs: ProductionOutputs,
+  brandName: string,
+  selection?: ProductionGenerationSelection
+): Promise<ProductionDraftGenerationResult> {
+  const signals = await getHotspotSignals();
+  const hotspot = signals.find((item) => item.id === pack.hotspotId);
+  const route = await decideModelRoute("content-generation", {
+    feature: "production-generation",
+    desiredProvider: selection?.provider,
+    modelOverride: selection?.model
+  });
+
+  if (route.provider === "mock") {
+    return {
+      route,
+      payload: null,
+      note: "未检测到可用 AI 密钥，已直接回退到本地完整草稿。"
+    };
+  }
+
+  try {
+    const output = await runResolvedModelTask(
+      route,
+      buildInitialArticlePrompt({
+        brandName,
+        pack,
+        hotspotTitle: hotspot?.title,
+        hotspotSummary: hotspot?.summary,
+        base: baseOutputs
+      })
+    );
+    const payload = parseProductionDraftPayload(output);
+
+    return {
+      route,
+      payload:
+        payload && (payload.articleTitle || payload.articleBody)
+          ? {
+              articleTitle: payload.articleTitle,
+              articleBody: payload.articleBody ? buildInitialArticlePreviewBody(payload.articleBody) : undefined
+            }
+          : null,
+      note: payload ? "已先生成首屏图文预览版，完整正文将在继续浏览时补全。" : "AI 返回结构不完整，已回退到本地完整草稿。"
+    };
+  } catch (error) {
+    return {
+      route,
+      payload: null,
+      note: `首屏预览调用失败，已回退到本地完整草稿。${error instanceof Error ? error.message : "Unknown error"}`
+    };
+  }
+}
+
+async function generateExpandedArticleDraftWithAi(
+  pack: HotspotPack,
+  baseOutputs: ProductionOutputs,
+  brandName: string,
+  selection?: ProductionGenerationSelection
+): Promise<ProductionDraftGenerationResult> {
+  const signals = await getHotspotSignals();
+  const hotspot = signals.find((item) => item.id === pack.hotspotId);
+  const route = await decideModelRoute("content-generation", {
+    feature: "production-generation",
+    desiredProvider: selection?.provider,
+    modelOverride: selection?.model
+  });
+
+  if (route.provider === "mock") {
+    return {
+      route,
+      payload: null,
+      note: "未检测到可用 AI 密钥，继续沿用当前完整草稿。"
+    };
+  }
+
+  try {
+    const output = await runResolvedModelTask(
+      route,
+      buildExpandedArticlePrompt({
+        brandName,
+        pack,
+        hotspotTitle: hotspot?.title,
+        hotspotSummary: hotspot?.summary,
+        base: baseOutputs
+      })
+    );
+    const payload = parseProductionDraftPayload(output);
+
+    return {
+      route,
+      payload,
+      note: payload ? "已补全完整图文正文与封面提示词。" : "AI 返回结构不完整，已保留当前草稿。"
+    };
+  } catch (error) {
+    return {
+      route,
+      payload: null,
+      note: `扩展正文调用失败，已保留当前草稿。${error instanceof Error ? error.message : "Unknown error"}`
     };
   }
 }
@@ -890,6 +1169,24 @@ function buildSkippedAssetResult(kind: "image" | "video"): ProductionAssetExecut
     provider: "OpenAI Sora",
     model: process.env.OPENAI_VIDEO_MODEL?.trim() || "sora-2",
     note: "本次未执行视频生成；如需短视频，请单独点击“生成视频”。"
+  };
+}
+
+function buildPendingContinuationAssetResult(kind: "image" | "video"): ProductionAssetExecutionResult {
+  if (kind === "image") {
+    return {
+      status: "pending",
+      provider: "OpenAI Images",
+      model: process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-1.5",
+      note: "当前只先生成首屏文案，往下浏览时会继续补全封面提示词。"
+    };
+  }
+
+  return {
+    status: "pending",
+    provider: "OpenAI Sora",
+    model: process.env.OPENAI_VIDEO_MODEL?.trim() || "sora-2",
+    note: "当前视频链路仍保持后放，本次不在首屏阶段执行。"
   };
 }
 
@@ -1049,12 +1346,13 @@ export async function getLatestProductionJobForPackByType(
   const supabase = getSupabaseServerClient();
 
   if (supabase && isUuid(packId)) {
-    let query = supabase
+    const baseQuery = supabase
       .from("production_jobs")
       .select("*")
       .eq("pack_id", packId)
-      .order("updated_at", { ascending: false })
-      .limit(1);
+      .order("updated_at", { ascending: false });
+
+    let query = baseQuery.limit(1);
 
     if (jobType) {
       query = query.eq("job_type", jobType);
@@ -1062,12 +1360,37 @@ export async function getLatestProductionJobForPackByType(
 
     const { data, error } = await query.maybeSingle<ProductionJobRow>();
 
-    if (error || !data) {
-      if (isMissingProductionJobsTable(error)) {
+    if (error) {
+      if (jobType && isMissingProductionJobsColumn(error)) {
+        logProductionJobsReadFallback(`getLatestProductionJobForPackByType(${jobType})`, error);
+
+        const { data: fallbackRows, error: fallbackError } = await baseQuery
+          .limit(20)
+          .returns<ProductionJobRow[]>();
+
+        if (fallbackError) {
+          if (isRecoverableProductionJobsReadError(fallbackError)) {
+            logProductionJobsReadFallback(`getLatestProductionJobForPackByType(${jobType}) secondary`, fallbackError);
+            return null;
+          }
+
+          throw fallbackError;
+        }
+
+        const fallbackJobs = (fallbackRows ?? []).map(mapProductionJobRow);
+        return fallbackJobs.find((job) => job.jobType === jobType) ?? null;
+      }
+
+      if (isRecoverableProductionJobsReadError(error)) {
+        logProductionJobsReadFallback(`getLatestProductionJobForPackByType(${jobType ?? "latest"})`, error);
         return null;
       }
 
       throw error;
+    }
+
+    if (!data) {
+      return null;
     }
 
     return mapProductionJobRow(data);
@@ -1105,6 +1428,66 @@ export async function runProductionJob(
   const runCount = (previous?.runCount ?? 0) + 1;
   const jobId = deterministicId(`${pack.id}:${jobType}:run:${runCount}`);
   const baseOutputs = buildOutputs(pack);
+
+  if (jobType === "article") {
+    const generated = await generateInitialArticleDraftWithAi(pack, baseOutputs, brand.name, selection);
+    const hasInitialPreview = Boolean(generated.payload?.articleBody && generated.route.provider !== "mock");
+    const previewPayload = hasInitialPreview
+      ? {
+          articleTitle: generated.payload?.articleTitle ?? baseOutputs.articleTitle,
+          articleBody: buildInitialArticlePreviewBody(generated.payload?.articleBody ?? baseOutputs.articleBody)
+        }
+      : null;
+
+    const outputs: ProductionOutputs = {
+      ...(previewPayload ? mergeOutputs(baseOutputs, previewPayload) : baseOutputs),
+      draftProgress: buildDraftProgress(hasInitialPreview ? "initial" : "expanded", {
+        shouldAutoExpandOnScroll: hasInitialPreview,
+        expandedAt: hasInitialPreview ? null : now
+      })
+    };
+
+    const imagePlanning = {
+      route: generated.route,
+      prompt: outputs.imagePrompt,
+      note: hasInitialPreview ? "完整正文与封面提示词会在继续浏览时自动补全。" : "当前直接沿用现有封面提示词。"
+    };
+    const videoPlanning = {
+      route: generated.route,
+      prompt: outputs.videoPrompt,
+      note: "视频链路本轮仍保持后放，不在首屏阶段执行。"
+    };
+    const imageResult = hasInitialPreview ? buildPendingContinuationAssetResult("image") : buildDeferredAssetResult("image");
+    const videoResult = buildPendingContinuationAssetResult("video");
+
+    const job: ProductionJobRecord = {
+      id: jobId,
+      packId: pack.id,
+      jobType,
+      status: "completed",
+      mode: "preview-pipeline",
+      runCount,
+      createdAt: now,
+      updatedAt: now,
+      route: {
+        requestedProvider: selection?.provider ?? null,
+        requestedModel: selection?.model?.trim() || null,
+        effectiveProvider: generated.route.provider,
+        effectiveModel: generated.route.model,
+        reason: generated.route.reason
+      },
+      stages: buildStages(now, jobType, generated, imagePlanning, videoPlanning, imageResult, videoResult),
+      outputs: {
+        ...outputs,
+        articleBody: prependBrandPrefix(brand.name, outputs.articleBody)
+      }
+    };
+
+    await upsertProductionJob(job);
+
+    return job;
+  }
+
   const generated = await generateDraftWithAi(pack, baseOutputs, brand.name, selection);
   let outputs = mergeOutputs(baseOutputs, generated.payload);
   const signals = await getHotspotSignals();
@@ -1189,7 +1572,94 @@ export async function runProductionJob(
     stages: buildStages(now, jobType, generated, imagePlanning, videoPlanning, imageResult, videoResult),
     outputs: {
       ...outputs,
-      articleBody: `【品牌：${brand.name}】\n\n${outputs.articleBody}`
+      articleBody: prependBrandPrefix(brand.name, outputs.articleBody),
+      draftProgress: buildDraftProgress("expanded", {
+        shouldAutoExpandOnScroll: false,
+        expandedAt: now
+      })
+    }
+  };
+
+  await upsertProductionJob(job);
+
+  return job;
+}
+
+export async function continueProductionJob(
+  packId: string,
+  selection?: ProductionGenerationSelection
+): Promise<ProductionJobRecord> {
+  const pack = await getHotspotPack(packId);
+
+  if (!pack) {
+    throw new Error("未找到对应选题");
+  }
+
+  const latest = await getLatestProductionJobForPackByType(packId, "article");
+
+  if (!latest) {
+    throw new Error("请先生成图文首屏版，再继续补全后半段。");
+  }
+
+  if (latest.outputs.draftProgress.articlePhase === "expanded") {
+    return latest;
+  }
+
+  const brand = await getBrandStrategyPack();
+  const now = new Date().toISOString();
+  const baseOutputs: ProductionOutputs = {
+    ...latest.outputs,
+    articleBody: stripStoredBrandPrefix(latest.outputs.articleBody)
+  };
+  const generated = await generateExpandedArticleDraftWithAi(pack, baseOutputs, brand.name, selection);
+  const mergedOutputs = mergeOutputs(baseOutputs, generated.payload);
+  const imagePlanning = await planAssetPrompt({
+    kind: "image",
+    brandName: brand.name,
+    pack,
+    basePrompt: mergedOutputs.imagePrompt,
+    selection: {
+      provider: selection?.imageProvider,
+      model: selection?.imageModel
+    }
+  });
+  const imageResult = buildDeferredAssetResult("image");
+  const videoPlanning = {
+    route: generated.route,
+    prompt: mergedOutputs.videoPrompt,
+    note: "视频链路本轮仍保持后放，本次只补全图文后半段。"
+  };
+  const videoResult = buildPendingContinuationAssetResult("video");
+  const job: ProductionJobRecord = {
+    ...latest,
+    updatedAt: now,
+    route: {
+      requestedProvider: selection?.provider ?? latest.route.requestedProvider,
+      requestedModel: selection?.model?.trim() || latest.route.requestedModel,
+      effectiveProvider: generated.route.provider,
+      effectiveModel: generated.route.model,
+      reason: generated.route.reason
+    },
+    stages: buildStages(
+      now,
+      latest.jobType,
+      {
+        ...generated,
+        note: `${generated.note} 现在已经切到完整正文版本。`
+      },
+      imagePlanning,
+      videoPlanning,
+      imageResult,
+      videoResult
+    ),
+    outputs: {
+      ...mergedOutputs,
+      imagePrompt: imagePlanning.prompt,
+      articleBody: prependBrandPrefix(brand.name, mergedOutputs.articleBody),
+      draftProgress: buildDraftProgress("expanded", {
+        shouldAutoExpandOnScroll: false,
+        expandedAt: now
+      })
     }
   };
 

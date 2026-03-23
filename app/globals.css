@@ -1677,10 +1677,129 @@ strong {
   gap: 0.9rem;
 }
 
+.productionEditorBodyGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.productionEditorMainField textarea {
+  min-height: 520px;
+}
+
+.productionArticlePreviewPanel {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.productionArticleCard {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 245, 240, 0.9));
+  padding: 1.15rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.productionArticleBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.productionArticleBody p {
+  margin: 0;
+  line-height: 1.82;
+  color: var(--text);
+}
+
 .productionQuickStart {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+}
+
+.productionDeferredHint {
+  margin: 0;
+}
+
+.productionSelectionAssistant {
+  gap: 1rem;
+}
+
+.productionSelectionMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.productionSelectionPreview {
+  min-height: 148px;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px dashed rgba(39, 54, 76, 0.2);
+  border-radius: 14px;
+  padding: 0.9rem 0.95rem;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text);
+  line-height: 1.72;
+  white-space: pre-wrap;
+}
+
+.productionSelectionPrompt {
+  min-height: 120px;
+}
+
+.productionSelectionActions {
+  justify-content: flex-start;
+}
+
+.productionSelectionCompare {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding-top: 0.2rem;
+  border-top: 1px solid rgba(39, 54, 76, 0.08);
+}
+
+.productionSelectionCompareGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.productionSelectionCompareCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.85rem 0.9rem;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.productionSelectionDiffText {
+  min-height: 88px;
+  color: var(--text);
+  line-height: 1.78;
+  white-space: pre-wrap;
+}
+
+.productionDiffToken {
+  border-radius: 0.35rem;
+}
+
+.productionDiffTokenAdded {
+  background: rgba(119, 197, 121, 0.24);
+  color: #22582a;
+}
+
+.productionDiffTokenRemoved {
+  background: rgba(224, 115, 115, 0.2);
+  color: #8a2f2f;
+  text-decoration: line-through;
 }
 
 .productionStatusGrid {
@@ -1699,6 +1818,10 @@ strong {
 
 .productionStatusCard .pill {
   width: fit-content;
+}
+
+.productionDeferredCard {
+  background: rgba(247, 246, 242, 0.88);
 }
 
 .mobileDockNav {
@@ -1909,13 +2032,11 @@ strong {
   align-items: stretch;
 }
 
-.homeHeroMomentCard {
+.homeTopMomentBar {
   display: flex;
-  min-height: 100%;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.05rem 1.1rem;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 0.9rem 1.1rem;
   border: 1px solid rgba(24, 30, 41, 0.08);
   border-radius: 18px;
   background:
@@ -1926,63 +2047,73 @@ strong {
     0 10px 30px rgba(18, 24, 32, 0.045);
 }
 
-.homeHeroMomentMeta,
-.homeHeroMomentQuoteBlock {
+.homeTopMomentDate,
+.homeTopMomentQuote {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 0.78rem;
+  min-width: 0;
 }
 
-.homeHeroMomentMeta {
-  gap: 0.38rem;
+.homeTopMomentDate {
+  flex: 0 0 auto;
 }
 
-.homeHeroMomentBadge,
-.homeHeroMomentLabel {
+.homeTopMomentQuote {
+  flex: 1 1 auto;
+}
+
+.homeTopMomentBadge,
+.homeTopMomentLabel {
   color: var(--text-faint);
   font-size: 0.74rem;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.homeHeroMomentBadge {
-  align-self: flex-start;
+.homeTopMomentBadge {
   padding: 0.32rem 0.58rem;
   border-radius: 999px;
   border: 1px solid rgba(24, 30, 41, 0.08);
   background: rgba(255, 255, 255, 0.7);
-  letter-spacing: 0.08em;
 }
 
-.homeHeroMomentMeta strong {
-  font-size: clamp(1.02rem, 1.6vw, 1.2rem);
+.homeTopMomentDate strong {
+  font-size: clamp(0.98rem, 1.25vw, 1.12rem);
   font-weight: 610;
   letter-spacing: -0.02em;
   color: var(--accent-strong);
+  white-space: nowrap;
 }
 
-.homeHeroMomentMeta p,
-.homeHeroMomentSource,
-.homeHeroMomentQuoteBlock blockquote {
+.homeTopMomentDate p,
+.homeTopMomentQuote p,
+.homeTopMomentSource {
   margin: 0;
 }
 
-.homeHeroMomentMeta p,
-.homeHeroMomentSource {
+.homeTopMomentDate p,
+.homeTopMomentSource {
   color: var(--text-soft);
   font-size: 0.86rem;
+  white-space: nowrap;
 }
 
-.homeHeroMomentQuoteBlock {
-  gap: 0.55rem;
-  padding-top: 0.95rem;
-  border-top: 1px solid rgba(24, 30, 41, 0.08);
+.homeTopMomentSource {
+  margin-left: auto;
 }
 
-.homeHeroMomentQuoteBlock blockquote {
+.homeTopMomentDivider {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(24, 30, 41, 0.08);
+}
+
+.homeTopMomentQuote p {
   color: var(--accent-strong);
   font-family: var(--font-display), "PingFang SC", sans-serif;
-  font-size: 1rem;
-  line-height: 1.7;
+  font-size: 0.98rem;
+  line-height: 1.5;
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
@@ -2347,6 +2478,10 @@ strong {
 .summaryGrid,
 .hotspotSyncFacts {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.summaryGrid.stagedTaskStatusGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .summaryCard h3,
@@ -4110,6 +4245,10 @@ strong {
   .productionPreviewGrid {
     grid-template-columns: 1fr 1fr;
   }
+
+  .productionEditorBodyGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px), (hover: none) and (pointer: coarse) and (max-width: 1024px) {
@@ -4175,8 +4314,26 @@ strong {
     font-size: 2rem;
   }
 
-  .homeHeroMomentCard {
-    min-height: 0;
+  .homeTopMomentBar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  .homeTopMomentDate,
+  .homeTopMomentQuote {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+  }
+
+  .homeTopMomentDivider {
+    width: 100%;
+    height: 1px;
+  }
+
+  .homeTopMomentSource {
+    margin-left: 0;
   }
 
   .summaryGrid,
@@ -4211,6 +4368,10 @@ strong {
 
   .brandAutofillControls .buttonLike {
     width: 100%;
+  }
+
+  .summaryGrid.stagedTaskStatusGrid {
+    grid-template-columns: 1fr;
   }
 
   .emptyStateCard,
@@ -4302,6 +4463,10 @@ strong {
   .productionPackList,
   .productionStageGrid,
   .productionPreviewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .productionEditorBodyGrid {
     grid-template-columns: 1fr;
   }
 }

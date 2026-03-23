@@ -214,6 +214,22 @@ export default async function HomePage() {
 
   return (
     <div className="page workbenchPageV2">
+      <section className="panel homeTopMomentBar" aria-label="今日时间与箴言">
+        <div className="homeTopMomentDate">
+          <span className="homeTopMomentBadge">{homepageMoment.weekdayLabel}</span>
+          <strong>{homepageMoment.dateLabel}</strong>
+        </div>
+
+        <div className="homeTopMomentDivider" aria-hidden="true" />
+
+        <div className="homeTopMomentQuote">
+          <span className="homeTopMomentLabel">今日箴言</span>
+          <p>{homepageMoment.quote}</p>
+        </div>
+
+        <p className="homeTopMomentSource">{homepageMoment.source}</p>
+      </section>
+
       <section className="panel brandWorkbenchCard">
         <div className="brandWorkbenchHead">
           <div>
@@ -270,23 +286,6 @@ export default async function HomePage() {
           { label: "发布异常", value: `${failedJobs.length} 条` },
           { label: "最近同步", value: formatDateTime(syncSnapshot?.executedAt) }
         ]}
-        visual={
-          <aside className="homeHeroMomentCard" aria-label="今日时间与箴言">
-            <div className="homeHeroMomentMeta">
-              <span className="homeHeroMomentBadge">
-                {homepageMoment.weekdayLabel} · {homepageMoment.dayPeriodLabel}
-              </span>
-              <strong>{homepageMoment.dateLabel}</strong>
-              <p>{homepageMoment.timeLabel}</p>
-            </div>
-
-            <div className="homeHeroMomentQuoteBlock">
-              <span className="homeHeroMomentLabel">今日箴言</span>
-              <blockquote>{homepageMoment.quote}</blockquote>
-              <p className="homeHeroMomentSource">{homepageMoment.source}</p>
-            </div>
-          </aside>
-        }
         title="今天先处理什么"
         variant="utility"
       />

@@ -26,6 +26,11 @@ interface ReviewEditorProps {
   angle: string;
   whyNow: string;
   whyUs: string;
+  reviewNote?: string;
+  sourceTitle?: string;
+  sourceExcerpt?: string;
+  sourceUrl?: string;
+  sourceFetchedAt?: string;
   initialTitle: string;
   initialBody: string;
   initialHook: string;
@@ -92,6 +97,11 @@ export function ReviewEditor({
   angle,
   whyNow,
   whyUs,
+  reviewNote,
+  sourceTitle,
+  sourceExcerpt,
+  sourceUrl,
+  sourceFetchedAt,
   initialTitle,
   initialBody,
   initialHook
@@ -116,7 +126,6 @@ export function ReviewEditor({
   const [isPending, startTransition] = useTransition();
   const initializedRef = useRef(false);
   const loadedFromStorageRef = useRef(false);
-  const [autoExpandedOnLoad, setAutoExpandedOnLoad] = useState(false);
   const storageKey = useMemo(
     () =>
       getDraftStorageKey({
@@ -159,7 +168,6 @@ export function ReviewEditor({
 
   useEffect(() => {
     loadedFromStorageRef.current = false;
-    setAutoExpandedOnLoad(false);
     setSaveState("loading");
     const stored = window.localStorage.getItem(storageKey);
     const trackHint = trackLabel.includes("观点") ? "point-of-view" : "rapid-response";
@@ -175,7 +183,8 @@ export function ReviewEditor({
           whyUs,
           minimumChars: minimumBodyChars,
           platformHint: platformLabel,
-          trackHint
+          trackHint,
+          strategy: "preserve"
         });
 
         setTitle(parsed.title ?? initialTitle);
@@ -184,7 +193,6 @@ export function ReviewEditor({
         setChangeLog(parsed.changeLog ?? []);
         setLastSavedAt(parsed.updatedAt);
         setPreviousSnapshot(parsed.previousSnapshot);
-        setAutoExpandedOnLoad(normalized.wasExpanded);
         loadedFromStorageRef.current = true;
       } catch {
         window.localStorage.removeItem(storageKey);
@@ -198,7 +206,8 @@ export function ReviewEditor({
         whyUs,
         minimumChars: minimumBodyChars,
         platformHint: platformLabel,
-        trackHint
+        trackHint,
+        strategy: "preserve"
       });
 
       setTitle(initialTitle);
@@ -207,7 +216,6 @@ export function ReviewEditor({
       setChangeLog([]);
       setLastSavedAt(undefined);
       setPreviousSnapshot(undefined);
-      setAutoExpandedOnLoad(normalized.wasExpanded);
     }
 
     initializedRef.current = true;
@@ -307,6 +315,11 @@ export function ReviewEditor({
             trackLabel,
             whyNow,
             whyUs,
+            reviewNote,
+            sourceTitle,
+            sourceExcerpt,
+            sourceUrl,
+            sourceFetchedAt,
             brandName,
             brandTone,
             redLines
@@ -355,6 +368,11 @@ export function ReviewEditor({
     coverHook,
     platformLabel,
     redLines,
+    reviewNote,
+    sourceExcerpt,
+    sourceFetchedAt,
+    sourceTitle,
+    sourceUrl,
     title,
     trackLabel,
     whyNow,
@@ -380,6 +398,11 @@ export function ReviewEditor({
           trackLabel,
           whyNow,
           whyUs,
+          reviewNote,
+          sourceTitle,
+          sourceExcerpt,
+          sourceUrl,
+          sourceFetchedAt,
           brandName,
           brandTone,
           redLines
@@ -434,6 +457,11 @@ export function ReviewEditor({
           trackLabel,
           whyNow,
           whyUs,
+          reviewNote,
+          sourceTitle,
+          sourceExcerpt,
+          sourceUrl,
+          sourceFetchedAt,
           brandName,
           brandTone,
           redLines,
@@ -584,6 +612,39 @@ export function ReviewEditor({
         </span>
       </div>
 
+      <section className="editorAssistNote editorAssistGrid">
+        <div>
+          <strong>AI 源头判断</strong>
+          {reviewNote ? (
+            reviewNote
+              .split("\n")
+              .map((line) => line.trim())
+              .filter(Boolean)
+              .map((line, index) => (
+                <p className="muted" key={`${line}-${index}`}>
+                  {line}
+                </p>
+              ))
+          ) : (
+            <p className="muted">这条内容暂时还没有生成源头判断，当前先沿用审核台里的立题信息。</p>
+          )}
+        </div>
+        <div>
+          <strong>原始来源线索</strong>
+          <p className="muted">{sourceTitle || "暂未抓到原始页面标题"}</p>
+          <p className="muted">{sourceExcerpt || "暂未抓到原始页面正文片段，AI 这轮会主要参考当前草稿和热点摘要。"}</p>
+          {sourceFetchedAt ? <p className="muted">抓取时间：{formatLocalTimestamp(sourceFetchedAt)}</p> : null}
+          {sourceUrl ? (
+            <p className="muted">
+              原文链接：
+              <a href={sourceUrl} rel="noreferrer" target="_blank">
+                查看原始来源
+              </a>
+            </p>
+          ) : null}
+        </div>
+      </section>
+
       <div className="editorSimpleFields editorWorkbenchFields">
         <div className="field">
           <span>标题</span>
@@ -685,8 +746,8 @@ export function ReviewEditor({
         </div>
 
         {message ? <p className="muted">{message}</p> : null}
-        {autoExpandedOnLoad ? (
-          <p className="muted">检测到历史草稿长度不足，已按当前平台标准自动补齐为可发布初稿。</p>
+        {bodyStats.characters < minimumBodyChars ? (
+          <p className="muted">当前正文还低于建议长度，系统已改为保留原稿，不再自动补模板段落来“凑完整”。</p>
         ) : null}
         {saveState === "saving" ? (
           <p className="muted">当前有未完成保存的改动，刷新或关闭页面时浏览器会提醒。</p>
