@@ -54,6 +54,22 @@ function countCompletedSteps(draft: BrandAutofillDraft) {
   return count;
 }
 
+function resolveRouteLabel(route: BrandAutofillRoute): string {
+  if (route.provider === "fallback") {
+    return "本地草稿";
+  }
+
+  if (route.provider === "gemini") {
+    return "Gemini 深搜";
+  }
+
+  if (route.provider === "minimax") {
+    return "MiniMax";
+  }
+
+  return route.provider;
+}
+
 export function BrandAutofillPanel({
   initialBrandName,
   compact = false,
@@ -186,7 +202,7 @@ export function BrandAutofillPanel({
           <div className="tagRow">
             <span className="tag">品牌：{result.strategy.name}</span>
             <span className="tag">行业：{result.strategy.sector}</span>
-            <span className="tag">来源：{result.route.provider === "fallback" ? "本地草稿" : "联网深搜"}</span>
+            <span className="tag">来源：{resolveRouteLabel(result.route)}</span>
           </div>
 
           <div className="brandAutofillSummary">

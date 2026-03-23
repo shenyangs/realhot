@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiAccess } from "@/lib/auth/api-guard";
 import { canAccessAdmin } from "@/lib/auth/permissions";
-import { getCurrentViewer } from "@/lib/auth/session";
 import { setDemoUserStatus, setPlatformUserStatus } from "@/lib/auth/repository";
 
 export async function PATCH(
@@ -11,19 +11,15 @@ export async function PATCH(
     }>;
   }
 ) {
-  const viewer = await getCurrentViewer();
+  const access = await requireApiAccess(request, {
+    authorize: canAccessAdmin
+  });
 
-  if (!canAccessAdmin(viewer)) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "forbidden"
-      },
-      {
-        status: 403
-      }
-    );
+  if (!access.ok) {
+    return access.response;
   }
+
+  const { viewer } = access;
 
   const { userId } = await context.params;
   const body = (await request.json().catch(() => ({}))) as {

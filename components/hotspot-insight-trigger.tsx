@@ -56,10 +56,10 @@ export function HotspotInsightTrigger({ hotspotId }: HotspotInsightTriggerProps)
   return (
     <div className="hotspotInsightBlock">
       <div className="hotspotInsightActions">
-        <button disabled={isPending} onClick={fetchInsight} type="button">
-          {isPending ? "正在分析这条热点..." : "深挖传播建议"}
+        <button className="buttonLike subtleButton" disabled={isPending} onClick={fetchInsight} type="button">
+          {isPending ? "正在补充判断..." : "补充判断依据"}
         </button>
-        <span className="muted">按需分析单条热点，避免全量消耗 token。</span>
+        <span className="muted">按需补充单条热点的品牌结合与风险判断。</span>
       </div>
 
       {message ? <p className="muted inlineActionMessage">{message}</p> : null}

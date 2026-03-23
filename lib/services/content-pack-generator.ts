@@ -487,7 +487,11 @@ async function tryModelGeneration(
   payload: ModelGeneratedPayload | null;
 }> {
   try {
-    const output = await runModelTask("content-generation", buildGenerationPrompt(brand, hotspot, blueprints));
+    const output = await runModelTask(
+      "content-generation",
+      buildGenerationPrompt(brand, hotspot, blueprints),
+      { feature: "content-generation" }
+    );
     return {
       output,
       payload: parseModelPayload(output)

@@ -1,11 +1,17 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { EmptyStateCard } from "@/components/empty-state-card";
-import { OpportunityCard } from "@/components/opportunity-card";
+import { HotspotActionButton } from "@/components/hotspot-action-button";
 import { PageHero } from "@/components/page-hero";
 import { getCurrentViewer } from "@/lib/auth/session";
-import { getBrandStrategyPack, getPrioritizedHotspots, getReviewQueue } from "@/lib/data";
-import type { ContentTrack, Platform, ReviewStatus } from "@/lib/domain/types";
+import {
+  getBrandStrategyPack,
+  getLatestHotspotSyncSnapshot,
+  getPrioritizedHotspots,
+  getPublishJobsForPack,
+  getReviewQueue
+} from "@/lib/data";
+import type { Platform } from "@/lib/domain/types";
 
 const platformLabels: Record<Platform, string> = {
   xiaohongshu: "小红书",
@@ -14,54 +20,11 @@ const platformLabels: Record<Platform, string> = {
   douyin: "抖音"
 };
 
-const trackLabels: Record<ContentTrack, string> = {
-  "rapid-response": "快反",
-  "point-of-view": "观点"
-};
-
-const statusLabels: Record<ReviewStatus, string> = {
-  pending: "待审核",
-  approved: "已通过",
-  "needs-edit": "待改稿"
-};
-
-function getOpportunityWindow(velocityScore: number) {
-  if (velocityScore >= 85) {
-    return "4 小时内完成立题";
+function formatDateTime(value?: string) {
+  if (!value) {
+    return "未记录";
   }
 
-  if (velocityScore >= 75) {
-    return "今天内完成首稿";
-  }
-
-  return "适合继续观察并沉淀观点";
-}
-
-function getRecommendedAngle(kind: "industry" | "mass" | "brand") {
-  if (kind === "industry") {
-    return "行业判断 + 品牌方法";
-  }
-
-  if (kind === "mass") {
-    return "平台变化 + 内容策略";
-  }
-
-  return "差异化观点 + 品牌站位";
-}
-
-function getProgressLabel(platformCount: number, status: ReviewStatus) {
-  if (status === "approved") {
-    return `${platformCount}/${platformCount} 已通过`;
-  }
-
-  if (status === "needs-edit") {
-    return `已生成 ${platformCount} 个版本，待修改`;
-  }
-
-  return `已生成 ${platformCount} 个版本，待审核`;
-}
-
-function formatOpportunityTime(value: string) {
   const parsed = new Date(value);
 
   if (Number.isNaN(parsed.getTime())) {
@@ -77,20 +40,95 @@ function formatOpportunityTime(value: string) {
   }).format(parsed);
 }
 
+function getWindowLabel(velocityScore: number) {
+  if (velocityScore >= 85) {
+    return "4 小时内完成立题";
+  }
+
+  if (velocityScore >= 75) {
+    return "今天内完成首稿";
+  }
+
+  return "可继续观察";
+}
+
+function getPriorityTone(priority: "high" | "medium" | "low") {
+  if (priority === "high") {
+    return "warning";
+  }
+
+  if (priority === "medium") {
+    return "neutral";
+  }
+
+  return "positive";
+}
+
+function getFailureSummary(reason?: string) {
+  if (!reason) {
+    return "系统返回执行失败";
+  }
+
+  if (reason.includes("权限") || reason.includes("登录")) {
+    return "账号或权限异常";
+  }
+
+  if (reason.includes("频率") || reason.includes("限流")) {
+    return "平台限流";
+  }
+
+  return reason;
+}
+
 export default async function HomePage() {
   const viewer = await getCurrentViewer();
+
+  if (viewer.isPlatformAdmin) {
+    redirect("/admin");
+  }
 
   if (!viewer.isPlatformAdmin && viewer.isAuthenticated && viewer.memberships.length > 1 && !viewer.currentWorkspace) {
     redirect("/select-workspace");
   }
 
-  const [brand, prioritized, packs] = await Promise.all([
+  const [brand, prioritized, packs, syncSnapshot] = await Promise.all([
     getBrandStrategyPack(),
     getPrioritizedHotspots(),
-    getReviewQueue()
+    getReviewQueue(),
+    getLatestHotspotSyncSnapshot()
   ]);
 
-  const focusHotspots = prioritized.slice(0, 5);
+  const packJobs = await Promise.all(
+    packs.map(async (pack) => ({
+      pack,
+      jobs: await getPublishJobsForPack(pack.id)
+    }))
+  );
+
+  const pendingPacks = packs.filter((pack) => pack.status === "pending");
+  const needsEditPacks = packs.filter((pack) => pack.status === "needs-edit");
+  const approvedPacks = packs.filter((pack) => pack.status === "approved");
+  const allJobs = packJobs.flatMap(({ pack, jobs }) =>
+    jobs.map((job) => {
+      const variant = pack.variants.find((item) => item.id === job.variantId);
+
+      return {
+        ...job,
+        reviewOwner: pack.reviewOwner,
+        title: variant?.title ?? pack.whyNow,
+        publishWindow: variant?.publishWindow ?? "未设置",
+        platforms: variant?.platforms ?? []
+      };
+    })
+  );
+
+  const failedJobs = allJobs.filter((job) => job.status === "failed");
+  const recentPublishedJob = [...allJobs]
+    .filter((job) => job.status === "published")
+    .sort((left, right) => Date.parse(right.publishedAt ?? right.updatedAt) - Date.parse(left.publishedAt ?? left.updatedAt))[0];
+  const recentFailedJob = [...failedJobs].sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))[0];
+  const highPotentialHotspots = prioritized.filter((item) => item.priorityScore >= 75);
+  const focusHotspots = prioritized.slice(0, 3);
   const packByHotspotId = new Map(
     packs.map((pack) => [
       pack.hotspotId,
@@ -102,437 +140,290 @@ export default async function HomePage() {
     ])
   );
 
-  const tasks = packs.flatMap((pack) =>
-    pack.variants.map((variant) => ({
-      id: variant.id,
-      packId: pack.id,
-      title: variant.title,
-      source: focusHotspots.find((signal) => signal.id === pack.hotspotId)?.title ?? pack.whyNow,
-      platforms: variant.platforms.map((platform) => platformLabels[platform]).join(" / "),
-      type: trackLabels[variant.track],
-      status: statusLabels[pack.status],
-      progress: getProgressLabel(variant.platforms.length, pack.status),
-      publishWindow: variant.publishWindow,
-      owner: pack.reviewOwner,
-      packStatus: pack.status
-    }))
-  );
+  const primaryQueue = [
+    pendingPacks.length > 0
+      ? {
+          title: "先清待审核",
+          description: `${pendingPacks.length} 条内容卡在审核口，优先释放下游。`,
+          href: "/review" as Route,
+          actionLabel: "去审核",
+          priority: "high" as const
+        }
+      : null,
+    needsEditPacks.length > 0
+      ? {
+          title: "再处理退回改稿",
+          description: `${needsEditPacks.length} 条内容等待改稿后重新提交。`,
+          href: "/review?status=needs-edit" as Route,
+          actionLabel: "继续处理",
+          priority: "high" as const
+        }
+      : null,
+    failedJobs.length > 0
+      ? {
+          title: "排查发布异常",
+          description: `${failedJobs.length} 条发布失败，最大风险在执行侧。`,
+          href: "/publish" as Route,
+          actionLabel: "进入发布",
+          priority: "high" as const
+        }
+      : null,
+    highPotentialHotspots.length > 0
+      ? {
+          title: "补充高潜选题",
+          description: `${highPotentialHotspots.length} 条热点还在窗口期内，可继续转题。`,
+          href: "/hotspots" as Route,
+          actionLabel: "查看机会",
+          priority: "medium" as const
+        }
+      : null
+  ]
+    .filter(Boolean)
+    .slice(0, 3) as Array<{
+    title: string;
+    description: string;
+    href: Route;
+    actionLabel: string;
+    priority: "high" | "medium" | "low";
+  }>;
 
-  const pendingTasks = tasks.filter((task) => task.packStatus === "pending");
-  const approvedTasks = tasks.filter((task) => task.packStatus === "approved");
-  const reviewItems = pendingTasks.slice(0, 4);
-  const publishItems = approvedTasks.slice(0, 4);
-  const mobileReviewItems = pendingTasks.slice(0, 3);
-  const mobilePublishItems = approvedTasks.slice(0, 3);
-  const mobileHotspots = focusHotspots.slice(0, 3);
-  const todayLabel = new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    weekday: "short"
-  }).format(new Date());
-  const needsEditCount = tasks.filter((task) => task.packStatus === "needs-edit").length;
-  const blockerCount = pendingTasks.length + needsEditCount;
+  const heroPrimaryHref =
+    (pendingPacks.length > 0 ? "/review" : failedJobs.length > 0 ? "/publish" : highPotentialHotspots.length > 0 ? "/hotspots" : "/brands") as Route;
+  const heroPrimaryLabel =
+    pendingPacks.length > 0 ? "继续处理今日任务" : failedJobs.length > 0 ? "处理发布异常" : highPotentialHotspots.length > 0 ? "去看高潜机会" : "完善品牌系统";
 
   return (
-    <div className="page workbenchPage">
-      <div className="workbenchDesktopStack">
-        <PageHero
-          actions={
-            <>
-              <Link className="buttonLike primaryButton" href="/review">
-                进入选题详情台
-              </Link>
-              <Link className="buttonLike subtleButton" href="/hotspots">
-                查看全部热点
-              </Link>
-              <Link className="buttonLike subtleButton" href="/brands">
-                管理品牌系统
-              </Link>
-              <Link className="buttonLike subtleButton" href="/production-studio">
-                内容深度制作
-              </Link>
-            </>
-          }
-          context={brand.name}
-          description="查看今日机会、审核积压与发布准备。"
-          eyebrow="工作台总览"
-          facts={[
-            { label: "当前品牌", value: brand.name },
-            { label: "今日机会", value: `${focusHotspots.length} 个优先热点` },
-            { label: "生产负载", value: `${tasks.length} 个任务流转中` },
-            { label: "当前堵点", value: `${blockerCount} 个待处理出口` }
-          ]}
-          title="工作台"
-          variant="utility"
-        />
-
-        <section className="panel workbenchFocusStrip">
-          <div className="panelHeader sectionTitle">
-            <div>
-              <p className="eyebrow">处理顺序</p>
-              <h2>今日优先级</h2>
-            </div>
-          </div>
-
-          <div className="workflowStrip workbenchFocusSteps">
-            <article className="workflowCard">
-              <span className="workflowStep">01</span>
-              <strong>审核</strong>
-              <p className="muted">{reviewItems.length} 条内容等待确认，优先释放后续流转。</p>
-            </article>
-            <article className="workflowCard">
-              <span className="workflowStep">02</span>
-              <strong>改稿</strong>
-              <p className="muted">{needsEditCount} 条版本待调整，完成后可重新进入审核。</p>
-            </article>
-            <article className="workflowCard">
-              <span className="workflowStep">03</span>
-              <strong>新增选题</strong>
-              <p className="muted">当前可从 {focusHotspots.length} 个优先热点里继续补充新题。</p>
-            </article>
-          </div>
-        </section>
-
-        <section className="summaryGrid">
-          <article className="panel summaryCard summaryCardElevated">
-            <p className="eyebrow">热点筛选</p>
-            <h3>{focusHotspots.length} 个优先机会</h3>
-            <p className="muted">按品牌相关性与执行窗口筛出今日值得处理的热点。</p>
-          </article>
-          <article className="panel summaryCard summaryCardElevated">
-            <p className="eyebrow">流程状态</p>
-            <h3>{tasks.length} 个版本在流转</h3>
-            <p className="muted">从选题到终稿统一放在当前工作流内处理。</p>
-          </article>
-          <article className="panel summaryCard summaryCardElevated">
-            <p className="eyebrow">待处理</p>
-            <h3>{blockerCount} 处需要跟进</h3>
-            <p className="muted">优先清理出口，再决定是否继续扩充新题。</p>
-          </article>
-        </section>
-
-        <section className="panel workflowPanel">
-          <div className="panelHeader sectionTitle">
-            <div>
-              <p className="eyebrow">主流程</p>
-              <h2>工作流</h2>
-            </div>
-          </div>
-
-          <div className="workflowStrip">
-            <article className="workflowCard">
-              <span className="workflowStep">01</span>
-              <strong>热点</strong>
-              <p className="muted">筛出今天值得进入判断的外部信号。</p>
-            </article>
-            <article className="workflowCard">
-              <span className="workflowStep">02</span>
-              <strong>选题</strong>
-              <p className="muted">映射为品牌视角、版本与发布时间窗口。</p>
-            </article>
-            <article className="workflowCard">
-              <span className="workflowStep">03</span>
-              <strong>编辑</strong>
-              <p className="muted">在统一编辑台完成改写、审核与风险控制。</p>
-            </article>
-            <article className="workflowCard">
-              <span className="workflowStep">04</span>
-              <strong>发布</strong>
-              <p className="muted">进入发布执行台排队、导出或立即发送。</p>
-            </article>
-          </div>
-        </section>
-
-        <div className="dashboardSplit">
-          <section className="panel">
-            <div className="panelHeader sectionTitle">
-              <div>
-                <p className="eyebrow">优先机会</p>
-                <h2>热点机会</h2>
-              </div>
-              <Link className="sectionLink" href="/hotspots">
-                打开热点看板
-              </Link>
-            </div>
-
-            <div className="opportunityRail opportunityRailDense">
-              {focusHotspots.length > 0 ? (
-                focusHotspots.map((signal) => {
-                  const existingPack = packByHotspotId.get(signal.id);
-
-                  return (
-                    <OpportunityCard
-                      angle={getRecommendedAngle(signal.kind)}
-                      detectedAt={formatOpportunityTime(signal.detectedAt)}
-                      hotspotId={signal.id}
-                      key={signal.id}
-                      packId={existingPack?.packId}
-                      platform={existingPack?.platform}
-                      recommendedAction={signal.recommendedAction}
-                      relevanceReason={signal.reasons[0] ?? "已命中品牌主题词与近期传播方向"}
-                      source={signal.source}
-                      summary={signal.summary}
-                      title={signal.title}
-                      variantId={existingPack?.variantId}
-                      windowLabel={getOpportunityWindow(signal.velocityScore)}
-                    />
-                  );
-                })
-              ) : (
-                <EmptyStateCard
-                  actionLabel="去品牌系统补资料"
-                  description="还没有抓到适合今天处理的热点。先补品牌资料或刷新热点机会，再回来决定今天做什么。"
-                  eyebrow="热点机会"
-                  href="/brands"
-                  title="今天还没有可立刻处理的热点机会"
-                />
-              )}
-            </div>
-          </section>
-
-          <aside className="stack dashboardAsideStack">
-            <article className="panel queuePanel queuePanelDense">
-              <div className="panelHeader sectionTitle">
-                <div>
-                  <p className="eyebrow">审核队列</p>
-                  <h2>待审核</h2>
-                </div>
-                <Link className="sectionLink" href="/review">
-                  进入处理
-                </Link>
-              </div>
-
-              <div className="queueList">
-                {reviewItems.length > 0 ? (
-                  reviewItems.map((item) => (
-                    <div className="queueItem" key={`review-${item.id}`}>
-                      <div>
-                        <strong>{item.title}</strong>
-                        <p className="muted">{item.owner} · {item.publishWindow}</p>
-                      </div>
-                      <span className="pill pill-warning">待审核</span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="emptyState">今天没有堆积在审核口的内容，可以继续推进新选题。</p>
-                )}
-              </div>
-            </article>
-
-            <article className="panel queuePanel queuePanelDense">
-              <div className="panelHeader sectionTitle">
-                <div>
-                  <p className="eyebrow">待发布</p>
-                  <h2>已通过</h2>
-                </div>
-                <Link className="sectionLink" href="/publish">
-                  进入发布台
-                </Link>
-              </div>
-
-              <div className="queueList">
-                {publishItems.length > 0 ? (
-                  publishItems.map((item) => (
-                    <div className="queueItem" key={`publish-${item.id}`}>
-                      <div>
-                        <strong>{item.title}</strong>
-                        <p className="muted">{item.platforms} · {item.publishWindow}</p>
-                      </div>
-                      <span className="pill pill-positive">待发布</span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="emptyState">当前还没有通过终审的内容，先把上面的选题推进到可发布状态。</p>
-                )}
-              </div>
-            </article>
-          </aside>
-        </div>
-
-        <section className="panel">
-          <div className="panelHeader sectionTitle">
-            <div>
-              <p className="eyebrow">任务流转</p>
-              <h2>当前任务</h2>
-            </div>
-            <Link className="sectionLink" href="/review">
-              查看全部任务
+    <div className="page workbenchPageV2">
+      <PageHero
+        actions={
+          <>
+            <Link className="buttonLike primaryButton" href={heroPrimaryHref}>
+              {heroPrimaryLabel}
             </Link>
+            <Link className="buttonLike subtleButton" href="/publish">
+              查看发布状态
+            </Link>
+            <Link className="buttonLike subtleButton" href="/brands">
+              查看品牌系统
+            </Link>
+          </>
+        }
+        context={brand.name}
+        description="先处理出口，再决定是否补题。首页只保留今天最该先做的三件事。"
+        eyebrow="工作台总控"
+        facts={[
+          { label: "当前品牌", value: brand.name },
+          { label: "今日核心任务", value: `${pendingPacks.length + needsEditPacks.length + failedJobs.length} 项` },
+          { label: "待审核", value: `${pendingPacks.length} 条` },
+          { label: "高优热点", value: `${highPotentialHotspots.length} 条` },
+          { label: "发布异常", value: `${failedJobs.length} 条` },
+          { label: "最近同步", value: formatDateTime(syncSnapshot?.executedAt) }
+        ]}
+        title="今天先处理什么"
+        variant="utility"
+      />
+
+      <div className="workbenchCoreGrid">
+        <section className="panel commandBoardCard">
+          <div className="panelHeader sectionTitle">
+            <div>
+              <p className="eyebrow">今日优先处理</p>
+              <h2>按这个顺序推进</h2>
+            </div>
           </div>
 
-          {tasks.length > 0 ? (
-            <div className="reviewTaskListSimple reviewTaskListWorkspace">
-              {tasks.map((task) => (
-                <article className="reviewTaskRow reviewTaskRowWorkspace" key={task.id}>
-                  <div className="reviewTaskRowMain">
-                    <div className="taskRowIdentity">
-                      <strong className="reviewTaskTitle">{task.title}</strong>
-                      <p className="muted reviewTaskSummary">{task.source}</p>
-                    </div>
-                    <div className="reviewContextLine">
-                      <span>{task.platforms}</span>
-                      <span>{task.type}</span>
-                      <span>{task.publishWindow}</span>
-                      <span>{task.owner}</span>
+          <div className="priorityCommandList">
+            {primaryQueue.length > 0 ? (
+              primaryQueue.map((item, index) => (
+                <article className="priorityCommandItem" key={`${item.title}-${index}`}>
+                  <div className="priorityCommandMeta">
+                    <span className={`pill pill-${getPriorityTone(item.priority)}`}>{index + 1 < 10 ? `0${index + 1}` : index + 1}</span>
+                    <div>
+                      <strong>{item.title}</strong>
+                      <p className="muted">{item.description}</p>
                     </div>
                   </div>
-                  <div className="reviewTaskRowMeta">
-                    <span
-                      className={`pill pill-${task.packStatus === "approved" ? "positive" : task.packStatus === "needs-edit" ? "warning" : "neutral"}`}
-                    >
-                      {task.status}
-                    </span>
-                    <small className="muted">{task.progress}</small>
-                    <div className="buttonRow">
-                      <Link className="buttonLike subtleButton" href={`/review?pack=${task.packId}&variant=${task.id}`}>
-                        打开详情台
-                      </Link>
-                    </div>
-                  </div>
+                  <Link className="buttonLike subtleButton" href={item.href}>
+                    {item.actionLabel}
+                  </Link>
                 </article>
-              ))}
-            </div>
-          ) : (
-            <div className="taskEmptyRow">
-              <EmptyStateCard
-                actionLabel="去热点看板挑题"
-                description="当前还没有选题任务进入生产。你可以先从热点看板挑一个题，转进今天的生产流程。"
-                eyebrow="选题任务"
-                href="/hotspots"
-                title="今天还没有正在推进的选题"
-              />
-            </div>
-          )}
-        </section>
-      </div>
-
-      <div className="workbenchMobileStack">
-        <section className="panel mobileHeroCard">
-          <div className="mobileHeroHeading">
-            <p className="eyebrow">移动工作台</p>
-            <h1>今天先处理这三步</h1>
-            <p className="muted">
-              {brand.name} · {todayLabel}
-            </p>
-          </div>
-          <div className="mobileStatGrid">
-            <article className="mobileStatItem">
-              <span>优先热点</span>
-              <strong>{focusHotspots.length}</strong>
-            </article>
-            <article className="mobileStatItem">
-              <span>待审核</span>
-              <strong>{pendingTasks.length}</strong>
-            </article>
-            <article className="mobileStatItem">
-              <span>待发布</span>
-              <strong>{approvedTasks.length}</strong>
-            </article>
-            <article className="mobileStatItem">
-              <span>需改稿</span>
-              <strong>{needsEditCount}</strong>
-            </article>
+              ))
+            ) : (
+              <article className="priorityCommandItem priorityCommandItemQuiet">
+                <div>
+                  <strong>当前主链路运行平稳</strong>
+                  <p className="muted">审核口、发布口都没有堆积，可以继续从热点里补充新题。</p>
+                </div>
+                <Link className="buttonLike subtleButton" href="/hotspots">
+                  打开热点看板
+                </Link>
+              </article>
+            )}
           </div>
         </section>
 
-        <section className="panel">
+        <section className="panel commandBoardCard">
           <div className="panelHeader sectionTitle">
             <div>
-              <p className="eyebrow">快捷入口</p>
-              <h2>直接开始</h2>
-            </div>
-          </div>
-          <div className="mobileQuickGrid">
-            <Link className="mobileQuickAction" href="/review">
-              <strong>审核队列</strong>
-              <small>先清理 {pendingTasks.length} 条待审核</small>
-            </Link>
-            <Link className="mobileQuickAction" href="/publish">
-              <strong>发布执行</strong>
-              <small>{approvedTasks.length} 条可进入发布</small>
-            </Link>
-            <Link className="mobileQuickAction" href="/hotspots">
-              <strong>热点看板</strong>
-              <small>{focusHotspots.length} 个机会可补题</small>
-            </Link>
-            <Link className="mobileQuickAction" href="/brands">
-              <strong>品牌系统</strong>
-              <small>维护规则与素材资产</small>
-            </Link>
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="panelHeader sectionTitle">
-            <div>
-              <p className="eyebrow">待处理</p>
-              <h2>今天要推进</h2>
+              <p className="eyebrow">待审核任务</p>
+              <h2>先释放下游</h2>
             </div>
             <Link className="sectionLink" href="/review">
-              查看全部
+              去审核
             </Link>
           </div>
 
-          <div className="mobileTaskGroup">
-            <h3>待审核</h3>
-            {mobileReviewItems.length > 0 ? (
-              mobileReviewItems.map((item) => (
-                <Link className="mobileTaskCard" href={`/review?pack=${item.packId}&variant=${item.id}`} key={`mobile-review-${item.id}`}>
-                  <strong>{item.title}</strong>
-                  <p className="muted">
-                    {item.owner} · {item.publishWindow}
-                  </p>
-                </Link>
-              ))
-            ) : (
-              <p className="emptyState">审核队列目前为空，可以继续补充新选题。</p>
-            )}
-          </div>
-
-          <div className="mobileTaskGroup">
-            <h3>待发布</h3>
-            {mobilePublishItems.length > 0 ? (
-              mobilePublishItems.map((item) => (
-                <Link className="mobileTaskCard" href="/publish" key={`mobile-publish-${item.id}`}>
-                  <strong>{item.title}</strong>
-                  <p className="muted">
-                    {item.platforms} · {item.publishWindow}
-                  </p>
-                </Link>
-              ))
-            ) : (
-              <p className="emptyState">目前还没有可直接发布的内容。</p>
-            )}
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="panelHeader sectionTitle">
-            <div>
-              <p className="eyebrow">热点机会</p>
-              <h2>优先观察</h2>
-            </div>
-            <Link className="sectionLink" href="/hotspots">
-              打开看板
-            </Link>
-          </div>
-          <div className="mobileTaskGroup">
-            {mobileHotspots.length > 0 ? (
-              mobileHotspots.map((signal) => {
-                const existingPack = packByHotspotId.get(signal.id);
+          <div className="decisionList">
+            {pendingPacks.length > 0 ? (
+              pendingPacks.slice(0, 3).map((pack) => {
+                const primaryVariant = pack.variants[0];
 
                 return (
-                  <Link className="mobileTaskCard" href={existingPack ? `/review?pack=${existingPack.packId}` : "/hotspots"} key={signal.id}>
-                    <strong>{signal.title}</strong>
-                    <p className="muted">
-                      {signal.source} · {getOpportunityWindow(signal.velocityScore)}
-                    </p>
+                  <Link className="decisionListItem" href={`/review?pack=${pack.id}&variant=${primaryVariant?.id ?? ""}`} key={pack.id}>
+                    <div>
+                      <strong>{primaryVariant?.title ?? pack.whyNow}</strong>
+                      <p className="muted">
+                        {pack.reviewOwner} · {primaryVariant?.publishWindow ?? "未设置窗口"}
+                      </p>
+                    </div>
+                    <span className="pill pill-warning">待审核</span>
                   </Link>
                 );
               })
             ) : (
-              <p className="emptyState">当前还没有高优先级热点，建议稍后刷新。</p>
+              <div className="systemFeedbackCard">
+                <strong>审核队列当前为空</strong>
+                <p className="muted">最近一次同步：{formatDateTime(syncSnapshot?.executedAt)}。现在更适合继续补题或推进已通过内容。</p>
+              </div>
             )}
+          </div>
+        </section>
+
+        <section className="panel commandBoardCard">
+          <div className="panelHeader sectionTitle">
+            <div>
+              <p className="eyebrow">高潜机会</p>
+              <h2>不读长文也能判断</h2>
+            </div>
+            <Link className="sectionLink" href="/hotspots">
+              查看详情
+            </Link>
+          </div>
+
+          <div className="compactOpportunityList">
+            {focusHotspots.length > 0 ? (
+              focusHotspots.map((signal) => {
+                const existingPack = packByHotspotId.get(signal.id);
+
+                return (
+                  <article className="compactOpportunityCard" key={signal.id}>
+                    <div className="compactOpportunityHead">
+                      <span className="pill pill-neutral">热度 {signal.velocityScore}</span>
+                      <span className={`pill pill-${signal.riskScore <= 35 ? "positive" : signal.riskScore <= 55 ? "neutral" : "warning"}`}>
+                        风险 {signal.riskScore}
+                      </span>
+                    </div>
+                    <h3>{signal.title}</h3>
+                    <div className="compactOpportunityMeta">
+                      <span>品牌相关 {signal.brandFitScore}</span>
+                      <span>窗口 {getWindowLabel(signal.velocityScore)}</span>
+                    </div>
+                    <p className="muted">{signal.reasons[0] ?? "已命中品牌主题，可快速进入立题判断。"}</p>
+                    <div className="compactOpportunityFooter">
+                      <HotspotActionButton
+                        hotspotId={signal.id}
+                        packId={existingPack?.packId}
+                        platform={existingPack?.platform}
+                        variantId={existingPack?.variantId}
+                      />
+                    </div>
+                  </article>
+                );
+              })
+            ) : (
+              <div className="systemFeedbackCard">
+                <strong>当前没有高优热点</strong>
+                <p className="muted">建议下一步：去品牌系统补充近期动态，提升品牌相关性判断命中率。</p>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <div className="workbenchSecondaryGrid">
+        <section className="panel secondaryBoardCard">
+          <div className="panelHeader sectionTitle">
+            <div>
+              <p className="eyebrow">当前堵点</p>
+              <h3>最大的风险在哪</h3>
+            </div>
+          </div>
+
+          <div className="statusFeedList">
+            <div className="statusFeedItem">
+              <span>待改稿</span>
+              <strong>{needsEditPacks.length} 条</strong>
+            </div>
+            <div className="statusFeedItem">
+              <span>发布失败</span>
+              <strong>{failedJobs.length} 条</strong>
+            </div>
+            <div className="statusFeedItem">
+              <span>最近失败原因</span>
+              <strong>{getFailureSummary(recentFailedJob?.failureReason)}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel secondaryBoardCard">
+          <div className="panelHeader sectionTitle">
+            <div>
+              <p className="eyebrow">生产负载</p>
+              <h3>当前流转状态</h3>
+            </div>
+          </div>
+
+          <div className="statusFeedList">
+            <div className="statusFeedItem">
+              <span>待审核</span>
+              <strong>{pendingPacks.length} 条</strong>
+            </div>
+            <div className="statusFeedItem">
+              <span>已通过</span>
+              <strong>{approvedPacks.length} 条</strong>
+            </div>
+            <div className="statusFeedItem">
+              <span>涉及平台</span>
+              <strong>
+                {Array.from(new Set(packs.flatMap((pack) => pack.variants.flatMap((variant) => variant.platforms))))
+                  .map((platform) => platformLabels[platform])
+                  .join(" / ") || "未开始"}
+              </strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel secondaryBoardCard">
+          <div className="panelHeader sectionTitle">
+            <div>
+              <p className="eyebrow">运行反馈</p>
+              <h3>系统最近一次动作</h3>
+            </div>
+          </div>
+
+          <div className="statusFeedList">
+            <div className="statusFeedItem">
+              <span>最近同步</span>
+              <strong>{formatDateTime(syncSnapshot?.executedAt)}</strong>
+            </div>
+            <div className="statusFeedItem">
+              <span>最近发布</span>
+              <strong>{recentPublishedJob ? formatDateTime(recentPublishedJob.publishedAt ?? recentPublishedJob.updatedAt) : "暂无发布动作"}</strong>
+            </div>
+            <div className="statusFeedItem">
+              <span>最近失败</span>
+              <strong>{recentFailedJob ? formatDateTime(recentFailedJob.updatedAt) : "当前无失败任务"}</strong>
+            </div>
           </div>
         </section>
       </div>

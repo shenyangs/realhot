@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiAccess } from "@/lib/auth/api-guard";
+import { canAccessAdmin } from "@/lib/auth/permissions";
 import { syncHotspots } from "@/lib/services/hotspot-sync";
 
 function getErrorMessage(error: unknown): string {
@@ -37,14 +39,13 @@ function isAuthorized(request: NextRequest): boolean {
 
 export async function POST(request: NextRequest) {
   if (!isAuthorized(request)) {
-    return NextResponse.json(
-      {
-        error: "Unauthorized"
-      },
-      {
-        status: 401
-      }
-    );
+    const access = await requireApiAccess(request, {
+      authorize: canAccessAdmin
+    });
+
+    if (!access.ok) {
+      return access.response;
+    }
   }
 
   try {

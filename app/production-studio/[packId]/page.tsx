@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { OneClickProductionButton } from "@/components/one-click-production-button";
 import { PageHero } from "@/components/page-hero";
 import { ProductionStudioEditor } from "@/components/production-studio-editor";
+import { writeAuditLog } from "@/lib/auth/audit";
+import { getCurrentViewer } from "@/lib/auth/session";
 import { getBrandStrategyPack, getHotspotPack } from "@/lib/data";
 import { getLatestProductionJobForPack } from "@/lib/services/production-studio";
 
@@ -12,6 +14,7 @@ export default async function ProductionStudioDetailPage({
   params: Promise<{ packId: string }>;
 }) {
   const { packId } = await params;
+  const viewer = await getCurrentViewer();
   const [brand, pack, latestJob] = await Promise.all([
     getBrandStrategyPack(),
     getHotspotPack(packId),
@@ -23,6 +26,24 @@ export default async function ProductionStudioDetailPage({
   }
 
   const canRun = pack.status === "approved";
+
+  if (viewer.isAuthenticated) {
+    await writeAuditLog({
+      workspaceId: viewer.currentWorkspace?.id,
+      actorUserId: viewer.user.id,
+      actorDisplayName: viewer.user.displayName,
+      actorEmail: viewer.user.email,
+      entityType: "production_job",
+      entityId: latestJob?.id ?? pack.id,
+      action: "production.pack_viewed",
+      payload: {
+        packId: pack.id,
+        variantTitle: pack.variants[0]?.title,
+        status: pack.status,
+        hasGeneratedDraft: Boolean(latestJob)
+      }
+    });
+  }
 
   return (
     <div className="page productionStudioDetailPage">

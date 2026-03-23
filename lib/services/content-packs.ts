@@ -10,7 +10,7 @@ import { decideModelRoute } from "@/lib/services/model-router";
 export async function summarizeGenerationContext(pack: HotspotPack): Promise<string> {
   const [brand, signals] = await Promise.all([getBrandStrategyPack(), getHotspotSignals()]);
   const hotspot = signals.find((signal) => signal.id === pack.hotspotId);
-  const route = decideModelRoute("content-generation");
+  const route = await decideModelRoute("content-generation", { feature: "content-generation" });
 
   return [
     `Brand: ${brand.name}`,

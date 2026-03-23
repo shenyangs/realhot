@@ -2,146 +2,113 @@ import Link from "next/link";
 import { BrandAutofillPanel } from "@/components/brand-autofill-panel";
 import { BrandOnboardingStatus } from "@/components/brand-onboarding-status";
 import { PageHero } from "@/components/page-hero";
-import { getBrandStrategyPack } from "@/lib/data";
-import { getBrandBrainSummary } from "@/lib/services/brand-brain";
+import { getBrandStrategyPack, getPrioritizedHotspots, getReviewQueue } from "@/lib/data";
 
 const sourceTypeLabels: Record<string, string> = {
-  website: "官网/产品页",
+  website: "官网 / 产品页",
   "knowledge-base": "知识库",
   "wechat-history": "公众号历史内容",
   event: "活动资料",
   press: "媒体新闻稿"
 };
 
-const onboardingStepLabels = [
-  {
-    step: "01",
-    title: "品牌基础",
-    description: "先让系统知道你是谁、卖什么、面向谁。"
-  },
-  {
-    step: "02",
-    title: "传播目标",
-    description: "告诉系统今年想强化什么认知、优先在哪些平台输出。"
-  },
-  {
-    step: "03",
-    title: "表达规则",
-    description: "把语气、禁区、竞品边界提前讲清楚。"
-  },
-  {
-    step: "04",
-    title: "素材与资料",
-    description: "补齐品牌手册、产品资料、案例和过往内容资产。"
-  },
-  {
-    step: "05",
-    title: "近期动态",
-    description: "最近一个月活动和媒体稿会直接影响热点借势质量。"
-  }
-];
+function getMaterialCompletionPercent(stableCount: number, timelyCount: number) {
+  return Math.min(100, Math.round(((stableCount + timelyCount) / 6) * 100));
+}
 
-const recommendedAssets = [
-  {
-    title: "品牌介绍 / 手册",
-    reason: "帮助系统理解你是谁，后续写作不容易偏题。"
-  },
-  {
-    title: "产品资料",
-    reason: "让观点内容更具体，不会只停留在抽象概念。"
-  },
-  {
-    title: "客户案例",
-    reason: "让品牌观点更可信，也方便写成公众号和视频号内容。"
-  },
-  {
-    title: "历史爆文 / 创始人观点",
-    reason: "更容易形成稳定口吻，不会写得像统一模板。"
+function getExpressionRiskLevel(missingCount: number, redLineCount: number) {
+  if (missingCount >= 3 || redLineCount <= 2) {
+    return "中";
   }
-];
+
+  return "低";
+}
 
 export default async function BrandsPage() {
-  const brandStrategyPack = await getBrandStrategyPack();
-  const summary = getBrandBrainSummary(brandStrategyPack);
+  const [brandStrategyPack, prioritizedHotspots, packs] = await Promise.all([
+    getBrandStrategyPack(),
+    getPrioritizedHotspots(),
+    getReviewQueue()
+  ]);
+
   const stableSources = brandStrategyPack.sources.filter((source) => source.freshness === "stable");
   const timelySources = brandStrategyPack.sources.filter((source) => source.freshness === "timely");
   const materialsMissing = [
-    stableSources.some((source) => source.type === "website") ? null : "官网/产品页",
-    stableSources.some((source) => source.type === "wechat-history") ? null : "公众号历史文章",
-    timelySources.some((source) => source.type === "event") ? null : "最近一个月活动资料",
-    timelySources.some((source) => source.type === "press") ? null : "最近一个月媒体新闻稿"
+    stableSources.some((source) => source.type === "website") ? null : "官网 / 产品页",
+    stableSources.some((source) => source.type === "wechat-history") ? null : "公众号历史内容",
+    timelySources.some((source) => source.type === "event") ? null : "近期 campaign / 活动资料",
+    timelySources.some((source) => source.type === "press") ? null : "近期媒体新闻稿",
+    brandStrategyPack.redLines.length >= 3 ? null : "禁用表达范例",
+    brandStrategyPack.topics.length >= 3 ? null : "用户高频情绪词"
   ].filter(Boolean) as string[];
+  const completionPercent = getMaterialCompletionPercent(stableSources.length, timelySources.length);
+  const hotspotHitCount = prioritizedHotspots.filter((item) => item.brandFitScore >= 80).length;
+  const recentUsageCount = packs.length;
+  const expressionRisk = getExpressionRiskLevel(materialsMissing.length, brandStrategyPack.redLines.length);
+  const representativeCases = packs.slice(0, 3);
 
   return (
-    <div className="page brandsPage">
+    <div className="page brandSystemPageV2">
       <PageHero
         actions={
           <>
-            <Link className="buttonLike primaryButton" href="/">
-              回到工作台
+            <Link className="buttonLike primaryButton" href="#brand-preparedness">
+              继续完善品牌规则
             </Link>
             <Link className="buttonLike subtleButton" href="/onboarding">
-              重新走接入流程
+              打开接入流程
             </Link>
-            <a className="buttonLike subtleButton" href="#material-library">
-              继续补资料
-            </a>
+            <Link className="buttonLike subtleButton" href="/">
+              回工作台
+            </Link>
           </>
         }
-        description="查看品牌画像、表达边界与资料状态。"
+        context={brandStrategyPack.name}
+        description="这里不是资料录入页，而是决定整套内容系统怎么说话、能说什么、不能说什么的品牌认知中台。"
         eyebrow="品牌系统"
         facts={[
-          { label: "当前品牌", value: brandStrategyPack.name },
-          { label: "所属行业", value: brandStrategyPack.sector },
-          {
-            label: "资料状态",
-            value: materialsMissing.length === 0 ? "已具备完整接入条件" : "已具备基础运行条件"
-          },
-          { label: "稳定素材", value: `${stableSources.length} 项` }
+          { label: "品牌名称", value: brandStrategyPack.name },
+          { label: "资料完整度", value: `${completionPercent}%` },
+          { label: "最近使用频率", value: `${recentUsageCount} 条在流转` },
+          { label: "最近命中热点", value: `${hotspotHitCount} 条` },
+          { label: "表达风险等级", value: `${expressionRisk}风险` },
+          { label: "行业", value: brandStrategyPack.sector }
         ]}
-        context={brandStrategyPack.name}
-        title="品牌系统"
+        title="品牌认知中台"
       />
 
-      <BrandOnboardingStatus brandName={brandStrategyPack.name} variant="card" />
+      <div className="brandOverviewGrid">
+        <BrandOnboardingStatus brandName={brandStrategyPack.name} variant="card" />
+        <article className="panel summaryCard">
+          <p className="eyebrow">近期使用</p>
+          <h3>{recentUsageCount} 次内容调用</h3>
+          <p className="muted">最近进入生产链路的选题都会持续反哺品牌表达。</p>
+        </article>
+        <article className="panel summaryCard">
+          <p className="eyebrow">热点命中</p>
+          <h3>{hotspotHitCount} 条高相关热点</h3>
+          <p className="muted">品牌相关性判断是后续选题与改写质量的基础。</p>
+        </article>
+        <article className="panel summaryCard">
+          <p className="eyebrow">表达风险</p>
+          <h3>{expressionRisk}风险</h3>
+          <p className="muted">当前缺失项 {materialsMissing.length} 个，优先补齐高影响资料。</p>
+        </article>
+      </div>
 
-      <BrandAutofillPanel initialBrandName={brandStrategyPack.name} />
+      <BrandAutofillPanel compact initialBrandName={brandStrategyPack.name} />
 
-      <section className="panel">
-        <div className="panelHeader sectionTitle">
-          <div>
-            <p className="eyebrow">品牌接入 5 步</p>
-            <h3>接入流程</h3>
-          </div>
-        </div>
-
-        <div className="onboardingGrid">
-          {onboardingStepLabels.map((item, index) => (
-            <article className="onboardingCard" key={item.step}>
-              <span className="stepBadge">{item.step}</span>
-              <strong>{item.title}</strong>
-              <p className="muted">{item.description}</p>
-              <small className="muted">
-                {index < 3
-                  ? "已整理为当前品牌默认规则"
-                  : "可随时补充，系统会持续吸收"}
-              </small>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="brandInfoGrid">
-        <article className="panel">
-          <div className="panelHeader">
+      <div className="brandCoreGrid">
+        <section className="panel">
+          <div className="panelHeader sectionTitle">
             <div>
-              <p className="eyebrow">品牌画像</p>
-              <h3>{brandStrategyPack.name}</h3>
+              <p className="eyebrow">品牌定位</p>
+              <h2>系统应该先知道你是谁</h2>
             </div>
-            <span className="pill pill-positive">{brandStrategyPack.sector}</span>
           </div>
-          <div className="stack">
-            <p>{brandStrategyPack.slogan}</p>
+
+          <div className="brandNarrativeSection">
+            <p className="brandLeadText">{brandStrategyPack.slogan}</p>
             <div className="tagRow">
               {brandStrategyPack.topics.map((topic) => (
                 <span className="tag" key={topic}>
@@ -149,73 +116,100 @@ export default async function BrandsPage() {
                 </span>
               ))}
             </div>
-            {summary.map((item) => (
-              <p className="muted" key={item}>
-                {item}
-              </p>
+            <div className="definitionList compactDefinitionList">
+              <div>
+                <span>品牌定位</span>
+                <strong>{brandStrategyPack.positioning.join("；")}</strong>
+              </div>
+              <div>
+                <span>适用场景</span>
+                <strong>{brandStrategyPack.sector}</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panelHeader sectionTitle">
+            <div>
+              <p className="eyebrow">用户画像</p>
+              <h2>内容应该说给谁听</h2>
+            </div>
+          </div>
+
+          <div className="brandNarrativeSection">
+            <div className="tagRow">
+              {brandStrategyPack.audiences.map((audience) => (
+                <span className="tag" key={audience}>
+                  {audience}
+                </span>
+              ))}
+            </div>
+            <p className="muted">这些画像决定热点该怎么转成内容角度，而不是只决定投放渠道。</p>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panelHeader sectionTitle">
+            <div>
+              <p className="eyebrow">内容语气</p>
+              <h2>系统怎么说话</h2>
+            </div>
+          </div>
+
+          <div className="brandNarrativeSection">
+            <div className="tagRow">
+              {brandStrategyPack.tone.map((tone) => (
+                <span className="tag" key={tone}>
+                  {tone}
+                </span>
+              ))}
+            </div>
+            <p className="muted">这是系统默认使用的表达底色，影响选题判断、正文改写和审核标准。</p>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panelHeader sectionTitle">
+            <div>
+              <p className="eyebrow">可说范围</p>
+              <h2>建议强化的表达</h2>
+            </div>
+          </div>
+
+          <ul className="simpleList">
+            {brandStrategyPack.topics.map((topic) => (
+              <li key={topic}>{topic}</li>
             ))}
-          </div>
-        </article>
+            {brandStrategyPack.recentMoves.slice(0, 2).map((move) => (
+              <li key={move}>{move}</li>
+            ))}
+          </ul>
+        </section>
 
-        <article className="panel">
-          <div className="panelHeader">
+        <section className="panel">
+          <div className="panelHeader sectionTitle">
             <div>
-              <p className="eyebrow">传播目标</p>
-              <h3>当前方向</h3>
+              <p className="eyebrow">禁说范围</p>
+              <h2>审核必须卡住的边界</h2>
             </div>
           </div>
-          <div className="definitionList">
-            <div>
-              <span>目标客群</span>
-              <strong>{brandStrategyPack.audiences.join(" / ")}</strong>
-            </div>
-            <div>
-              <span>品牌定位</span>
-              <strong>{brandStrategyPack.positioning.join("；")}</strong>
-            </div>
-            <div>
-              <span>近期动作</span>
-              <strong>{brandStrategyPack.recentMoves[0]}</strong>
-            </div>
-          </div>
-        </article>
-      </section>
 
-      <section className="brandInfoGrid">
-        <article className="panel">
-          <div className="panelHeader">
-            <div>
-              <p className="eyebrow">表达规则</p>
-              <h3>表达边界</h3>
-            </div>
-          </div>
-          <div className="definitionList">
-            <div>
-              <span>品牌语气</span>
-              <strong>{brandStrategyPack.tone.join(" / ")}</strong>
-            </div>
-            <div>
-              <span>竞品边界</span>
-              <strong>{brandStrategyPack.competitors.join(" / ")}</strong>
-            </div>
-            <div>
-              <span>禁区提醒</span>
-              <ul className="simpleList">
-                {brandStrategyPack.redLines.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </article>
+          <ul className="simpleList">
+            {brandStrategyPack.redLines.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </section>
 
-        <article className="panel">
-          <div className="panelHeader">
+        <section className="panel">
+          <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">近期动态</p>
-              <h3>最近更新</h3>
+              <h2>最近什么最值得被系统记住</h2>
             </div>
           </div>
+
           <div className="timelineList">
             {brandStrategyPack.recentMoves.map((move) => (
               <div className="timelineItem" key={move}>
@@ -224,95 +218,119 @@ export default async function BrandsPage() {
               </div>
             ))}
           </div>
-        </article>
-      </section>
+        </section>
+      </div>
 
-      <section className="brandInfoGrid materialSection" id="material-library">
-        <article className="panel">
-          <div className="panelHeader">
-            <div>
-              <p className="eyebrow">推荐补充资料</p>
-              <h3>建议补齐</h3>
-            </div>
-          </div>
-
-          <div className="materialHintGrid">
-            {recommendedAssets.map((asset) => (
-              <article className="materialHintCard" key={asset.title}>
-                <strong>{asset.title}</strong>
-                <p className="muted">{asset.reason}</p>
-              </article>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel materialHealthPanel">
-          <div className="panelHeader">
-            <div>
-              <p className="eyebrow">资料完整度</p>
-              <h3>{materialsMissing.length === 0 ? "已完整" : "待补充"}</h3>
-            </div>
-          </div>
-
-          <p className="muted">
-            {materialsMissing.length === 0
-              ? "基础层和时效层资料都已具备，热点判断、观点内容和借势内容都会更稳。"
-              : `建议优先补充：${materialsMissing.join("、")}。补齐之后，品牌相关性判断和改稿质量会更稳定。`}
-          </p>
-
-          <div className="definitionList">
-            <div>
-              <span>稳定层资料</span>
-              <strong>{stableSources.length} 项</strong>
-            </div>
-            <div>
-              <span>时效层资料</span>
-              <strong>{timelySources.length} 项</strong>
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section className="panel">
+      <section className="panel" id="brand-preparedness">
         <div className="panelHeader sectionTitle">
           <div>
-            <p className="eyebrow">素材与资料库</p>
-            <h3>资料库</h3>
+            <p className="eyebrow">品牌准备度</p>
+            <h2>还差什么，直接补哪里</h2>
           </div>
         </div>
 
-        <div className="sourceLibraryGrid">
+        <div className="brandPreparednessGrid">
           <article className="subPanel">
-            <strong>品牌级长期素材</strong>
-            <div className="sourceList">
-              {stableSources.map((source) => (
-                <div className="sourceItem" key={source.label}>
-                  <div>
-                    <strong>{source.label}</strong>
-                    <p className="muted">{source.value}</p>
-                  </div>
-                  <span className="pill pill-neutral">{sourceTypeLabels[source.type] ?? source.type}</span>
-                </div>
-              ))}
-            </div>
+            <strong>当前完整度</strong>
+            <p className="brandLeadText">{completionPercent}%</p>
+            <p className="muted">稳定层资料 {stableSources.length} 项，时效层资料 {timelySources.length} 项。</p>
           </article>
 
           <article className="subPanel">
-            <strong>近期时效素材</strong>
-            <div className="sourceList">
-              {timelySources.map((source) => (
-                <div className="sourceItem" key={source.label}>
-                  <div>
-                    <strong>{source.label}</strong>
-                    <p className="muted">{source.value}</p>
-                  </div>
-                  <span className="pill pill-warning">{sourceTypeLabels[source.type] ?? source.type}</span>
-                </div>
-              ))}
+            <strong>当前缺失项</strong>
+            <ul className="simpleList">
+              {materialsMissing.length > 0 ? (
+                materialsMissing.map((item) => <li key={item}>{item}</li>)
+              ) : (
+                <li>核心资料已覆盖，可继续补高表现案例与近期 campaign 数据。</li>
+              )}
+            </ul>
+          </article>
+
+          <article className="subPanel">
+            <strong>建议下一步</strong>
+            <div className="buttonRow brandActionRow">
+              <Link className="buttonLike subtleButton" href="/onboarding#recent">
+                去补充近期品牌动态
+              </Link>
+              <Link className="buttonLike subtleButton" href="/onboarding#rules">
+                去添加风险表达规则
+              </Link>
+              <Link className="buttonLike subtleButton" href="#brand-assets">
+                去导入代表性案例
+              </Link>
             </div>
           </article>
         </div>
       </section>
+
+      <div className="brandSupportGrid">
+        <section className="panel">
+          <div className="panelHeader sectionTitle">
+            <div>
+              <p className="eyebrow">历史高表现案例</p>
+              <h2>可复用的表达样本</h2>
+            </div>
+          </div>
+
+          <div className="caseSampleList">
+            {representativeCases.length > 0 ? (
+              representativeCases.map((pack) => (
+                <div className="caseSampleItem" key={pack.id}>
+                  <strong>{pack.variants[0]?.title ?? pack.whyNow}</strong>
+                  <p className="muted">{pack.whyUs}</p>
+                </div>
+              ))
+            ) : (
+              <div className="systemFeedbackCard systemFeedbackCardCompact">
+                <strong>当前还没有可复用案例</strong>
+                <p className="muted">当更多选题进入生产后，这里会沉淀稳定的品牌表达样本。</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="panel" id="brand-assets">
+          <div className="panelHeader sectionTitle">
+            <div>
+              <p className="eyebrow">素材资产</p>
+              <h2>品牌资产库</h2>
+            </div>
+          </div>
+
+          <div className="sourceLibraryGrid">
+            <article className="subPanel">
+              <strong>核心规则</strong>
+              <div className="sourceList">
+                {stableSources.map((source) => (
+                  <div className="sourceItem" key={source.label}>
+                    <div>
+                      <strong>{source.label}</strong>
+                      <p className="muted">{source.value}</p>
+                    </div>
+                    <span className="pill pill-neutral">{sourceTypeLabels[source.type] ?? source.type}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="subPanel">
+              <strong>补充信息</strong>
+              <div className="sourceList">
+                {timelySources.map((source) => (
+                  <div className="sourceItem" key={source.label}>
+                    <div>
+                      <strong>{source.label}</strong>
+                      <p className="muted">{source.value}</p>
+                    </div>
+                    <span className="pill pill-warning">{sourceTypeLabels[source.type] ?? source.type}</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

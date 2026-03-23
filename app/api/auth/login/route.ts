@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { enforceSameOrigin } from "@/lib/auth/api-guard";
+import { writeAuditLog } from "@/lib/auth/audit";
+import { APP_SESSION_TTL_SECONDS, createAppSessionToken, getSessionCookieOptions } from "@/lib/auth/local-session";
 import { bootstrapSupabaseProfile, loginWithLocalAccount, reconcilePendingInvitesForUser } from "@/lib/auth/repository";
 import { getSupabaseClient, getSupabaseServerClient } from "@/lib/supabase/client";
 import { sessionCookieNames } from "@/lib/auth/session";
@@ -15,57 +18,78 @@ interface MembershipWorkspaceRow {
 }
 
 export async function POST(request: NextRequest) {
+  const originError = enforceSameOrigin(request);
+
+  if (originError) {
+    return originError;
+  }
+
+  const body = (await request.json().catch(() => ({}))) as {
+    identifier?: string;
+    email?: string;
+    password?: string;
+  };
+  const identifier = body.identifier ?? body.email;
   const supabase = getSupabaseClient();
   const supabaseServer = getSupabaseServerClient();
 
-  if (!supabase || !supabaseServer) {
-    const body = (await request.json().catch(() => ({}))) as {
-      email?: string;
-      password?: string;
-    };
+  if (!identifier || !body.password) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "identifier_and_password_required"
+      },
+      {
+        status: 400
+      }
+    );
+  }
 
-    if (!body.email || !body.password) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "email_and_password_required"
-        },
-        {
-          status: 400
-        }
+  try {
+    const result = await loginWithLocalAccount({
+      identifier,
+      password: body.password
+    });
+    await writeAuditLog({
+      actorUserId: result.userId,
+      actorDisplayName: identifier,
+      entityType: "auth_session",
+      entityId: result.userId,
+      action: "auth.login_success",
+      payload: {
+        identifier,
+        mode: "local"
+      }
+    });
+    const response = NextResponse.json({
+      ok: true,
+      hasWorkspace: Boolean(result.workspaceSlug),
+      requiresWorkspaceSelection: result.requiresWorkspaceSelection
+    });
+
+    response.cookies.set(
+      sessionCookieNames.appSession,
+      await createAppSessionToken(result.userId),
+      getSessionCookieOptions(APP_SESSION_TTL_SECONDS)
+    );
+    response.cookies.delete(sessionCookieNames.accessToken);
+    response.cookies.delete(sessionCookieNames.refreshToken);
+    response.cookies.delete(sessionCookieNames.legacyUserId);
+    response.cookies.delete(sessionCookieNames.demoRole);
+
+    if (result.workspaceSlug) {
+      response.cookies.set(
+        sessionCookieNames.workspaceSlug,
+        result.workspaceSlug,
+        getSessionCookieOptions(APP_SESSION_TTL_SECONDS)
       );
+    } else {
+      response.cookies.delete(sessionCookieNames.workspaceSlug);
     }
 
-    try {
-      const result = await loginWithLocalAccount({
-        email: body.email,
-        password: body.password
-      });
-      const response = NextResponse.json({
-        ok: true,
-        hasWorkspace: Boolean(result.workspaceSlug),
-        requiresWorkspaceSelection: result.requiresWorkspaceSelection
-      });
-
-      response.cookies.set(sessionCookieNames.userId, result.userId, {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/"
-      });
-      response.cookies.delete(sessionCookieNames.demoRole);
-
-      if (result.workspaceSlug) {
-        response.cookies.set(sessionCookieNames.workspaceSlug, result.workspaceSlug, {
-          httpOnly: true,
-          sameSite: "lax",
-          path: "/"
-        });
-      } else {
-        response.cookies.delete(sessionCookieNames.workspaceSlug);
-      }
-
-      return response;
-    } catch (error) {
+    return response;
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "invalid_credentials") {
       return NextResponse.json(
         {
           ok: false,
@@ -78,29 +102,44 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const body = (await request.json().catch(() => ({}))) as {
-    email?: string;
-    password?: string;
-  };
+  if (!supabase || !supabaseServer) {
+    await writeAuditLog({
+      actorDisplayName: identifier,
+      entityType: "auth_session",
+      action: "auth.login_failed",
+      payload: {
+        identifier,
+        mode: "local"
+      }
+    });
 
-  if (!body.email || !body.password) {
     return NextResponse.json(
       {
         ok: false,
-        error: "email_and_password_required"
+        error: "invalid_credentials"
       },
       {
-        status: 400
+        status: 401
       }
     );
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: body.email,
+    email: identifier,
     password: body.password
   });
 
   if (error || !data.session || !data.user) {
+    await writeAuditLog({
+      actorDisplayName: identifier,
+      entityType: "auth_session",
+      action: "auth.login_failed",
+      payload: {
+        identifier,
+        mode: "supabase"
+      }
+    });
+
     return NextResponse.json(
       {
         ok: false,
@@ -144,6 +183,19 @@ export async function POST(request: NextRequest) {
     email: data.user.email
   });
 
+  await writeAuditLog({
+    actorUserId: data.user.id,
+    actorDisplayName: profile.display_name,
+    actorEmail: profile.email ?? undefined,
+    entityType: "auth_session",
+    entityId: data.user.id,
+    action: "auth.login_success",
+    payload: {
+      identifier,
+      mode: "supabase"
+    }
+  });
+
   const { data: memberships } = await supabaseServer
     .from("workspace_members")
     .select("workspaces(slug)")
@@ -161,30 +213,28 @@ export async function POST(request: NextRequest) {
     hasWorkspace: Boolean(workspaceRecord?.slug),
     requiresWorkspaceSelection: workspaceCount > 1
   });
+  const accessTokenMaxAge = Math.max(data.session.expires_in ?? 3600, 60);
 
-  response.cookies.set(sessionCookieNames.accessToken, data.session.access_token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/"
-  });
-  response.cookies.set(sessionCookieNames.refreshToken, data.session.refresh_token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/"
-  });
-  response.cookies.set(sessionCookieNames.userId, data.user.id, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/"
-  });
+  response.cookies.set(sessionCookieNames.accessToken, data.session.access_token, getSessionCookieOptions(accessTokenMaxAge));
+  response.cookies.set(
+    sessionCookieNames.refreshToken,
+    data.session.refresh_token,
+    getSessionCookieOptions(APP_SESSION_TTL_SECONDS)
+  );
+  response.cookies.set(
+    sessionCookieNames.appSession,
+    await createAppSessionToken(data.user.id),
+    getSessionCookieOptions(APP_SESSION_TTL_SECONDS)
+  );
+  response.cookies.delete(sessionCookieNames.legacyUserId);
   response.cookies.delete(sessionCookieNames.demoRole);
 
   if (workspaceCount === 1 && workspaceRecord?.slug) {
-    response.cookies.set(sessionCookieNames.workspaceSlug, workspaceRecord.slug, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/"
-    });
+    response.cookies.set(
+      sessionCookieNames.workspaceSlug,
+      workspaceRecord.slug,
+      getSessionCookieOptions(APP_SESSION_TTL_SECONDS)
+    );
   } else {
     response.cookies.delete(sessionCookieNames.workspaceSlug);
   }

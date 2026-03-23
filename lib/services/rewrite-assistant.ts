@@ -134,7 +134,7 @@ function buildLocalRewriteFallback(input: RewriteVariantInput): {
 export async function rewriteVariantDraft(
   input: RewriteVariantInput
 ): Promise<RewriteVariantResult> {
-  const route = decideModelRoute("copy-polish");
+  const route = await decideModelRoute("copy-polish", { feature: "rewrite" });
 
   if (route.provider === "mock") {
     return {
@@ -150,7 +150,7 @@ export async function rewriteVariantDraft(
   let output: string;
 
   try {
-    output = await runModelTask("copy-polish", buildPrompt(input));
+    output = await runModelTask("copy-polish", buildPrompt(input), { feature: "rewrite" });
   } catch (error) {
     const fallback = buildLocalRewriteFallback(input);
     const minimumChars = resolveMinimumChars(input);

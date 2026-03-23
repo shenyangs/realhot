@@ -60,7 +60,7 @@ export async function generatePackPreview(packId: string): Promise<{
   let output: string;
 
   try {
-    output = await runModelTask("content-generation", prompt);
+    output = await runModelTask("content-generation", prompt, { feature: "pack-preview" });
   } catch (error) {
     output =
       error instanceof Error

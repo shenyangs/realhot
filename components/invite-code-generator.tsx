@@ -5,9 +5,11 @@ import { useState, useTransition } from "react";
 import { roleLabels, WorkspaceRole } from "@/lib/auth/types";
 
 export function InviteCodeGenerator({
-  workspaceId
+  workspaceId,
+  workspaceName
 }: {
   workspaceId: string;
+  workspaceName: string;
 }) {
   const router = useRouter();
   const [role, setRole] = useState<WorkspaceRole>("operator");
@@ -58,6 +60,7 @@ export function InviteCodeGenerator({
           <h3>生成邀请码</h3>
         </div>
       </div>
+      <p className="muted">当前绑定用户组：{workspaceName}。新用户使用邀请码注册后会自动加入这个用户组，并套用所选角色。</p>
       <div className="teamInviteGrid">
         <label className="field fieldCompact">
           <span>角色</span>
@@ -85,4 +88,3 @@ export function InviteCodeGenerator({
     </form>
   );
 }
-

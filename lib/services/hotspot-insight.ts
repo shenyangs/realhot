@@ -189,7 +189,7 @@ export async function generateHotspotInsight(hotspotId: string): Promise<Hotspot
     throw new Error("找不到这条热点");
   }
 
-  const route = decideModelRoute("hotspot-analysis");
+  const route = await decideModelRoute("hotspot-analysis", { feature: "hotspot-insight" });
   const fallback = buildLocalFallback({
     brandName: brand.name,
     title: hotspot.title,
@@ -227,7 +227,8 @@ export async function generateHotspotInsight(hotspotId: string): Promise<Hotspot
         velocityScore: hotspot.velocityScore,
         riskScore: hotspot.riskScore,
         reasons: hotspot.reasons
-      })
+      }),
+      { feature: "hotspot-insight" }
     );
 
     return {

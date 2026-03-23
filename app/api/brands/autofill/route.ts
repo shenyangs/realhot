@@ -1,9 +1,20 @@
 import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiAccess } from "@/lib/auth/api-guard";
+import { canManageBrands } from "@/lib/auth/permissions";
 import { updateBrandStrategyPack } from "@/lib/data";
 import { autofillBrandStrategy } from "@/lib/services/brand-autofill";
 
 export async function POST(request: NextRequest) {
+  const access = await requireApiAccess(request, {
+    authorize: canManageBrands,
+    requireWorkspace: true
+  });
+
+  if (!access.ok) {
+    return access.response;
+  }
+
   try {
     const body = (await request.json()) as {
       brandName?: string;

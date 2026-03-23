@@ -17,6 +17,7 @@ interface ReviewEditorProps {
   packId: string;
   variantId: string;
   platformKey: string;
+  decisionAnchorId?: string;
   brandName: string;
   brandTone: string[];
   redLines: string[];
@@ -60,6 +61,7 @@ export function ReviewEditor({
   packId,
   variantId,
   platformKey,
+  decisionAnchorId,
   brandName,
   brandTone,
   redLines,
@@ -383,8 +385,30 @@ export function ReviewEditor({
   }
 
   return (
-    <div className="editorSimpleFlow">
-      <div className="editorSimpleMeta">
+    <div className="editorWorkbench">
+      <div className="editorWorkbenchHeader">
+        <div>
+          <p className="eyebrow">内容编辑区</p>
+          <h3>当前版本</h3>
+        </div>
+        <div className="buttonRow editorWorkbenchActions">
+          {decisionAnchorId ? (
+            <a className="buttonLike subtleButton" href={`#${decisionAnchorId}`}>
+              去提交审核
+            </a>
+          ) : null}
+          <button
+            className="buttonLike subtleButton"
+            disabled={!previousSnapshot}
+            onClick={revertToPreviousSavedVersion}
+            type="button"
+          >
+            回退上一个已保存版本
+          </button>
+        </div>
+      </div>
+
+      <div className="editorSimpleMeta editorMetaRow">
         <span className="reviewInlineMeta">当前平台：{platformLabel}</span>
         <span className="reviewInlineMeta">内容类型：{trackLabel}</span>
         <span className="reviewInlineMeta">建议角度：{angle}</span>
@@ -398,7 +422,7 @@ export function ReviewEditor({
         </span>
       </div>
 
-      <div className="editorSimpleFields">
+      <div className="editorSimpleFields editorWorkbenchFields">
         <div className="field">
           <span>标题</span>
           <input value={title} onChange={(event) => setTitle(event.target.value)} />
@@ -422,25 +446,10 @@ export function ReviewEditor({
           onChange={(event) => setBody(event.target.value)}
           rows={18}
         />
-
-        <div className="buttonRow">
-          <button
-            disabled={!previousSnapshot}
-            onClick={revertToPreviousSavedVersion}
-            type="button"
-          >
-            回退到上一个已保存版本
-          </button>
-        </div>
-
-        <div className="reviewContextCopy">
-          <p><strong>为什么现在做：</strong>{whyNow}</p>
-          <p><strong>为什么和品牌相关：</strong>{whyUs}</p>
-        </div>
       </div>
 
-      <section className="editorAssistantSection">
-        <div className="reviewSimpleHeader">
+      <section className="editorAssistantSection editorToolSection">
+        <div className="reviewSimpleHeader editorToolHeader">
           <div>
             <p className="eyebrow">AI 改稿</p>
             <h3>改稿助手</h3>
@@ -473,6 +482,16 @@ export function ReviewEditor({
               type="button"
             >
               {item}
+            </button>
+          ))}
+          {brandTone.map((tone) => (
+            <button
+              className="promptChip"
+              key={tone}
+              onClick={() => setPrompt(`把这版整体调整得更${tone}，但不要丢掉当前核心判断。`)}
+              type="button"
+            >
+              切成更{tone}的口吻
             </button>
           ))}
         </div>
@@ -523,7 +542,7 @@ export function ReviewEditor({
           </section>
         ) : null}
 
-        <section className="editorAssistNote">
+        <section className="editorAssistNote editorAssistGrid">
           <div>
             <strong>配图 / 镜头建议</strong>
             <p className="muted">
@@ -537,6 +556,17 @@ export function ReviewEditor({
                 <li key={line}>{line}</li>
               ))}
             </ul>
+          </div>
+        </section>
+
+        <section className="editorAssistNote editorAssistGrid">
+          <div>
+            <strong>立题理由</strong>
+            <p className="muted">{whyNow}</p>
+          </div>
+          <div>
+            <strong>品牌结合原因</strong>
+            <p className="muted">{whyUs}</p>
           </div>
         </section>
 

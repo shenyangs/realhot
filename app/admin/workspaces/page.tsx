@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { InviteCodeGenerator } from "@/components/invite-code-generator";
 import { InviteCodeList } from "@/components/invite-code-list";
+import { PageHero } from "@/components/page-hero";
 import { WorkspaceSettingsForm } from "@/components/workspace-settings-form";
 import { listInviteCodesForWorkspace, listPlatformWorkspaces } from "@/lib/auth/repository";
 
@@ -13,41 +14,56 @@ export default async function AdminWorkspacesPage() {
     }))
   );
   const codeMap = new Map(workspaceCodes.map((item) => [item.workspaceId, item.codes]));
+  const activeWorkspaces = workspaces.filter((workspace) => workspace.status !== "disabled").length;
 
   return (
-    <div className="page">
-      <section className="panel">
-        <div className="panelHeader sectionTitle">
-          <div>
-            <p className="eyebrow">Admin / Workspaces</p>
-            <h1>组织管理</h1>
-          </div>
-          <Link className="buttonLike subtleButton" href="/admin">
-            返回后台总览
-          </Link>
-        </div>
-        <p className="muted">查看每个客户组织的 slug、套餐和成员数量。后面可以继续往这里补停用、额度和品牌数。</p>
-      </section>
+    <div className="page adminConsolePage">
+      <PageHero
+        actions={
+          <>
+            <Link className="buttonLike subtleButton" href="/admin">
+              返回后台总览
+            </Link>
+          </>
+        }
+        description="查看每个客户组织的 slug、套餐、成员规模，并在这里统一管理组织设置和邀请码。"
+        eyebrow="Admin / Workspaces"
+        facts={[
+          { label: "组织总数", value: `${workspaces.length} 个` },
+          { label: "活跃组织", value: `${activeWorkspaces} 个` },
+          { label: "停用组织", value: `${workspaces.length - activeWorkspaces} 个` }
+        ]}
+        title="组织管理"
+      />
 
-      <div className="stack">
+      <section className="adminEntityList">
         {workspaces.map((workspace) => (
-          <article className="panel teamMemberCard" key={workspace.id}>
-            <div className="teamMemberHeader">
+          <article className="panel adminEntityCard" key={workspace.id}>
+            <div className="adminEntityHead">
               <div>
                 <strong>{workspace.name}</strong>
-                <p className="muted">{workspace.slug}</p>
+                <p className="muted">slug：{workspace.slug}</p>
               </div>
               <span className="pill">{workspace.status}</span>
             </div>
-            <p className="muted">
-              套餐：{workspace.planType ?? "未设置"} · 成员数：{workspace.memberCount}
-            </p>
+
+            <div className="adminMetricGrid">
+              <div>
+                <span>套餐</span>
+                <strong>{workspace.planType ?? "trial"}</strong>
+              </div>
+              <div>
+                <span>成员数</span>
+                <strong>{workspace.memberCount}</strong>
+              </div>
+            </div>
+
             <WorkspaceSettingsForm canManage workspace={workspace} />
-            <InviteCodeGenerator workspaceId={workspace.id} />
+            <InviteCodeGenerator workspaceId={workspace.id} workspaceName={workspace.name} />
             {codeMap.get(workspace.id)?.length ? <InviteCodeList codes={codeMap.get(workspace.id) ?? []} /> : null}
           </article>
         ))}
-      </div>
+      </section>
     </div>
   );
 }

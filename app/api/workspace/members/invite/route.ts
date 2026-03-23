@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiAccess } from "@/lib/auth/api-guard";
 import { canManageMembers } from "@/lib/auth";
 import { createWorkspaceInvite } from "@/lib/auth/repository";
-import { getCurrentViewer } from "@/lib/auth/session";
 
 export async function POST(request: NextRequest) {
-  const viewer = await getCurrentViewer();
+  const access = await requireApiAccess(request, {
+    authorize: canManageMembers,
+    requireWorkspace: true
+  });
 
-  if (!canManageMembers(viewer)) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "forbidden"
-      },
-      {
-        status: 403
-      }
-    );
+  if (!access.ok) {
+    return access.response;
   }
 
   const body = (await request.json().catch(() => ({}))) as {

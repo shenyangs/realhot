@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
+import { writeAuditLog } from "@/lib/auth/audit";
 import { DemoWorkspaceInviteRecord, DemoWorkspaceMemberRecord, DEMO_USERS } from "@/lib/auth/demo-data";
+import { APP_SESSION_TTL_SECONDS, getSessionCookieOptions } from "@/lib/auth/local-session";
+import { hashPassword, verifyStoredPassword } from "@/lib/auth/passwords";
 import { getCurrentViewer, sessionCookieNames } from "@/lib/auth/session";
-import { ViewerUser, ViewerWorkspace, WorkspaceRole } from "@/lib/auth/types";
+import { ManagedAccountSummary, ViewerUser, ViewerWorkspace, WorkspaceRole } from "@/lib/auth/types";
 import { readLocalDataStore, updateLocalDataStore } from "@/lib/data/local-store";
 import { getSupabaseClient, getSupabaseServerClient } from "@/lib/supabase/client";
 
@@ -78,6 +81,7 @@ export interface WorkspaceInviteRecord {
 export interface PlatformUserRecord {
   id: string;
   displayName: string;
+  account: string;
   email?: string;
   status: string;
   isPlatformAdmin: boolean;
@@ -165,13 +169,16 @@ export async function listAvailableWorkspaces() {
 }
 
 export async function loginWithLocalAccount(input: {
-  email: string;
+  identifier: string;
   password: string;
 }) {
   const store = await readLocalDataStore();
-  const normalizedEmail = input.email.trim().toLowerCase();
+  const normalizedIdentifier = input.identifier.trim().toLowerCase();
   const account = store.authAccounts.find(
-    (item) => item.email.toLowerCase() === normalizedEmail && item.password === input.password
+    (item) =>
+      ((item.email && item.email.toLowerCase() === normalizedIdentifier) ||
+        (item.username && item.username.toLowerCase() === normalizedIdentifier)) &&
+      verifyStoredPassword(input.password, item.password)
   );
 
   if (!account) {
@@ -198,6 +205,15 @@ export async function loginWithLocalAccount(input: {
   };
 }
 
+function getLocalAccountSummary(userId: string, store: Awaited<ReturnType<typeof readLocalDataStore>>): ManagedAccountSummary {
+  const account = store.authAccounts.find((item) => item.userId === userId);
+
+  return {
+    login: account?.username ?? account?.email ?? "未设置",
+    email: account?.email
+  };
+}
+
 export async function setCurrentWorkspaceBySlug(slug: string) {
   const viewer = await getCurrentViewer();
   const membership = viewer.memberships.find((item) => item.workspace.slug === slug);
@@ -207,10 +223,20 @@ export async function setCurrentWorkspaceBySlug(slug: string) {
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(sessionCookieNames.workspaceSlug, slug, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/"
+  cookieStore.set(sessionCookieNames.workspaceSlug, slug, getSessionCookieOptions(APP_SESSION_TTL_SECONDS));
+
+  await writeAuditLog({
+    workspaceId: membership.workspace.id,
+    actorUserId: viewer.user.id,
+    actorDisplayName: viewer.user.displayName,
+    actorEmail: viewer.user.email,
+    entityType: "auth_session",
+    entityId: viewer.user.id,
+    action: "auth.workspace_switched",
+    payload: {
+      workspaceSlug: slug,
+      workspaceName: membership.workspace.name
+    }
   });
 
   return membership.workspace;
@@ -362,6 +388,22 @@ export async function updateWorkspaceMember(
       throw new Error("member_profile_missing");
     }
 
+    await writeAuditLog({
+      workspaceId,
+      actorUserId: viewer.user.id,
+      actorDisplayName: viewer.user.displayName,
+      actorEmail: viewer.user.email,
+      entityType: "workspace_member",
+      entityId: memberId,
+      action: "workspace.member_updated",
+      payload: {
+        targetUserId: record.user.id,
+        targetDisplayName: record.user.displayName,
+        role: record.role,
+        status: record.status
+      }
+    });
+
     return record;
   }
 
@@ -399,7 +441,7 @@ export async function updateWorkspaceMember(
     throw new Error("member_profile_missing");
   }
 
-  return {
+  const updatedMember = {
     id: data.id,
     user,
     workspaceId: data.workspace_id,
@@ -407,6 +449,24 @@ export async function updateWorkspaceMember(
     status: data.status,
     joinedAt: data.joined_at ?? undefined
   };
+
+  await writeAuditLog({
+    workspaceId,
+    actorUserId: viewer.user.id,
+    actorDisplayName: viewer.user.displayName,
+    actorEmail: viewer.user.email,
+    entityType: "workspace_member",
+    entityId: memberId,
+    action: "workspace.member_updated",
+    payload: {
+      targetUserId: updatedMember.user.id,
+      targetDisplayName: updatedMember.user.displayName,
+      role: updatedMember.role,
+      status: updatedMember.status
+    }
+  });
+
+  return updatedMember;
 }
 
 export async function listWorkspaceInvites(): Promise<WorkspaceInviteRecord[]> {
@@ -636,7 +696,7 @@ export async function createWorkspaceInvite(input: {
       };
     });
 
-    return {
+    const inviteRecord = {
       id: inviteId,
       workspaceId,
       email: normalizedEmail,
@@ -644,6 +704,22 @@ export async function createWorkspaceInvite(input: {
       status: "pending",
       createdAt
     };
+
+    await writeAuditLog({
+      workspaceId,
+      actorUserId: viewer.user.id,
+      actorDisplayName: viewer.user.displayName,
+      actorEmail: viewer.user.email,
+      entityType: "workspace_invite",
+      entityId: inviteRecord.id,
+      action: "workspace.invite_created",
+      payload: {
+        invitedEmail: inviteRecord.email,
+        role: inviteRecord.role
+      }
+    });
+
+    return inviteRecord;
   }
 
   const supabase = getSupabaseServerClient();
@@ -681,7 +757,7 @@ export async function createWorkspaceInvite(input: {
     throw new Error("invite_create_failed");
   }
 
-  return {
+  const inviteRecord = {
     id: data.id,
     workspaceId: data.workspace_id,
     email: data.email,
@@ -689,6 +765,22 @@ export async function createWorkspaceInvite(input: {
     status: data.status,
     createdAt: data.created_at
   };
+
+  await writeAuditLog({
+    workspaceId,
+    actorUserId: viewer.user.id,
+    actorDisplayName: viewer.user.displayName,
+    actorEmail: viewer.user.email,
+    entityType: "workspace_invite",
+    entityId: inviteRecord.id,
+    action: "workspace.invite_created",
+    payload: {
+      invitedEmail: inviteRecord.email,
+      role: inviteRecord.role
+    }
+  });
+
+  return inviteRecord;
 }
 
 function generateInviteCode(prefix: string) {
@@ -708,9 +800,9 @@ export async function createWorkspaceInviteCodes(input: {
 
   if (viewer.mode === "demo") {
     const store = await readLocalDataStore();
-    const workspace = store.workspaces.find((item) => item.id === input.workspaceId);
+    const existingWorkspace = store.workspaces.find((item) => item.id === input.workspaceId);
 
-    if (!workspace) {
+    if (!existingWorkspace) {
       throw new Error("workspace_not_found");
     }
 
@@ -718,7 +810,7 @@ export async function createWorkspaceInviteCodes(input: {
     const createdCodes: WorkspaceInviteCodeRecord[] = Array.from({ length: quantity }, () => ({
       id: randomUUID(),
       workspaceId: input.workspaceId,
-      code: generateInviteCode(workspace.slug.toUpperCase().replace(/[^A-Z0-9]+/g, "").slice(0, 10) || "INVITE"),
+      code: generateInviteCode(existingWorkspace.slug.toUpperCase().replace(/[^A-Z0-9]+/g, "").slice(0, 10) || "INVITE"),
       role: input.role,
       status: "active",
       maxUses,
@@ -736,6 +828,21 @@ export async function createWorkspaceInviteCodes(input: {
         }))
       ]
     }));
+
+    await writeAuditLog({
+      workspaceId: input.workspaceId,
+      actorUserId: viewer.user.id,
+      actorDisplayName: viewer.user.displayName,
+      actorEmail: viewer.user.email,
+      entityType: "workspace_invite_code_batch",
+      action: "workspace.invite_codes_created",
+      payload: {
+        role: input.role,
+        quantity,
+        maxUses,
+        codes: createdCodes.map((code) => code.code)
+      }
+    });
 
     return createdCodes;
   }
@@ -772,7 +879,7 @@ export async function createWorkspaceInviteCodes(input: {
     throw new Error("invite_code_create_failed");
   }
 
-  return data.map((code) => ({
+  const codes = data.map((code) => ({
     id: code.id,
     workspaceId: code.workspace_id,
     code: code.code,
@@ -782,6 +889,23 @@ export async function createWorkspaceInviteCodes(input: {
     usedCount: code.used_count,
     createdAt: code.created_at
   }));
+
+  await writeAuditLog({
+    workspaceId: input.workspaceId,
+    actorUserId: viewer.user.id,
+    actorDisplayName: viewer.user.displayName,
+    actorEmail: viewer.user.email,
+    entityType: "workspace_invite_code_batch",
+    action: "workspace.invite_codes_created",
+    payload: {
+      role: input.role,
+      quantity,
+      maxUses,
+      codes: codes.map((code) => code.code)
+    }
+  });
+
+  return codes;
 }
 
 export async function registerWithInviteCode(input: {
@@ -813,7 +937,7 @@ export async function registerWithInviteCode(input: {
       throw new Error("invite_code_invalid");
     }
 
-    if (store.authAccounts.some((account) => account.email.toLowerCase() === normalizedEmail)) {
+    if (store.authAccounts.some((account) => account.email?.toLowerCase() === normalizedEmail)) {
       throw new Error("email_already_registered");
     }
 
@@ -836,7 +960,7 @@ export async function registerWithInviteCode(input: {
         {
           userId,
           email: normalizedEmail,
-          password: input.password,
+          password: hashPassword(input.password),
           passwordSetupRequired: false
         }
       ],
@@ -865,11 +989,28 @@ export async function registerWithInviteCode(input: {
       })
     }));
 
-    return {
+    const result = {
       mode: "demo" as const,
       userId,
-      workspaceId: inviteCode.workspaceId
+      workspaceId: inviteCode.workspaceId,
+      workspaceSlug: store.workspaces.find((workspace) => workspace.id === inviteCode.workspaceId)?.slug ?? null
     };
+
+    await writeAuditLog({
+      workspaceId: inviteCode.workspaceId,
+      actorUserId: userId,
+      actorDisplayName: input.displayName.trim() || normalizedEmail.split("@")[0],
+      actorEmail: normalizedEmail,
+      entityType: "user",
+      entityId: userId,
+      action: "auth.registered_with_invite_code",
+      payload: {
+        inviteCode: normalizedCode,
+        role: inviteCode.role
+      }
+    });
+
+    return result;
   }
 
   const { data: inviteCode, error: inviteCodeError } = await supabaseServer
@@ -928,11 +1069,28 @@ export async function registerWithInviteCode(input: {
     throw new Error("invite_code_update_failed");
   }
 
-  return {
+  const result = {
     mode: "supabase" as const,
     userId: authData.user.id,
-    workspaceId: inviteCode.workspace_id
+    workspaceId: inviteCode.workspace_id,
+    workspaceSlug: (await getWorkspaceById(inviteCode.workspace_id))?.slug ?? null
   };
+
+  await writeAuditLog({
+    workspaceId: inviteCode.workspace_id,
+    actorUserId: authData.user.id,
+    actorDisplayName: input.displayName.trim() || normalizedEmail.split("@")[0],
+    actorEmail: normalizedEmail,
+    entityType: "user",
+    entityId: authData.user.id,
+    action: "auth.registered_with_invite_code",
+    payload: {
+      inviteCode: normalizedCode,
+      role: inviteCode.role
+    }
+  });
+
+  return result;
 }
 
 export async function listPlatformUsers(): Promise<PlatformUserRecord[]> {
@@ -950,6 +1108,7 @@ export async function listPlatformUsers(): Promise<PlatformUserRecord[]> {
       return {
         id: profile.id,
         displayName: profile.displayName,
+        account: getLocalAccountSummary(profile.id, store).login,
         email: profile.email,
         status: profile.status ?? (memberships.some((member) => member.status === "disabled") ? "disabled" : "active"),
         isPlatformAdmin: profile.id === DEMO_USERS.super_admin.id,
@@ -984,6 +1143,7 @@ export async function listPlatformUsers(): Promise<PlatformUserRecord[]> {
     return {
       id: profile.id,
       displayName: profile.display_name,
+      account: profile.email ?? profile.id,
       email: profile.email ?? undefined,
       status: profile.status,
       isPlatformAdmin: adminSet.has(profile.id),
@@ -991,6 +1151,198 @@ export async function listPlatformUsers(): Promise<PlatformUserRecord[]> {
       workspaceNames
     };
   });
+}
+
+export async function createManagedUserAccount(input: {
+  login: string;
+  displayName: string;
+  password: string;
+  workspaceId: string;
+  role: WorkspaceRole;
+  email?: string;
+}) {
+  const normalizedLogin = input.login.trim().toLowerCase();
+  const normalizedEmail = input.email?.trim().toLowerCase();
+  const displayName = input.displayName.trim();
+
+  if (!normalizedLogin) {
+    throw new Error("login_required");
+  }
+
+  if (!displayName) {
+    throw new Error("display_name_required");
+  }
+
+  if (!input.password.trim()) {
+    throw new Error("password_required");
+  }
+
+  if (!input.workspaceId.trim()) {
+    throw new Error("workspace_required");
+  }
+
+  const viewer = await getCurrentViewer();
+
+  if (viewer.mode === "demo") {
+    const store = await readLocalDataStore();
+
+    if (!store.workspaces.some((workspace) => workspace.id === input.workspaceId)) {
+      throw new Error("workspace_not_found");
+    }
+
+    const accountExists = store.authAccounts.some(
+      (account) =>
+        account.email?.toLowerCase() === normalizedLogin || account.username?.toLowerCase() === normalizedLogin
+    );
+
+    if (accountExists) {
+      throw new Error("login_already_exists");
+    }
+
+    if (
+      normalizedEmail &&
+      store.authAccounts.some((account) => account.email?.toLowerCase() === normalizedEmail)
+    ) {
+      throw new Error("email_already_registered");
+    }
+
+    const userId = randomUUID();
+    const profileEmail = normalizedEmail ?? (normalizedLogin.includes("@") ? normalizedLogin : undefined);
+
+    await updateLocalDataStore((current) => ({
+      ...current,
+      profiles: [
+        ...current.profiles,
+        {
+          id: userId,
+          email: profileEmail,
+          displayName,
+          status: "active",
+          passwordSetupRequired: false
+        }
+      ],
+      authAccounts: [
+        ...current.authAccounts,
+        {
+          userId,
+          email: profileEmail,
+          username: normalizedLogin.includes("@") ? undefined : normalizedLogin,
+          password: hashPassword(input.password.trim()),
+          passwordSetupRequired: false
+        }
+      ],
+      workspaceMembers: [
+        ...current.workspaceMembers,
+        {
+          id: randomUUID(),
+          workspaceId: input.workspaceId,
+          userId,
+          role: input.role,
+          status: "active",
+          invitedBy: viewer.user.id,
+          joinedAt: new Date().toISOString()
+        }
+      ]
+    }));
+
+    const result = {
+      id: userId,
+      displayName,
+      account: normalizedLogin,
+      email: profileEmail,
+      workspaceId: input.workspaceId,
+      role: input.role
+    };
+
+    await writeAuditLog({
+      workspaceId: input.workspaceId,
+      actorUserId: viewer.user.id,
+      actorDisplayName: viewer.user.displayName,
+      actorEmail: viewer.user.email,
+      entityType: "user",
+      entityId: userId,
+      action: "admin.user_created",
+      payload: {
+        account: normalizedLogin,
+        email: profileEmail,
+        displayName,
+        role: input.role
+      }
+    });
+
+    return result;
+  }
+
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    throw new Error("supabase_not_configured");
+  }
+
+  const emailForSupabase = normalizedEmail ?? (normalizedLogin.includes("@") ? normalizedLogin : undefined);
+
+  if (!emailForSupabase) {
+    throw new Error("email_required_for_supabase");
+  }
+
+  const { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
+    email: emailForSupabase,
+    password: input.password.trim(),
+    email_confirm: true,
+    user_metadata: {
+      display_name: displayName
+    }
+  });
+
+  if (createUserError || !createdUser.user) {
+    throw new Error(createUserError?.message ?? "user_create_failed");
+  }
+
+  await bootstrapSupabaseProfile({
+    id: createdUser.user.id,
+    email: emailForSupabase,
+    displayName
+  });
+
+  const { error: memberError } = await supabase.from("workspace_members").insert({
+    workspace_id: input.workspaceId,
+    user_id: createdUser.user.id,
+    role: input.role,
+    status: "active",
+    joined_at: new Date().toISOString(),
+    invited_by: viewer.user.id
+  });
+
+  if (memberError) {
+    throw new Error("workspace_join_failed");
+  }
+
+  const result = {
+    id: createdUser.user.id,
+    displayName,
+    account: emailForSupabase,
+    email: emailForSupabase,
+    workspaceId: input.workspaceId,
+    role: input.role
+  };
+
+  await writeAuditLog({
+    workspaceId: input.workspaceId,
+    actorUserId: viewer.user.id,
+    actorDisplayName: viewer.user.displayName,
+    actorEmail: viewer.user.email,
+    entityType: "user",
+    entityId: createdUser.user.id,
+    action: "admin.user_created",
+    payload: {
+      account: emailForSupabase,
+      email: emailForSupabase,
+      displayName,
+      role: input.role
+    }
+  });
+
+  return result;
 }
 
 export async function listPlatformWorkspaces(): Promise<PlatformWorkspaceRecord[]> {
@@ -1071,9 +1423,9 @@ export async function updateWorkspace(input: {
 
   if (viewer.mode === "demo") {
     const store = await readLocalDataStore();
-    const workspace = store.workspaces.find((item) => item.id === input.workspaceId);
+    const existingWorkspace = store.workspaces.find((item) => item.id === input.workspaceId);
 
-    if (!workspace) {
+    if (!existingWorkspace) {
       throw new Error("workspace_not_found");
     }
 
@@ -1093,7 +1445,27 @@ export async function updateWorkspace(input: {
     }));
 
     const nextStore = await readLocalDataStore();
-    return nextStore.workspaces.find((item) => item.id === input.workspaceId) ?? null;
+    const updatedWorkspace = nextStore.workspaces.find((item) => item.id === input.workspaceId) ?? null;
+
+    if (updatedWorkspace) {
+      await writeAuditLog({
+        workspaceId: updatedWorkspace.id,
+        actorUserId: viewer.user.id,
+        actorDisplayName: viewer.user.displayName,
+        actorEmail: viewer.user.email,
+        entityType: "workspace",
+        entityId: updatedWorkspace.id,
+        action: "workspace.updated",
+        payload: {
+          name: updatedWorkspace.name,
+          slug: updatedWorkspace.slug,
+          planType: updatedWorkspace.planType,
+          status: updatedWorkspace.status
+        }
+      });
+    }
+
+    return updatedWorkspace;
   }
 
   const supabase = getSupabaseServerClient();
@@ -1120,7 +1492,25 @@ export async function updateWorkspace(input: {
     throw new Error("workspace_update_failed");
   }
 
-  return mapWorkspaceRow(data);
+  const workspace = mapWorkspaceRow(data);
+
+  await writeAuditLog({
+    workspaceId: workspace.id,
+    actorUserId: viewer.user.id,
+    actorDisplayName: viewer.user.displayName,
+    actorEmail: viewer.user.email,
+    entityType: "workspace",
+    entityId: workspace.id,
+    action: "workspace.updated",
+    payload: {
+      name: workspace.name,
+      slug: workspace.slug,
+      planType: workspace.planType,
+      status: workspace.status
+    }
+  });
+
+  return workspace;
 }
 
 export async function bootstrapSupabaseProfile(input: SupabaseAuthProfileInput) {
@@ -1214,6 +1604,19 @@ export async function reconcilePendingInvitesForUser(input: {
     if (inviteUpdateError) {
       throw new Error("invite_accept_failed");
     }
+
+    await writeAuditLog({
+      workspaceId: invite.workspace_id,
+      actorUserId: input.userId,
+      actorEmail: normalizedEmail,
+      entityType: "workspace_invite",
+      entityId: invite.id,
+      action: "auth.pending_invite_accepted",
+      payload: {
+        email: normalizedEmail,
+        role: invite.role
+      }
+    });
   }
 
   return pendingInvites;
@@ -1223,6 +1626,7 @@ export async function setPlatformUserStatus(input: {
   userId: string;
   status: "active" | "disabled";
 }) {
+  const viewer = await getCurrentViewer();
   const supabase = getSupabaseServerClient();
 
   if (!supabase) {
@@ -1243,6 +1647,20 @@ export async function setPlatformUserStatus(input: {
     throw new Error("user_status_update_failed");
   }
 
+  await writeAuditLog({
+    actorUserId: viewer.user.id,
+    actorDisplayName: viewer.user.displayName,
+    actorEmail: viewer.user.email,
+    entityType: "user",
+    entityId: input.userId,
+    action: "admin.user_status_changed",
+    payload: {
+      status: input.status,
+      targetDisplayName: data.display_name,
+      targetEmail: data.email
+    }
+  });
+
   return data;
 }
 
@@ -1250,6 +1668,7 @@ export async function setDemoUserStatus(input: {
   userId: string;
   status: "active" | "disabled";
 }) {
+  const viewer = await getCurrentViewer();
   await updateLocalDataStore((store) => {
     const nextProfiles = store.profiles.map((profile) => {
       if (profile.id !== input.userId) {
@@ -1287,12 +1706,28 @@ export async function setDemoUserStatus(input: {
     throw new Error("user_not_found");
   }
 
-  return {
+  const result = {
     id: profile.id,
     email: profile.email ?? null,
     display_name: profile.displayName,
     status: input.status
   };
+
+  await writeAuditLog({
+    actorUserId: viewer.user.id,
+    actorDisplayName: viewer.user.displayName,
+    actorEmail: viewer.user.email,
+    entityType: "user",
+    entityId: input.userId,
+    action: "admin.user_status_changed",
+    payload: {
+      status: input.status,
+      targetDisplayName: profile.displayName,
+      targetEmail: profile.email
+    }
+  });
+
+  return result;
 }
 
 export async function changePassword(input: {
@@ -1300,6 +1735,7 @@ export async function changePassword(input: {
   currentPassword?: string;
   nextPassword: string;
 }) {
+  const viewer = await getCurrentViewer();
   if (!input.nextPassword.trim()) {
     throw new Error("next_password_required");
   }
@@ -1327,6 +1763,17 @@ export async function changePassword(input: {
       throw new Error(error.message);
     }
 
+    await writeAuditLog({
+      workspaceId: viewer.currentWorkspace?.id,
+      actorUserId: viewer.user.id,
+      actorDisplayName: viewer.user.displayName,
+      actorEmail: viewer.user.email,
+      entityType: "user",
+      entityId: input.userId,
+      action: "auth.password_changed",
+      payload: {}
+    });
+
     return {
       mode: "supabase" as const
     };
@@ -1339,7 +1786,7 @@ export async function changePassword(input: {
     throw new Error("account_not_found");
   }
 
-  if (input.currentPassword && account.password !== input.currentPassword) {
+  if (input.currentPassword && !verifyStoredPassword(input.currentPassword, account.password)) {
     throw new Error("current_password_invalid");
   }
 
@@ -1350,7 +1797,7 @@ export async function changePassword(input: {
         ? item
         : {
             ...item,
-            password: input.nextPassword,
+            password: hashPassword(input.nextPassword),
             passwordSetupRequired: false
           }
     ),
@@ -1363,6 +1810,17 @@ export async function changePassword(input: {
           }
     )
   }));
+
+  await writeAuditLog({
+    workspaceId: viewer.currentWorkspace?.id,
+    actorUserId: viewer.user.id,
+    actorDisplayName: viewer.user.displayName,
+    actorEmail: viewer.user.email,
+    entityType: "user",
+    entityId: input.userId,
+    action: "auth.password_changed",
+    payload: {}
+  });
 
   return {
     mode: "demo" as const

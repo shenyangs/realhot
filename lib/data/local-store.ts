@@ -17,7 +17,10 @@ import {
   DemoWorkspaceInviteRecord,
   DemoWorkspaceMemberRecord
 } from "@/lib/auth/demo-data";
+import { ensurePasswordHashMatches, normalizeStoredPassword } from "@/lib/auth/passwords";
+import type { AuditLogRecord } from "@/lib/auth/audit";
 import { ViewerUser, ViewerWorkspace } from "@/lib/auth/types";
+import { AiRoutingConfig, DEFAULT_AI_ROUTING_CONFIG } from "@/lib/domain/ai-routing";
 import { BrandStrategyPack, HotspotPack, HotspotSignal, HotspotSyncSnapshot, PublishJob } from "@/lib/domain/types";
 
 export interface LocalDataStore {
@@ -26,12 +29,14 @@ export interface LocalDataStore {
   packs: HotspotPack[];
   publishJobs: PublishJob[];
   lastHotspotSync: HotspotSyncSnapshot | null;
+  aiRoutingConfig: AiRoutingConfig;
   profiles: ViewerUser[];
   workspaces: ViewerWorkspace[];
   workspaceMembers: DemoWorkspaceMemberRecord[];
   workspaceInvites: DemoWorkspaceInviteRecord[];
   workspaceInviteCodes: DemoWorkspaceInviteCodeRecord[];
   authAccounts: DemoAuthAccountRecord[];
+  auditLogs: AuditLogRecord[];
 }
 
 const storeDirectory = path.join(process.cwd(), ".runtime");
@@ -39,6 +44,50 @@ const storeFile = path.join(storeDirectory, "brand-hotspot-studio.json");
 const tempStoreFile = path.join(storeDirectory, "brand-hotspot-studio.tmp.json");
 
 let storeUpdateQueue: Promise<void> = Promise.resolve();
+
+function ensureRequiredLocalAccounts(store: LocalDataStore): LocalDataStore {
+  const adminProfile = DEMO_USERS.super_admin;
+  const adminAccount: DemoAuthAccountRecord = {
+    userId: adminProfile.id,
+    email: adminProfile.email ?? "admin@local.dev",
+    username: "admin",
+    password: ensurePasswordHashMatches("qingman0525"),
+    passwordSetupRequired: false
+  };
+
+  const profiles = store.profiles.some((profile) => profile.id === adminProfile.id)
+    ? store.profiles.map((profile) =>
+        profile.id !== adminProfile.id
+          ? profile
+          : {
+              ...profile,
+              email: adminProfile.email,
+              displayName: adminProfile.displayName,
+              status: "active"
+            }
+      )
+    : [...store.profiles, clone(adminProfile)];
+
+  const authAccounts = store.authAccounts.some((account) => account.userId === adminAccount.userId)
+    ? store.authAccounts.map((account) =>
+        account.userId !== adminAccount.userId
+          ? account
+          : {
+              ...account,
+              email: adminAccount.email,
+              username: adminAccount.username,
+              password: ensurePasswordHashMatches("qingman0525", account.password),
+              passwordSetupRequired: false
+            }
+      )
+    : [...store.authAccounts, adminAccount];
+
+  return {
+    ...store,
+    profiles,
+    authAccounts
+  };
+}
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -59,30 +108,46 @@ function mergeById<T extends { id: string }>(defaults: T[], current: T[] | undef
 }
 
 function buildInitialStore(): LocalDataStore {
-  return {
+  return ensureRequiredLocalAccounts({
     brand: clone(mockBrandStrategyPack),
     hotspots: clone(mockHotspotSignals),
     packs: clone(mockHotspotPacks),
     publishJobs: [],
     lastHotspotSync: null,
+    aiRoutingConfig: clone(DEFAULT_AI_ROUTING_CONFIG),
     profiles: clone(Object.values(DEMO_USERS)),
     workspaces: clone(DEMO_WORKSPACES),
     workspaceMembers: clone(DEMO_WORKSPACE_MEMBERS),
     workspaceInvites: clone(DEMO_WORKSPACE_INVITES),
     workspaceInviteCodes: clone(DEMO_WORKSPACE_INVITE_CODES),
-    authAccounts: clone(DEMO_AUTH_ACCOUNTS)
-  };
+    authAccounts: clone(DEMO_AUTH_ACCOUNTS),
+    auditLogs: []
+  });
 }
 
 function normalizeStore(raw: Partial<LocalDataStore> | null | undefined): LocalDataStore {
   const initial = buildInitialStore();
 
-  return {
+  return ensureRequiredLocalAccounts({
     brand: raw?.brand ? clone(raw.brand) : initial.brand,
     hotspots: Array.isArray(raw?.hotspots) ? clone(raw.hotspots) : initial.hotspots,
     packs: Array.isArray(raw?.packs) ? clone(raw.packs) : initial.packs,
     publishJobs: Array.isArray(raw?.publishJobs) ? clone(raw.publishJobs) : initial.publishJobs,
     lastHotspotSync: raw?.lastHotspotSync ? clone(raw.lastHotspotSync) : initial.lastHotspotSync,
+    aiRoutingConfig: raw?.aiRoutingConfig
+      ? {
+          defaultProvider:
+            raw.aiRoutingConfig.defaultProvider === "minimax"
+              ? "minimax"
+              : DEFAULT_AI_ROUTING_CONFIG.defaultProvider,
+          featureProviderOverrides:
+            raw.aiRoutingConfig.featureProviderOverrides &&
+            typeof raw.aiRoutingConfig.featureProviderOverrides === "object" &&
+            !Array.isArray(raw.aiRoutingConfig.featureProviderOverrides)
+              ? clone(raw.aiRoutingConfig.featureProviderOverrides)
+              : {}
+        }
+      : initial.aiRoutingConfig,
     profiles: mergeById(initial.profiles, Array.isArray(raw?.profiles) ? raw.profiles : undefined),
     workspaces: mergeById(initial.workspaces, Array.isArray(raw?.workspaces) ? raw.workspaces : undefined),
     workspaceMembers: mergeById(
@@ -102,8 +167,12 @@ function normalizeStore(raw: Partial<LocalDataStore> | null | undefined): LocalD
       Array.isArray(raw?.authAccounts)
         ? raw.authAccounts.map((account) => ({ ...account, id: account.userId }))
         : undefined
-    ).map(({ id: _id, ...account }) => account)
-  };
+    ).map(({ id: _id, ...account }) => ({
+      ...account,
+      password: normalizeStoredPassword(account.password)
+    })),
+    auditLogs: mergeById(initial.auditLogs, Array.isArray(raw?.auditLogs) ? raw.auditLogs : undefined)
+  });
 }
 
 async function ensureStoreFile(): Promise<void> {

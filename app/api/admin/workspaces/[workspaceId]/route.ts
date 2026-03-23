@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiAccess } from "@/lib/auth/api-guard";
 import { canAccessAdmin, canManageMembers } from "@/lib/auth/permissions";
 import { updateWorkspace } from "@/lib/auth/repository";
-import { getCurrentViewer } from "@/lib/auth/session";
 
 export async function PATCH(
   request: NextRequest,
@@ -11,7 +11,13 @@ export async function PATCH(
     }>;
   }
 ) {
-  const viewer = await getCurrentViewer();
+  const access = await requireApiAccess(request);
+
+  if (!access.ok) {
+    return access.response;
+  }
+
+  const { viewer } = access;
   const { workspaceId } = await context.params;
 
   const canManageCurrentWorkspace =

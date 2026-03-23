@@ -27,6 +27,22 @@ export function ReviewActions({
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  const primaryAction =
+    currentStatus === "pending"
+      ? { label: "通过并进入下游", status: "approved" as ReviewStatus }
+      : currentStatus === "needs-edit"
+        ? { label: "提交审核", status: "pending" as ReviewStatus }
+        : null;
+
+  const secondaryActions = [
+    currentStatus !== "needs-edit"
+      ? { label: "退回修改", status: "needs-edit" as ReviewStatus }
+      : null,
+    currentStatus === "approved"
+      ? { label: "恢复待审核", status: "pending" as ReviewStatus }
+      : null
+  ].filter(Boolean) as Array<{ label: string; status: ReviewStatus }>;
+
   function submit(status: ReviewStatus) {
     startTransition(async () => {
       setMessage("");
@@ -58,8 +74,11 @@ export function ReviewActions({
 
   return (
     <div className="subPanel reviewActions">
-      <div className="listItem">
-        <strong>审核操作</strong>
+      <div className="reviewActionHeader">
+        <div>
+          <p className="eyebrow">审核动作</p>
+          <strong>固定出口</strong>
+        </div>
         <span className="pill pill-neutral">{reviewStatusLabels[currentStatus]}</span>
       </div>
 
@@ -82,22 +101,23 @@ export function ReviewActions({
         />
       </label>
 
-      <div className="buttonRow">
-        {currentStatus !== "approved" ? (
-          <button disabled={isPending} onClick={() => submit("approved")} type="button">
-            通过
+      <div className="buttonRow reviewActionButtons">
+        {primaryAction ? (
+          <button className="buttonLike primaryButton" disabled={isPending} onClick={() => submit(primaryAction.status)} type="button">
+            {primaryAction.label}
           </button>
         ) : null}
-        {currentStatus !== "needs-edit" ? (
-          <button disabled={isPending} onClick={() => submit("needs-edit")} type="button">
-            退回修改
+        {secondaryActions.map((action) => (
+          <button
+            className="buttonLike subtleButton"
+            disabled={isPending}
+            key={action.status}
+            onClick={() => submit(action.status)}
+            type="button"
+          >
+            {action.label}
           </button>
-        ) : null}
-        {currentStatus !== "pending" ? (
-          <button disabled={isPending} onClick={() => submit("pending")} type="button">
-            恢复待审核
-          </button>
-        ) : null}
+        ))}
       </div>
 
       {message ? <p className="muted">{message}</p> : null}

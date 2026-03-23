@@ -1,7 +1,6 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { BackToTopButton } from "@/components/back-to-top-button";
-import { EmptyStateCard } from "@/components/empty-state-card";
 import { HotspotActionButton } from "@/components/hotspot-action-button";
 import { HotspotInsightTrigger } from "@/components/hotspot-insight-trigger";
 import { PageHero } from "@/components/page-hero";
@@ -11,12 +10,24 @@ import { prioritizeHotspots, type PrioritizedHotspot } from "@/lib/services/hots
 
 type HotspotMarket = "china" | "global" | "unknown";
 type SourceFamily = "platform" | "media" | "community" | "global";
+type HeatFilter = "all" | "high" | "medium" | "emerging";
+type FitFilter = "all" | "high" | "medium" | "low";
+type RiskFilter = "all" | "low" | "medium" | "high";
+type ConvertedFilter = "all" | "converted" | "unconverted";
+type WindowFilter = "all" | "now" | "today" | "later";
+type SortOption = "fit" | "latest" | "hottest" | "urgent" | "low-risk";
 
 type SearchParams = Promise<{
   family?: string;
   families?: string;
   source?: string;
   sources?: string;
+  heat?: string;
+  fit?: string;
+  risk?: string;
+  converted?: string;
+  window?: string;
+  sort?: string;
 }>;
 
 interface SourceRecord {
@@ -44,30 +55,12 @@ interface AggregatedHotspotEntry {
 }
 
 const allFamilyKeys: SourceFamily[] = ["platform", "media", "community", "global"];
-
-function getActionLabel(action: "ship-now" | "watch" | "discard") {
-  if (action === "ship-now") {
-    return "立刻跟进";
-  }
-
-  if (action === "watch") {
-    return "继续观察";
-  }
-
-  return "暂不跟进";
-}
-
-function getKindLabel(kind: HotspotKind) {
-  if (kind === "industry") {
-    return "行业热点";
-  }
-
-  if (kind === "mass") {
-    return "大众 / 平台热点";
-  }
-
-  return "品牌 / 竞品热点";
-}
+const heatFilterValues: HeatFilter[] = ["all", "high", "medium", "emerging"];
+const fitFilterValues: FitFilter[] = ["all", "high", "medium", "low"];
+const riskFilterValues: RiskFilter[] = ["all", "low", "medium", "high"];
+const convertedFilterValues: ConvertedFilter[] = ["all", "converted", "unconverted"];
+const windowFilterValues: WindowFilter[] = ["all", "now", "today", "later"];
+const sortValues: SortOption[] = ["fit", "latest", "hottest", "urgent", "low-risk"];
 
 function cleanDisplayText(value: string) {
   return value
@@ -163,38 +156,11 @@ function getSyncStatusTone(fetchStatus?: "ok" | "empty" | "failed") {
   return "neutral";
 }
 
-function getBrandFitTone(score: number) {
-  if (score >= 80) {
-    return "positive";
-  }
-
-  if (score >= 60) {
-    return "neutral";
-  }
-
-  return "warning";
-}
-
-function formatSyncTimestamp(value?: string) {
+function formatDateTime(value?: string) {
   if (!value) {
     return "未记录";
   }
 
-  const parsed = new Date(value);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(parsed);
-}
-
-function formatHotspotTimestamp(value: string) {
   const parsed = new Date(value);
 
   if (Number.isNaN(parsed.getTime())) {
@@ -253,45 +219,30 @@ function getSourceFamily(record: {
 
 function getFamilyLabel(family: SourceFamily) {
   if (family === "platform") {
-    return "平台源";
+    return "平台来源";
   }
 
   if (family === "media") {
-    return "媒体源";
+    return "媒体来源";
   }
 
   if (family === "community") {
-    return "社区源";
+    return "社区来源";
   }
 
-  return "海外源";
+  return "海外来源";
 }
 
-function buildFallbackSearchUrl(title: string, sourceRecords: SourceRecord[]) {
-  const primaryRecord = sourceRecords[0];
-  const query = encodeURIComponent(title);
-
-  if (primaryRecord?.displayLabel === "微博") {
-    return `https://s.weibo.com/weibo?q=${query}`;
+function getKindLabel(kind: HotspotKind) {
+  if (kind === "industry") {
+    return "行业热点";
   }
 
-  if (primaryRecord?.displayLabel === "知乎") {
-    return `https://www.zhihu.com/search?type=content&q=${query}`;
+  if (kind === "mass") {
+    return "大众 / 平台";
   }
 
-  if (primaryRecord?.displayLabel === "哔哩哔哩") {
-    return `https://search.bilibili.com/all?keyword=${query}`;
-  }
-
-  if (primaryRecord?.displayLabel === "今日头条") {
-    return `https://so.toutiao.com/search?keyword=${query}`;
-  }
-
-  if (primaryRecord?.family === "global") {
-    return `https://news.google.com/search?q=${query}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans`;
-  }
-
-  return `https://www.baidu.com/s?wd=${query}`;
+  return "品牌 / 竞品";
 }
 
 function parseSourceRecords(source: string | null | undefined): SourceRecord[] {
@@ -361,6 +312,14 @@ function normalizeFamilySelection(value?: string) {
   return parsed.length > 0 ? [...parsed].sort((left, right) => allFamilyKeys.indexOf(left) - allFamilyKeys.indexOf(right)) : [...allFamilyKeys];
 }
 
+function parseFilterValue<T extends string>(value: string | undefined, allowed: readonly T[], fallback: T) {
+  return value && allowed.includes(value as T) ? (value as T) : fallback;
+}
+
+function toggleListValue<T extends string>(values: T[], target: T) {
+  return values.includes(target) ? values.filter((value) => value !== target) : [...values, target];
+}
+
 function pruneSourcesByFamilies(sourceLabels: string[], groups: SourceGroup[], families: SourceFamily[]) {
   const allowed = new Set(
     groups.filter((group) => families.includes(group.family)).map((group) => group.displayLabel)
@@ -369,27 +328,31 @@ function pruneSourcesByFamilies(sourceLabels: string[], groups: SourceGroup[], f
   return sourceLabels.filter((label) => allowed.has(label));
 }
 
-function toggleListValue<T extends string>(values: T[], target: T) {
-  return values.includes(target) ? values.filter((value) => value !== target) : [...values, target];
-}
+function buildFallbackSearchUrl(title: string, sourceRecords: SourceRecord[]) {
+  const primaryRecord = sourceRecords[0];
+  const query = encodeURIComponent(title);
 
-function buildHotspotHref(input: { families: SourceFamily[]; sources?: string[] }): Route {
-  const params = new URLSearchParams();
-  const normalizedFamilies = [...input.families].sort(
-    (left, right) => allFamilyKeys.indexOf(left) - allFamilyKeys.indexOf(right)
-  );
-  const normalizedSources = [...(input.sources ?? [])].sort((left, right) => left.localeCompare(right, "zh-Hans-CN"));
-
-  if (normalizedFamilies.length > 0 && normalizedFamilies.length < allFamilyKeys.length) {
-    params.set("families", normalizedFamilies.join(","));
+  if (primaryRecord?.displayLabel === "微博") {
+    return `https://s.weibo.com/weibo?q=${query}`;
   }
 
-  if (normalizedSources.length > 0) {
-    params.set("sources", normalizedSources.join(","));
+  if (primaryRecord?.displayLabel === "知乎") {
+    return `https://www.zhihu.com/search?type=content&q=${query}`;
   }
 
-  const query = params.toString();
-  return (query ? `/hotspots?${query}` : "/hotspots") as Route;
+  if (primaryRecord?.displayLabel === "哔哩哔哩") {
+    return `https://search.bilibili.com/all?keyword=${query}`;
+  }
+
+  if (primaryRecord?.displayLabel === "今日头条") {
+    return `https://so.toutiao.com/search?keyword=${query}`;
+  }
+
+  if (primaryRecord?.family === "global") {
+    return `https://news.google.com/search?q=${query}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans`;
+  }
+
+  return `https://www.baidu.com/s?wd=${query}`;
 }
 
 function aggregateHotspots(groups: SourceGroup[]): AggregatedHotspotEntry[] {
@@ -434,7 +397,213 @@ function aggregateHotspots(groups: SourceGroup[]): AggregatedHotspotEntry[] {
     }
   }
 
-  return Array.from(entryMap.values()).sort((left, right) => {
+  return Array.from(entryMap.values());
+}
+
+function getHeatLabel(signal: PrioritizedHotspot) {
+  if (signal.velocityScore >= 85) {
+    return "高热";
+  }
+
+  if (signal.velocityScore >= 75) {
+    return "中热";
+  }
+
+  return "观察";
+}
+
+function getHeatFilterMatch(signal: PrioritizedHotspot, filter: HeatFilter) {
+  if (filter === "all") {
+    return true;
+  }
+
+  if (filter === "high") {
+    return signal.velocityScore >= 85;
+  }
+
+  if (filter === "medium") {
+    return signal.velocityScore >= 75 && signal.velocityScore < 85;
+  }
+
+  return signal.velocityScore < 75;
+}
+
+function getFitLabel(score: number) {
+  if (score >= 80) {
+    return "高";
+  }
+
+  if (score >= 65) {
+    return "中";
+  }
+
+  return "低";
+}
+
+function getFitFilterMatch(score: number, filter: FitFilter) {
+  if (filter === "all") {
+    return true;
+  }
+
+  if (filter === "high") {
+    return score >= 80;
+  }
+
+  if (filter === "medium") {
+    return score >= 65 && score < 80;
+  }
+
+  return score < 65;
+}
+
+function getRiskLabel(score: number) {
+  if (score <= 35) {
+    return "低";
+  }
+
+  if (score <= 55) {
+    return "中";
+  }
+
+  return "高";
+}
+
+function getRiskTone(score: number) {
+  if (score <= 35) {
+    return "positive";
+  }
+
+  if (score <= 55) {
+    return "neutral";
+  }
+
+  return "warning";
+}
+
+function getRiskFilterMatch(score: number, filter: RiskFilter) {
+  if (filter === "all") {
+    return true;
+  }
+
+  if (filter === "low") {
+    return score <= 35;
+  }
+
+  if (filter === "medium") {
+    return score > 35 && score <= 55;
+  }
+
+  return score > 55;
+}
+
+function getWindowLabel(signal: PrioritizedHotspot) {
+  if (signal.velocityScore >= 85 || signal.recommendedAction === "ship-now") {
+    return "4 小时内";
+  }
+
+  if (signal.velocityScore >= 75) {
+    return "今天内";
+  }
+
+  return "继续观察";
+}
+
+function getWindowFilterMatch(signal: PrioritizedHotspot, filter: WindowFilter) {
+  if (filter === "all") {
+    return true;
+  }
+
+  if (filter === "now") {
+    return signal.velocityScore >= 85 || signal.recommendedAction === "ship-now";
+  }
+
+  if (filter === "today") {
+    return signal.velocityScore >= 75 && signal.velocityScore < 85;
+  }
+
+  return signal.velocityScore < 75 && signal.recommendedAction !== "ship-now";
+}
+
+function getUrgencyRank(signal: PrioritizedHotspot) {
+  if (signal.velocityScore >= 85 || signal.recommendedAction === "ship-now") {
+    return 0;
+  }
+
+  if (signal.velocityScore >= 75) {
+    return 1;
+  }
+
+  return 2;
+}
+
+function buildHotspotHref(input: {
+  families: SourceFamily[];
+  sources?: string[];
+  heat?: HeatFilter;
+  fit?: FitFilter;
+  risk?: RiskFilter;
+  converted?: ConvertedFilter;
+  window?: WindowFilter;
+  sort?: SortOption;
+}): Route {
+  const params = new URLSearchParams();
+  const normalizedFamilies = [...input.families].sort((left, right) => allFamilyKeys.indexOf(left) - allFamilyKeys.indexOf(right));
+  const normalizedSources = [...(input.sources ?? [])].sort((left, right) => left.localeCompare(right, "zh-Hans-CN"));
+
+  if (normalizedFamilies.length > 0 && normalizedFamilies.length < allFamilyKeys.length) {
+    params.set("families", normalizedFamilies.join(","));
+  }
+
+  if (normalizedSources.length > 0) {
+    params.set("sources", normalizedSources.join(","));
+  }
+
+  if (input.heat && input.heat !== "all") {
+    params.set("heat", input.heat);
+  }
+
+  if (input.fit && input.fit !== "all") {
+    params.set("fit", input.fit);
+  }
+
+  if (input.risk && input.risk !== "all") {
+    params.set("risk", input.risk);
+  }
+
+  if (input.converted && input.converted !== "all") {
+    params.set("converted", input.converted);
+  }
+
+  if (input.window && input.window !== "all") {
+    params.set("window", input.window);
+  }
+
+  if (input.sort && input.sort !== "fit") {
+    params.set("sort", input.sort);
+  }
+
+  const query = params.toString();
+  return (query ? `/hotspots?${query}` : "/hotspots") as Route;
+}
+
+function sortEntries(entries: AggregatedHotspotEntry[], sort: SortOption) {
+  return [...entries].sort((left, right) => {
+    if (sort === "latest") {
+      return Date.parse(right.signal.detectedAt) - Date.parse(left.signal.detectedAt);
+    }
+
+    if (sort === "hottest") {
+      return right.signal.velocityScore - left.signal.velocityScore || right.signal.priorityScore - left.signal.priorityScore;
+    }
+
+    if (sort === "urgent") {
+      return getUrgencyRank(left.signal) - getUrgencyRank(right.signal) || right.signal.priorityScore - left.signal.priorityScore;
+    }
+
+    if (sort === "low-risk") {
+      return left.signal.riskScore - right.signal.riskScore || right.signal.brandFitScore - left.signal.brandFitScore;
+    }
+
     if (right.signal.brandFitScore !== left.signal.brandFitScore) {
       return right.signal.brandFitScore - left.signal.brandFitScore;
     }
@@ -459,14 +628,9 @@ export default async function HotspotsPage({
     getLatestHotspotSyncSnapshot(),
     getReviewQueue()
   ]);
+
   const scoredHotspots = prioritizeHotspots(brand, hotspots);
   const syncProviders = syncSnapshot?.providers ?? [];
-  const successfulPrimaryProviders = syncProviders.filter(
-    (provider) => provider.priorityRole === "primary" && provider.fetchStatus === "ok" && provider.fetched > 0
-  ).length;
-  const successfulFallbackProviders = syncProviders.filter(
-    (provider) => provider.priorityRole === "fallback" && provider.fetchStatus === "ok" && provider.fetched > 0
-  ).length;
   const failedProviders = syncProviders.filter((provider) => provider.fetchStatus === "failed").length;
   const directProviders = syncProviders.filter((provider) => provider.sourceType === "direct").length;
   const rssProviders = syncProviders.filter((provider) => provider.sourceType === "rss").length;
@@ -527,13 +691,7 @@ export default async function HotspotsPage({
           return right.priorityScore - left.priorityScore;
         }
 
-        const timeGap = Date.parse(right.detectedAt) - Date.parse(left.detectedAt);
-
-        if (!Number.isNaN(timeGap) && timeGap !== 0) {
-          return timeGap;
-        }
-
-        return right.velocityScore - left.velocityScore;
+        return Date.parse(right.detectedAt) - Date.parse(left.detectedAt);
       })
     }))
     .sort((left, right) => {
@@ -543,17 +701,6 @@ export default async function HotspotsPage({
 
       if (right.items.length !== left.items.length) {
         return right.items.length - left.items.length;
-      }
-
-      const familyRank: Record<SourceFamily, number> = {
-        platform: 0,
-        media: 1,
-        community: 2,
-        global: 3
-      };
-
-      if (familyRank[left.family] !== familyRank[right.family]) {
-        return familyRank[left.family] - familyRank[right.family];
       }
 
       return left.displayLabel.localeCompare(right.displayLabel, "zh-Hans-CN");
@@ -568,8 +715,29 @@ export default async function HotspotsPage({
     selectedSources.length > 0
       ? visibleGroups.filter((group) => selectedSources.includes(group.displayLabel))
       : visibleGroups;
-  const aggregatedHotspots = aggregateHotspots(activeGroups);
+  const heatFilter = parseFilterValue(resolvedSearchParams?.heat, heatFilterValues, "all");
+  const fitFilter = parseFilterValue(resolvedSearchParams?.fit, fitFilterValues, "all");
+  const riskFilter = parseFilterValue(resolvedSearchParams?.risk, riskFilterValues, "all");
+  const convertedFilter = parseFilterValue(resolvedSearchParams?.converted, convertedFilterValues, "all");
+  const windowFilter = parseFilterValue(resolvedSearchParams?.window, windowFilterValues, "all");
+  const sort = parseFilterValue(resolvedSearchParams?.sort, sortValues, "fit");
+
   const allFamiliesSelected = selectedFamilies.length === allFamilyKeys.length;
+  const aggregatedHotspots = aggregateHotspots(activeGroups);
+  const filteredEntries = aggregatedHotspots.filter((entry) => {
+    const isConverted = packByHotspotId.has(entry.signal.id);
+
+    return (
+      getHeatFilterMatch(entry.signal, heatFilter) &&
+      getFitFilterMatch(entry.signal.brandFitScore, fitFilter) &&
+      getRiskFilterMatch(entry.signal.riskScore, riskFilter) &&
+      getWindowFilterMatch(entry.signal, windowFilter) &&
+      (convertedFilter === "all" ||
+        (convertedFilter === "converted" && isConverted) ||
+        (convertedFilter === "unconverted" && !isConverted))
+    );
+  });
+  const sortedEntries = sortEntries(filteredEntries, sort);
   const counts = {
     platform: sourceGroups.filter((group) => group.family === "platform").length,
     media: sourceGroups.filter((group) => group.family === "media").length,
@@ -577,395 +745,477 @@ export default async function HotspotsPage({
     global: sourceGroups.filter((group) => group.family === "global").length,
     all: sourceGroups.length
   };
-  const providerRows = [...syncProviders].sort((left, right) => {
-    const getSortRank = (provider: (typeof syncProviders)[number]) => {
-      const status = provider.fetchStatus ?? "undefined";
-      const role = provider.priorityRole ?? "primary";
-
-      if (status === "ok" && role === "primary") {
-        return 0;
-      }
-
-      if (status === "ok" && role === "fallback") {
-        return 1;
-      }
-
-      if (status === "empty" && role === "primary") {
-        return 2;
-      }
-
-      if (status === "empty" && role === "fallback") {
-        return 3;
-      }
-
-      if (status === "failed" && role === "primary") {
-        return 4;
-      }
-
-      if (status === "failed" && role === "fallback") {
-        return 5;
-      }
-
-      return 6;
-    };
-
-    const leftRank = getSortRank(left);
-    const rightRank = getSortRank(right);
-
-    if (leftRank !== rightRank) {
-      return leftRank - rightRank;
-    }
-
-    return right.fetched - left.fetched;
-  });
+  const highPotentialCount = scoredHotspots.filter((item) => item.priorityScore >= 75).length;
+  const urgentCount = scoredHotspots.filter((item) => getWindowFilterMatch(item, "now")).length;
+  const convertedCount = scoredHotspots.filter((item) => packByHotspotId.has(item.id)).length;
+  const lowRiskCount = scoredHotspots.filter((item) => item.riskScore <= 35).length;
+  const providerRows = [...syncProviders].sort((left, right) => right.fetched - left.fetched);
 
   return (
-    <div className="page hotspotBoardPage">
+    <div className="page hotspotBoardPageV2">
       <PageHero
         actions={
           <>
-            <Link className="buttonLike subtleButton" href="/">
-              回工作台
-            </Link>
             <Link className="buttonLike primaryButton" href="/review">
               进入选题详情台
             </Link>
+            <Link className="buttonLike subtleButton" href="/">
+              回工作台
+            </Link>
             <Link className="buttonLike subtleButton" href="/brands">
-              看品牌资料
+              查看品牌系统
             </Link>
           </>
         }
-        description="查看来源状态、筛选层级与当前热点。"
-        eyebrow="热点总览"
+        context={brand.name}
+        description="先筛选，再判断，再转题。默认只展示做决定真正需要的信息。"
+        eyebrow="热点决策看板"
         facts={[
           { label: "当前品牌", value: brand.name },
-          { label: "热点覆盖", value: `${hotspots.length} 条热点 / ${sourceGroups.length} 组来源` },
-          {
-            label: "同步状态",
-            value: syncSnapshot ? `${formatSyncTimestamp(syncSnapshot.executedAt)} 更新` : "还没有同步快照"
-          },
-          { label: "高结合热点", value: `${scoredHotspots.filter((item) => item.brandFitScore >= 80).length} 条` }
+          { label: "高潜热点", value: `${highPotentialCount} 条` },
+          { label: "需立即处理", value: `${urgentCount} 条` },
+          { label: "已转题", value: `${convertedCount} 条` },
+          { label: "低风险", value: `${lowRiskCount} 条` },
+          { label: "最近同步", value: formatDateTime(syncSnapshot?.executedAt) }
         ]}
-        context={brand.name}
-        title="热点看板"
+        title="先筛掉不该做的，再转该做的"
       />
 
-      <section className="reviewSimpleSection">
-        <div className="reviewSimpleHeader">
+      <section className="panel hotspotOverviewPanel">
+        <div className="panelHeader sectionTitle">
           <div>
-            <p className="eyebrow">同步状态</p>
-            <h3>本次同步</h3>
+            <p className="eyebrow">运行总览</p>
+            <h2>看板当前状态</h2>
           </div>
-          <span className="muted">
-            {syncSnapshot ? `最近同步：${formatSyncTimestamp(syncSnapshot.executedAt)}` : "还没有同步快照"}
-          </span>
         </div>
 
-        {syncSnapshot ? (
-          <>
-            <div className="hotspotSyncFacts">
-              <div className="hotspotSyncFact">
-                <span>本次同步</span>
-                <strong>{syncSnapshot.hotspotCount} 条热点</strong>
-              </div>
-              <div className="hotspotSyncFact">
-                <span>主链路成功</span>
-                <strong>{successfulPrimaryProviders} 个</strong>
-              </div>
-              <div className="hotspotSyncFact">
-                <span>备用补位</span>
-                <strong>{successfulFallbackProviders} 个</strong>
-              </div>
-              <div className="hotspotSyncFact">
-                <span>失败来源</span>
-                <strong>{failedProviders} 个</strong>
-              </div>
-            </div>
+        <div className="statusFeedGrid">
+          <div className="statusFeedItem">
+            <span>抓取来源</span>
+            <strong>{sourceGroups.length} 组</strong>
+          </div>
+          <div className="statusFeedItem">
+            <span>直连 / RSS / 聚合</span>
+            <strong>
+              {directProviders} / {rssProviders} / {aggregatorProviders}
+            </strong>
+          </div>
+          <div className="statusFeedItem">
+            <span>失败来源</span>
+            <strong>{failedProviders} 个</strong>
+          </div>
+          <div className="statusFeedItem">
+            <span>当前排序</span>
+            <strong>
+              {sort === "fit"
+                ? "品牌相关度最高"
+                : sort === "latest"
+                  ? "最新出现"
+                  : sort === "hottest"
+                    ? "热度最高"
+                    : sort === "urgent"
+                      ? "最紧急"
+                      : "风险最低"}
+            </strong>
+          </div>
+        </div>
 
-            <div className="hotspotMetaStrip">
-              <span className="reviewInlineMeta">直连源 {directProviders}</span>
-              <span className="reviewInlineMeta">RSS {rssProviders}</span>
-              <span className="reviewInlineMeta">聚合补位 {aggregatorProviders}</span>
-              <span className={`reviewInlineMeta ${failedProviders > 0 ? "hotspotMetaWarning" : ""}`}>
-                失败 {failedProviders}
-              </span>
-            </div>
-
-            <details className="hotspotBoardDetails">
-              <summary>查看全部来源执行明细</summary>
-              <div className="hotspotBoardDetailsBody">
-                <div className="providerHealthTable">
-                  <div className="providerHealthRow providerHealthHead">
-                    <span>来源</span>
-                    <span>链路</span>
-                    <span>状态</span>
-                    <span>说明</span>
+        <details className="hotspotBoardDetails">
+          <summary>查看来源执行明细</summary>
+          <div className="hotspotBoardDetailsBody">
+            <div className="providerHealthTable">
+              {providerRows.map((provider) => (
+                <div className="providerHealthRow" key={provider.id}>
+                  <div className="providerHealthSource">
+                    <strong>{provider.label}</strong>
+                    <p className="muted">
+                      {provider.sourceType === "direct"
+                        ? "直连"
+                        : provider.sourceType === "rss"
+                          ? "RSS"
+                          : "聚合"}{" "}
+                      · {provider.priorityRole === "fallback" ? "备用" : "主链路"}
+                    </p>
                   </div>
-                  {providerRows.map((provider) => (
-                    <div className="providerHealthRow" key={provider.id}>
-                      <div className="providerHealthSource">
-                        <strong>{provider.label}</strong>
-                        <div className="tagRow">
-                          <span className="tag">
-                            {provider.sourceType === "direct"
-                              ? "直连"
-                              : provider.sourceType === "rss"
-                                ? "RSS"
-                                : "聚合"}
-                          </span>
-                          <span className="tag">{provider.priorityRole === "fallback" ? "备用" : "主链路"}</span>
-                        </div>
-                      </div>
-                      <span>{provider.fetched} 条</span>
-                      <span className={`pill pill-${getSyncStatusTone(provider.fetchStatus)}`}>
-                        {getSyncStatusLabel(provider.fetchStatus)}
-                      </span>
-                      <span className="muted">{provider.fetchNote ?? provider.pageNote ?? "未返回附加说明"}</span>
-                    </div>
-                  ))}
+                  <span>{provider.fetched} 条</span>
+                  <span className={`pill pill-${getSyncStatusTone(provider.fetchStatus)}`}>
+                    {getSyncStatusLabel(provider.fetchStatus)}
+                  </span>
+                  <span className="muted">{provider.fetchNote ?? provider.pageNote ?? "未返回附加说明"}</span>
                 </div>
-              </div>
-            </details>
-          </>
-        ) : (
-          <EmptyStateCard
-            eyebrow="同步状态"
-            title="暂无同步结果"
-            description="执行一次同步后，这里会显示来源状态与执行结果。"
-          />
-        )}
+              ))}
+            </div>
+          </div>
+        </details>
       </section>
 
-      <section className="reviewSimpleSection">
-        <div className="reviewSimpleHeader">
+      <section className="panel hotspotFilterPanel">
+        <div className="panelHeader sectionTitle">
           <div>
-            <p className="eyebrow">热源类型</p>
-            <h3>来源层级</h3>
+            <p className="eyebrow">筛选与排序</p>
+            <h2>先收窄，再做判断</h2>
           </div>
-          <span className="muted">支持多选，默认显示全部</span>
+          <span className="muted">共 {sortedEntries.length} 条结果</span>
         </div>
 
-        <div className="hotspotTopTabs">
-          <Link
-            aria-current={allFamiliesSelected ? "page" : undefined}
-            className={`hotspotTopTab ${allFamiliesSelected ? "hotspotTopTabActive" : ""}`}
-            href={buildHotspotHref({ families: allFamilyKeys, sources: pruneSourcesByFamilies(selectedSources, sourceGroups, allFamilyKeys) })}
-          >
-            <span>全部</span>
-            <strong>{counts.all}</strong>
-          </Link>
-          {allFamilyKeys.map((family) => {
-            const nextFamilies = toggleListValue(selectedFamilies, family);
-            const normalizedNextFamilies = nextFamilies.length > 0 ? nextFamilies : [...allFamilyKeys];
-            const nextSources = pruneSourcesByFamilies(selectedSources, sourceGroups, normalizedNextFamilies);
-
-            return (
-              <Link
-                aria-current={selectedFamilies.includes(family) ? "page" : undefined}
-                className={`hotspotTopTab ${selectedFamilies.includes(family) ? "hotspotTopTabActive" : ""}`}
-                href={buildHotspotHref({ families: normalizedNextFamilies, sources: nextSources })}
-                key={family}
-              >
-                <span>{getFamilyLabel(family)}</span>
-                <strong>{counts[family]}</strong>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="reviewSimpleSection">
-        <div className="reviewSimpleHeader">
-          <div>
-            <p className="eyebrow">来源导航</p>
-            <h3>来源筛选</h3>
-          </div>
-          <span className="muted">支持多选，未单独勾选时显示当前层级全部来源</span>
-        </div>
-
-        {visibleGroups.length > 0 ? (
-          <div className="hotspotSourceGrid">
+        <div className="filterGroupBlock">
+          <span className="filterGroupLabel">平台来源</span>
+          <div className="filterChipRow">
             <Link
-              aria-current={selectedSources.length === 0 ? "page" : undefined}
-              className={`hotspotSourceTile ${selectedSources.length === 0 ? "hotspotSourceTileActive" : ""}`}
-              href={buildHotspotHref({ families: selectedFamilies })}
+              aria-current={allFamiliesSelected ? "page" : undefined}
+              className={`filterChip ${allFamiliesSelected ? "filterChipActive" : ""}`}
+              href={buildHotspotHref({
+                families: allFamilyKeys,
+                sources: pruneSourcesByFamilies(selectedSources, sourceGroups, allFamilyKeys),
+                heat: heatFilter,
+                fit: fitFilter,
+                risk: riskFilter,
+                converted: convertedFilter,
+                window: windowFilter,
+                sort
+              })}
             >
-              <span>全部来源</span>
-              <strong>{visibleGroups.length} 组</strong>
+              全部
             </Link>
-            {visibleGroups.map((group) => {
-              const nextSources = toggleListValue(selectedSources, group.displayLabel);
+            {allFamilyKeys.map((family) => {
+              const nextFamilies = toggleListValue(selectedFamilies, family);
+              const normalizedNextFamilies = nextFamilies.length > 0 ? nextFamilies : [...allFamilyKeys];
+              const nextSources = pruneSourcesByFamilies(selectedSources, sourceGroups, normalizedNextFamilies);
 
               return (
                 <Link
-                  aria-current={selectedSources.includes(group.displayLabel) ? "page" : undefined}
-                  className={`hotspotSourceTile ${selectedSources.includes(group.displayLabel) ? "hotspotSourceTileActive" : ""}`}
-                  href={buildHotspotHref({ families: selectedFamilies, sources: nextSources })}
-                  key={`${group.market}-${group.label}`}
+                  aria-current={selectedFamilies.includes(family) ? "page" : undefined}
+                  className={`filterChip ${selectedFamilies.includes(family) ? "filterChipActive" : ""}`}
+                  href={buildHotspotHref({
+                    families: normalizedNextFamilies,
+                    sources: nextSources,
+                    heat: heatFilter,
+                    fit: fitFilter,
+                    risk: riskFilter,
+                    converted: convertedFilter,
+                    window: windowFilter,
+                    sort
+                  })}
+                  key={family}
                 >
-                  <span>{group.displayLabel}</span>
-                  <strong>{group.items.length} 条 · 最高 {group.topBrandFitScore} 分</strong>
+                  {getFamilyLabel(family)}
+                  <strong>{counts[family]}</strong>
                 </Link>
               );
             })}
           </div>
-        ) : (
-          <EmptyStateCard
-            description="当前层级下暂无来源。"
-            eyebrow="来源目录"
-            title="暂无来源分组"
-          />
-        )}
+        </div>
+
+        {visibleGroups.length > 0 ? (
+          <div className="filterGroupBlock">
+            <span className="filterGroupLabel">具体来源</span>
+            <div className="filterChipRow">
+              <Link
+                aria-current={selectedSources.length === 0 ? "page" : undefined}
+                className={`filterChip ${selectedSources.length === 0 ? "filterChipActive" : ""}`}
+                href={buildHotspotHref({
+                  families: selectedFamilies,
+                  heat: heatFilter,
+                  fit: fitFilter,
+                  risk: riskFilter,
+                  converted: convertedFilter,
+                  window: windowFilter,
+                  sort
+                })}
+              >
+                全部来源
+              </Link>
+              {visibleGroups.slice(0, 12).map((group) => {
+                const nextSources = toggleListValue(selectedSources, group.displayLabel);
+
+                return (
+                  <Link
+                    aria-current={selectedSources.includes(group.displayLabel) ? "page" : undefined}
+                    className={`filterChip ${selectedSources.includes(group.displayLabel) ? "filterChipActive" : ""}`}
+                    href={buildHotspotHref({
+                      families: selectedFamilies,
+                      sources: nextSources,
+                      heat: heatFilter,
+                      fit: fitFilter,
+                      risk: riskFilter,
+                      converted: convertedFilter,
+                      window: windowFilter,
+                      sort
+                    })}
+                    key={`${group.market}-${group.label}`}
+                  >
+                    {group.displayLabel}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="filterMetaGrid">
+          <div className="filterGroupBlock">
+            <span className="filterGroupLabel">热度等级</span>
+            <div className="filterChipRow">
+              {heatFilterValues.map((value) => (
+                <Link
+                  aria-current={heatFilter === value ? "page" : undefined}
+                  className={`filterChip ${heatFilter === value ? "filterChipActive" : ""}`}
+                  href={buildHotspotHref({
+                    families: selectedFamilies,
+                    sources: selectedSources,
+                    heat: value,
+                    fit: fitFilter,
+                    risk: riskFilter,
+                    converted: convertedFilter,
+                    window: windowFilter,
+                    sort
+                  })}
+                  key={value}
+                >
+                  {value === "all" ? "全部" : value === "high" ? "高热" : value === "medium" ? "中热" : "观察"}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="filterGroupBlock">
+            <span className="filterGroupLabel">品牌相关度</span>
+            <div className="filterChipRow">
+              {fitFilterValues.map((value) => (
+                <Link
+                  aria-current={fitFilter === value ? "page" : undefined}
+                  className={`filterChip ${fitFilter === value ? "filterChipActive" : ""}`}
+                  href={buildHotspotHref({
+                    families: selectedFamilies,
+                    sources: selectedSources,
+                    heat: heatFilter,
+                    fit: value,
+                    risk: riskFilter,
+                    converted: convertedFilter,
+                    window: windowFilter,
+                    sort
+                  })}
+                  key={value}
+                >
+                  {value === "all" ? "全部" : value === "high" ? "高" : value === "medium" ? "中" : "低"}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="filterGroupBlock">
+            <span className="filterGroupLabel">风险等级</span>
+            <div className="filterChipRow">
+              {riskFilterValues.map((value) => (
+                <Link
+                  aria-current={riskFilter === value ? "page" : undefined}
+                  className={`filterChip ${riskFilter === value ? "filterChipActive" : ""}`}
+                  href={buildHotspotHref({
+                    families: selectedFamilies,
+                    sources: selectedSources,
+                    heat: heatFilter,
+                    fit: fitFilter,
+                    risk: value,
+                    converted: convertedFilter,
+                    window: windowFilter,
+                    sort
+                  })}
+                  key={value}
+                >
+                  {value === "all" ? "全部" : value === "low" ? "低风险" : value === "medium" ? "中风险" : "高风险"}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="filterGroupBlock">
+            <span className="filterGroupLabel">是否已转题</span>
+            <div className="filterChipRow">
+              {convertedFilterValues.map((value) => (
+                <Link
+                  aria-current={convertedFilter === value ? "page" : undefined}
+                  className={`filterChip ${convertedFilter === value ? "filterChipActive" : ""}`}
+                  href={buildHotspotHref({
+                    families: selectedFamilies,
+                    sources: selectedSources,
+                    heat: heatFilter,
+                    fit: fitFilter,
+                    risk: riskFilter,
+                    converted: value,
+                    window: windowFilter,
+                    sort
+                  })}
+                  key={value}
+                >
+                  {value === "all" ? "全部" : value === "converted" ? "已转题" : "未转题"}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="filterGroupBlock">
+            <span className="filterGroupLabel">时间窗口</span>
+            <div className="filterChipRow">
+              {windowFilterValues.map((value) => (
+                <Link
+                  aria-current={windowFilter === value ? "page" : undefined}
+                  className={`filterChip ${windowFilter === value ? "filterChipActive" : ""}`}
+                  href={buildHotspotHref({
+                    families: selectedFamilies,
+                    sources: selectedSources,
+                    heat: heatFilter,
+                    fit: fitFilter,
+                    risk: riskFilter,
+                    converted: convertedFilter,
+                    window: value,
+                    sort
+                  })}
+                  key={value}
+                >
+                  {value === "all" ? "全部" : value === "now" ? "立即处理" : value === "today" ? "今天内" : "继续观察"}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="filterGroupBlock">
+            <span className="filterGroupLabel">排序逻辑</span>
+            <div className="filterChipRow">
+              {sortValues.map((value) => (
+                <Link
+                  aria-current={sort === value ? "page" : undefined}
+                  className={`filterChip ${sort === value ? "filterChipActive" : ""}`}
+                  href={buildHotspotHref({
+                    families: selectedFamilies,
+                    sources: selectedSources,
+                    heat: heatFilter,
+                    fit: fitFilter,
+                    risk: riskFilter,
+                    converted: convertedFilter,
+                    window: windowFilter,
+                    sort: value
+                  })}
+                  key={value}
+                >
+                  {value === "fit"
+                    ? "品牌相关度最高"
+                    : value === "latest"
+                      ? "最新出现"
+                      : value === "hottest"
+                        ? "热度最高"
+                        : value === "urgent"
+                          ? "最紧急"
+                          : "风险最低"}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
       </section>
 
-      {activeGroups.length > 0 ? (
-        <section className="reviewSimpleSection hotspotBoardSection">
-          <div className="reviewSimpleHeader">
-            <div>
-              <p className="eyebrow">结果列表</p>
-              <h3>热点列表</h3>
-            </div>
-            <div className="hotspotBoardHeaderMeta">
-              <span className="tag">已选层级 {selectedFamilies.length} 个</span>
-              <span className="tag">已选来源 {selectedSources.length > 0 ? selectedSources.length : activeGroups.length} 个</span>
-              <span className="muted">共 {aggregatedHotspots.length} 条，按品牌结合度排序</span>
-            </div>
-          </div>
+      <section className="hotspotDecisionGrid">
+        {sortedEntries.length > 0 ? (
+          sortedEntries.map((entry) => {
+            const { signal, selectedSourceLabels, sourceRecords } = entry;
+            const existingPack = packByHotspotId.get(signal.id);
+            const sourceTypeSummary = Array.from(
+              new Set(sourceRecords.map((record) => getSourceTypeLabel(record.sourceType, record.providerId)))
+            );
 
-          <div className="tagRow">
-            {selectedFamilies.map((family) => (
-              <span className="tag" key={family}>
-                {getFamilyLabel(family)}
-              </span>
-            ))}
-            {selectedSources.slice(0, 8).map((source) => (
-              <span className="tag" key={source}>
-                {source}
-              </span>
-            ))}
-            {selectedSources.length > 8 ? <span className="tag">其余 {selectedSources.length - 8} 个来源</span> : null}
-          </div>
+            return (
+              <article className="panel hotspotDecisionCard" key={signal.id}>
+                <div className="hotspotDecisionHead">
+                  <div className="tagRow">
+                    <span className="pill pill-neutral">{getKindLabel(signal.kind)}</span>
+                    <span className="pill pill-neutral">
+                      {getHeatLabel(signal)} · {signal.velocityScore}
+                    </span>
+                    <span className={`pill pill-${getRiskTone(signal.riskScore)}`}>风险 {getRiskLabel(signal.riskScore)}</span>
+                    {existingPack ? <span className="pill pill-positive">已转题</span> : null}
+                  </div>
+                  <span className="reviewInlineMeta">{formatDateTime(signal.detectedAt)}</span>
+                </div>
 
-          <div className="hotspotBoardList">
-            {aggregatedHotspots.map((entry) => {
-              const { signal, selectedSourceLabels, sourceRecords } = entry;
-              const existingPack = packByHotspotId.get(signal.id);
-              const sourceTypeSummary = Array.from(
-                new Set(sourceRecords.map((record) => getSourceTypeLabel(record.sourceType, record.providerId)))
-              );
+                <h3>{signal.title}</h3>
 
-              return (
-                <article className="hotspotBoardRow" key={signal.id}>
-                  <div className="hotspotBoardMain">
-                    <div className="tagRow">
-                      <span className={`pill pill-${getBrandFitTone(signal.brandFitScore)}`}>品牌结合 {signal.brandFitScore}/100</span>
-                      <span className="tag">{getKindLabel(signal.kind)}</span>
-                      <span className="tag">命中来源 {selectedSourceLabels.length} 个</span>
-                      <span className={`pill pill-${getSyncStatusTone(signal.riskScore >= 70 ? "failed" : "ok")}`}>
-                        风险 {signal.riskScore}
-                      </span>
-                      {existingPack ? <span className="pill pill-neutral">已进入生产</span> : null}
-                    </div>
+                <div className="decisionMetricGrid">
+                  <div>
+                    <span>品牌相关</span>
+                    <strong>{signal.brandFitScore}</strong>
+                  </div>
+                  <div>
+                    <span>热度等级</span>
+                    <strong>{signal.velocityScore}</strong>
+                  </div>
+                  <div>
+                    <span>风险等级</span>
+                    <strong>{signal.riskScore}</strong>
+                  </div>
+                  <div>
+                    <span>介入窗口</span>
+                    <strong>{getWindowLabel(signal)}</strong>
+                  </div>
+                </div>
 
-                    <h3 className="hotspotBoardTitle">{signal.title}</h3>
-                    <p className="muted hotspotBoardSummary">{truncateDisplayText(signal.summary, 96)}</p>
+                <p className="muted">{truncateDisplayText(signal.summary, 110)}</p>
 
-                    <div className="hotspotMetricRow">
-                      <span className="hotspotMetricChip">抓取时间 {formatHotspotTimestamp(signal.detectedAt)}</span>
-                      <span className="hotspotMetricChip">相关性 {signal.relevanceScore}</span>
-                      <span className="hotspotMetricChip">行业性 {signal.industryScore}</span>
-                      <span className="hotspotMetricChip">速度 {signal.velocityScore}</span>
-                      <span className="hotspotMetricChip">排序分 {signal.priorityScore}</span>
-                      <span className="hotspotMetricChip">建议 {getActionLabel(signal.recommendedAction)}</span>
-                    </div>
+                <div className="hotspotSourceSummary">
+                  <span>来源：{selectedSourceLabels.join(" / ") || "未标注"}</span>
+                  <span>链路：{sourceTypeSummary.join(" / ") || "未标注"}</span>
+                </div>
 
-                    <p className="muted hotspotSourceHint">
-                      当前命中来源：{selectedSourceLabels.join(" / ")} · 来源链路：{sourceTypeSummary.join(" / ")}
+                <div className="hotspotPrimaryAction">
+                  <HotspotActionButton
+                    hotspotId={signal.id}
+                    packId={existingPack?.packId}
+                    platform={existingPack?.platform}
+                    variantId={existingPack?.variantId}
+                  />
+                </div>
+
+                <details className="hotspotBoardDetails">
+                  <summary>查看判断依据</summary>
+                  <div className="hotspotBoardDetailsBody reviewContextCopy">
+                    <p>
+                      <strong>为什么现在值得做：</strong>
+                      {signal.reasons[0] ?? "已命中品牌主题和当前传播窗口。"}
                     </p>
-
-                    <div className="hotspotLinkRow">
-                      <a
-                        className="buttonLike subtleButton hotspotDetailLink"
-                        href={signal.sourceUrl ?? buildFallbackSearchUrl(signal.title, sourceRecords)}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        {signal.sourceUrl ? "查看原文" : "搜索详情"}
-                      </a>
-                      <span className="muted">
-                        {signal.sourceUrl ? "原始来源" : "按标题搜索"}
-                      </span>
+                    <p>
+                      <strong>为什么和品牌有关：</strong>
+                      {signal.reasons[1] ?? `建议把话题收束到 ${brand.name} 的真实产品场景与组织协同价值。`}
+                    </p>
+                    <p>
+                      <strong>可能的传播角度：</strong>
+                      {signal.recommendedAction === "ship-now"
+                        ? "先占判断位，再补方法论深度。"
+                        : "保留观察，适合等更多证据后再转成观点向内容。"}
+                    </p>
+                    <div className="hotspotDetailSourceLinks">
+                      {sourceRecords.map((record) => (
+                        <a
+                          className="tag"
+                          href={buildFallbackSearchUrl(signal.title, [record])}
+                          key={`${signal.id}-${record.displayLabel}-${record.providerId ?? record.label}`}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          查看 {record.displayLabel}
+                        </a>
+                      ))}
                     </div>
-
-                    <details className="hotspotBoardDetails">
-                      <summary>展开判断信息</summary>
-                      <div className="reviewContextCopy hotspotBoardDetailsBody">
-                        <p>
-                          <strong>全部命中来源：</strong>
-                          {sourceRecords
-                            .map(
-                              (record) =>
-                                `${record.displayLabel}（${getFamilyLabel(record.family)} · ${getSourceTypeLabel(
-                                  record.sourceType,
-                                  record.providerId
-                                )}）`
-                            )
-                            .join(" / ")}
-                        </p>
-                        <div className="hotspotDetailSourceLinks">
-                          {sourceRecords.map((record) => (
-                            <a
-                              className="tag"
-                              href={buildFallbackSearchUrl(signal.title, [record])}
-                              key={`${signal.id}-${record.displayLabel}-${record.providerId ?? record.label}`}
-                              rel="noreferrer"
-                              target="_blank"
-                            >
-                              看 {record.displayLabel} 详情
-                            </a>
-                          ))}
-                        </div>
-                        <p>
-                          <strong>为什么值得看：</strong>
-                          {truncateDisplayText(
-                            signal.reasons[0] ?? "已命中当前抓取规则，值得人工判断是否立题。",
-                            72
-                          )}
-                        </p>
-                        <p>
-                          <strong>品牌结合提示：</strong>
-                          {truncateDisplayText(
-                            signal.reasons[1] ?? `优先把这条热点往 ${brand.name} 的真实产品场景和传播角度上收。`,
-                            72
-                          )}
-                        </p>
-                        <HotspotInsightTrigger hotspotId={signal.id} />
-                      </div>
-                    </details>
+                    <HotspotInsightTrigger hotspotId={signal.id} />
                   </div>
-
-                  <div className="hotspotBoardActions">
-                    <HotspotActionButton
-                      hotspotId={signal.id}
-                      packId={existingPack?.packId}
-                      platform={existingPack?.platform}
-                      variantId={existingPack?.variantId}
-                    />
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      ) : (
-        <section className="reviewSimpleSection hotspotBoardSection">
-          <EmptyStateCard
-            description="当前筛选下暂无热点。"
-            eyebrow="热点看板"
-            title="暂无热点"
-          />
-        </section>
-      )}
+                </details>
+              </article>
+            );
+          })
+        ) : (
+          <section className="panel systemFeedbackCard">
+            <strong>当前筛选下没有可处理热点</strong>
+            <p className="muted">建议下一步：放宽一个筛选条件，或回到品牌系统补充近期动态与表达规则。</p>
+          </section>
+        )}
+      </section>
 
       <BackToTopButton />
     </div>

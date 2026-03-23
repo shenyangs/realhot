@@ -90,8 +90,11 @@ export function PublishActions({
 
   return (
     <div className="subPanel publishActions">
-      <div className="listItem">
-        <strong>{compact ? "发布处理" : "发布与导出"}</strong>
+      <div className="publishActionHeader">
+        <div>
+          <p className="eyebrow">执行动作</p>
+          <strong>{compact ? "发布处理" : "发布与导出"}</strong>
+        </div>
         <span className="pill pill-neutral">{queuedCount > 0 ? `已排队 ${queuedCount}` : "待进入发布台"}</span>
       </div>
 
@@ -111,23 +114,26 @@ export function PublishActions({
         </label>
       ) : null}
 
-      <div className="buttonRow">
-        <button disabled={isPending} onClick={queuePublish} type="button">
+      <div className="buttonRow publishPrimaryActions">
+        <button className="buttonLike primaryButton" disabled={isPending} onClick={runPublishNow} type="button">
+          {failedCount > 0 ? "重新尝试" : "立即发布"}
+        </button>
+        <button className="buttonLike subtleButton" disabled={isPending} onClick={queuePublish} type="button">
           {failedCount > 0 ? "重新排入发布" : "加入发布台"}
         </button>
-        <button disabled={isPending} onClick={runPublishNow} type="button">
-          {failedCount > 0 ? "立即重试" : "立即执行发布"}
-        </button>
+      </div>
+
+      <div className="buttonRow publishSecondaryActions">
         <PublishQueueClearButton
           emptyLabel="当前这题没有待清空的发布任务"
           label={compact ? "清空待执行" : "清空这题待执行"}
           packId={packId}
         />
-        <a className="buttonLike" href={`/api/content-packs/${packId}/export?format=markdown`}>
+        <a className="buttonLike subtleButton" href={`/api/content-packs/${packId}/export?format=markdown`}>
           {compact ? "导出内容" : "导出 Markdown"}
         </a>
         {!compact ? (
-          <a className="buttonLike" href={`/api/content-packs/${packId}/export?format=json`} target="_blank">
+          <a className="buttonLike subtleButton" href={`/api/content-packs/${packId}/export?format=json`} target="_blank">
             导出 JSON
           </a>
         ) : null}

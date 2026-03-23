@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DemoRoleSwitcher } from "@/components/demo-role-switcher";
 import { LoginForm } from "@/components/login-form";
 import { getLoginMode } from "@/lib/auth/repository";
 import { getCurrentViewer } from "@/lib/auth/session";
@@ -49,14 +48,14 @@ export default async function LoginPage() {
             <h1>账号登录</h1>
           </div>
         </div>
-        <p className="muted">如果已经配置好 Supabase Auth，就用真实账号登录；如果还在本地试用，可以直接切换 demo 角色。</p>
+        <p className="muted">工作台已切换为正式登录入口。未登录不能进入工作台；新成员需要先拿超级管理员生成的邀请码注册。</p>
       </section>
 
       <section className="brandInfoGrid">
         <article className="panel">
           <div className="panelHeader">
             <div>
-              <p className="eyebrow">真实登录</p>
+              <p className="eyebrow">Sign In</p>
               <h3>账号登录</h3>
             </div>
           </div>
@@ -69,15 +68,17 @@ export default async function LoginPage() {
         <article className="panel">
           <div className="panelHeader">
             <div>
-              <p className="eyebrow">本地试用</p>
-              <h3>切换 demo 角色</h3>
+              <p className="eyebrow">Admin</p>
+              <h3>超级管理员入口</h3>
             </div>
           </div>
-          <DemoRoleSwitcher accounts={loginMode.demoAccounts} />
+          <div className="stack">
+            <p className="muted">本地默认超级管理员账号已固定为：</p>
+            <p className="muted">账号：<code>admin</code></p>
+            <p className="muted">密码：<code>qingman0525</code></p>
+            <p className="muted">登录后可手动添加账号、指定用户组，并生成绑定用户组的邀请码。</p>
+          </div>
           <div className="inlineActions">
-            <Link className="buttonLike subtleButton" href="/">
-              返回工作台
-            </Link>
             <Link className="buttonLike subtleButton" href="/register">
               邀码注册
             </Link>

@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiAccess } from "@/lib/auth/api-guard";
 import { setCurrentWorkspaceBySlug } from "@/lib/auth/repository";
 
 export async function POST(request: NextRequest) {
+  const access = await requireApiAccess(request);
+
+  if (!access.ok) {
+    return access.response;
+  }
+
   const body = (await request.json().catch(() => ({}))) as {
     slug?: string;
   };
@@ -37,4 +44,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

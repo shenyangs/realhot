@@ -25,6 +25,11 @@ export interface ViewerMembership {
   status: string;
 }
 
+export interface ManagedAccountSummary {
+  login: string;
+  email?: string;
+}
+
 export interface ViewerContext {
   mode: "demo" | "supabase";
   isAuthenticated: boolean;

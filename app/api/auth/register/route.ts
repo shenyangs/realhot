@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { enforceSameOrigin } from "@/lib/auth/api-guard";
+import { APP_SESSION_TTL_SECONDS, createAppSessionToken, getSessionCookieOptions } from "@/lib/auth/local-session";
 import { registerWithInviteCode } from "@/lib/auth/repository";
 import { sessionCookieNames } from "@/lib/auth/session";
 
 export async function POST(request: NextRequest) {
+  const originError = enforceSameOrigin(request);
+
+  if (originError) {
+    return originError;
+  }
+
   const body = (await request.json().catch(() => ({}))) as {
     code?: string;
     email?: string;
@@ -23,13 +31,20 @@ export async function POST(request: NextRequest) {
     });
 
     if (result.mode === "demo") {
-      response.cookies.set(sessionCookieNames.userId, result.userId, {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/"
-      });
+      response.cookies.set(
+        sessionCookieNames.appSession,
+        await createAppSessionToken(result.userId),
+        getSessionCookieOptions(APP_SESSION_TTL_SECONDS)
+      );
+      if (result.workspaceSlug) {
+        response.cookies.set(
+          sessionCookieNames.workspaceSlug,
+          result.workspaceSlug,
+          getSessionCookieOptions(APP_SESSION_TTL_SECONDS)
+        );
+      }
+      response.cookies.delete(sessionCookieNames.legacyUserId);
       response.cookies.delete(sessionCookieNames.demoRole);
-      response.cookies.delete(sessionCookieNames.workspaceSlug);
     }
 
     return response;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiAccess } from "@/lib/auth/api-guard";
 import { canAccessAdmin } from "@/lib/auth/permissions";
 import { createWorkspaceInviteCodes } from "@/lib/auth/repository";
-import { getCurrentViewer } from "@/lib/auth/session";
 
 export async function POST(
   request: NextRequest,
@@ -11,10 +11,12 @@ export async function POST(
     }>;
   }
 ) {
-  const viewer = await getCurrentViewer();
+  const access = await requireApiAccess(request, {
+    authorize: canAccessAdmin
+  });
 
-  if (!canAccessAdmin(viewer)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+  if (!access.ok) {
+    return access.response;
   }
 
   const { workspaceId } = await context.params;

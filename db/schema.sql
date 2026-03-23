@@ -1,18 +1,95 @@
 create extension if not exists "pgcrypto";
 
-create type hotspot_kind as enum ('industry', 'mass', 'brand');
-create type content_track as enum ('rapid-response', 'point-of-view');
-create type review_status as enum ('pending', 'approved', 'needs-edit');
-create type publish_status as enum ('queued', 'published', 'failed', 'canceled');
-create type platform_name as enum ('xiaohongshu', 'wechat', 'video-channel', 'douyin');
-create type source_type as enum ('website', 'knowledge-base', 'wechat-history', 'event', 'press');
-create type source_freshness as enum ('stable', 'timely');
-create type profile_status as enum ('active', 'disabled');
-create type workspace_status as enum ('active', 'disabled');
-create type workspace_member_role as enum ('org_admin', 'operator', 'approver');
-create type workspace_member_status as enum ('active', 'disabled', 'invited');
-create type workspace_invite_status as enum ('pending', 'accepted', 'expired', 'revoked');
-create type workspace_invite_code_status as enum ('active', 'disabled', 'used-up');
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'hotspot_kind') then
+    create type hotspot_kind as enum ('industry', 'mass', 'brand');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'content_track') then
+    create type content_track as enum ('rapid-response', 'point-of-view');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'review_status') then
+    create type review_status as enum ('pending', 'approved', 'needs-edit');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'publish_status') then
+    create type publish_status as enum ('queued', 'published', 'failed', 'canceled');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'platform_name') then
+    create type platform_name as enum ('xiaohongshu', 'wechat', 'video-channel', 'douyin');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'source_type') then
+    create type source_type as enum ('website', 'knowledge-base', 'wechat-history', 'event', 'press');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'source_freshness') then
+    create type source_freshness as enum ('stable', 'timely');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'profile_status') then
+    create type profile_status as enum ('active', 'disabled');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'workspace_status') then
+    create type workspace_status as enum ('active', 'disabled');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'workspace_member_role') then
+    create type workspace_member_role as enum ('org_admin', 'operator', 'approver');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'workspace_member_status') then
+    create type workspace_member_status as enum ('active', 'disabled', 'invited');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'workspace_invite_status') then
+    create type workspace_invite_status as enum ('pending', 'accepted', 'expired', 'revoked');
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'workspace_invite_code_status') then
+    create type workspace_invite_code_status as enum ('active', 'disabled', 'used-up');
+  end if;
+end $$;
 
 create table if not exists profiles (
   id uuid primary key,
@@ -27,6 +104,15 @@ create table if not exists profiles (
 create table if not exists platform_admins (
   user_id uuid primary key references profiles(id) on delete cascade,
   created_at timestamptz not null default now()
+);
+
+create table if not exists platform_ai_routing_configs (
+  id uuid primary key default gen_random_uuid(),
+  default_provider text not null default 'gemini',
+  feature_overrides jsonb not null default '{}'::jsonb,
+  updated_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists workspaces (
@@ -207,3 +293,7 @@ create index if not exists idx_workspace_invite_codes_workspace_id on workspace_
 create index if not exists idx_brands_workspace_id on brands(workspace_id);
 create index if not exists idx_hotspot_packs_workspace_id on hotspot_packs(workspace_id);
 create index if not exists idx_publish_jobs_workspace_id on publish_jobs(workspace_id);
+create index if not exists idx_audit_logs_created_at on audit_logs(created_at desc);
+create index if not exists idx_audit_logs_actor_user_id on audit_logs(actor_user_id);
+create index if not exists idx_audit_logs_workspace_id on audit_logs(workspace_id);
+create index if not exists idx_audit_logs_action on audit_logs(action);

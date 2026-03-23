@@ -35,10 +35,10 @@ export function BrandOnboardingStatus({
     ? status.completed
       ? `已完成 ${status.completedSteps}/5 项`
       : `已完成 ${status.completedSteps}/5 项，仍在补充`
-    : "还没有本地接入记录";
+    : "当前未读取到本地接入记录";
   const description = status
     ? `最近更新：${formatLocalTimestamp(status.updatedAt)}`
-    : "首次使用建议先走接入流程";
+    : "建议下一步：先补品牌基础、表达规则和近期动态";
 
   if (variant === "card") {
     return (

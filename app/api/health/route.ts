@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { decideModelRoute } from "@/lib/services/model-router";
 
-export function GET() {
-  const route = decideModelRoute("content-generation");
+export async function GET() {
+  const route = await decideModelRoute("content-generation", { feature: "content-generation" });
 
   return NextResponse.json({
     ok: true,

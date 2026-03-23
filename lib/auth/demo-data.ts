@@ -1,3 +1,4 @@
+import { hashPassword } from "@/lib/auth/passwords";
 import { ViewerMembership, ViewerUser, ViewerWorkspace, WorkspaceRole } from "@/lib/auth/types";
 
 export interface DemoWorkspaceMemberRecord {
@@ -35,7 +36,8 @@ export interface DemoWorkspaceInviteCodeRecord {
 
 export interface DemoAuthAccountRecord {
   userId: string;
-  email: string;
+  email?: string;
+  username?: string;
   password: string;
   passwordSetupRequired: boolean;
 }
@@ -60,8 +62,8 @@ export const DEMO_WORKSPACES: ViewerWorkspace[] = [
 export const DEMO_USERS: Record<"super_admin" | WorkspaceRole, ViewerUser> = {
   super_admin: {
     id: "99999999-9999-9999-9999-999999999991",
-    email: "superadmin@example.com",
-    displayName: "Platform Super Admin",
+    email: "admin@local.dev",
+    displayName: "超级管理员",
     status: "active"
   },
   org_admin: {
@@ -151,26 +153,27 @@ export const DEMO_WORKSPACE_INVITE_CODES: DemoWorkspaceInviteCodeRecord[] = [
 export const DEMO_AUTH_ACCOUNTS: DemoAuthAccountRecord[] = [
   {
     userId: DEMO_USERS.super_admin.id,
-    email: DEMO_USERS.super_admin.email ?? "superadmin@example.com",
-    password: "Init@123",
-    passwordSetupRequired: true
+    email: DEMO_USERS.super_admin.email ?? "admin@local.dev",
+    username: "admin",
+    password: hashPassword("qingman0525"),
+    passwordSetupRequired: false
   },
   {
     userId: DEMO_USERS.org_admin.id,
     email: DEMO_USERS.org_admin.email ?? "owner@example.com",
-    password: "Init@123",
+    password: hashPassword("Init@123"),
     passwordSetupRequired: true
   },
   {
     userId: DEMO_USERS.operator.id,
     email: DEMO_USERS.operator.email ?? "operator@example.com",
-    password: "Init@123",
+    password: hashPassword("Init@123"),
     passwordSetupRequired: true
   },
   {
     userId: DEMO_USERS.approver.id,
     email: DEMO_USERS.approver.email ?? "approver@example.com",
-    password: "Init@123",
+    password: hashPassword("Init@123"),
     passwordSetupRequired: true
   }
 ];

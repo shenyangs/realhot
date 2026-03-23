@@ -45,14 +45,14 @@ export function HotspotActionButton({
   if (packId) {
     return (
       <Link
-        className="buttonLike subtleButton"
+        className="buttonLike primaryButton"
         href={buildReviewHref({
           packId,
           variantId,
           platform
         })}
       >
-        去看已生成草稿
+        查看已转选题
       </Link>
     );
   }
@@ -111,7 +111,7 @@ export function HotspotActionButton({
   return (
     <div className="inlineActionStack">
       <button disabled={isPending} onClick={generatePack} type="button">
-        {isPending ? "正在生成选题包..." : "转成 4 条内容"}
+        {isPending ? "正在转为选题..." : "转为选题"}
       </button>
       {message ? <p className="muted inlineActionMessage">{message}</p> : null}
     </div>

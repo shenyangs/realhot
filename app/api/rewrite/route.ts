@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiAccess } from "@/lib/auth/api-guard";
+import { canGenerateContent } from "@/lib/auth/permissions";
 import { rewriteVariantDraft } from "@/lib/services/rewrite-assistant";
 
 export async function POST(request: NextRequest) {
+  const access = await requireApiAccess(request, {
+    authorize: canGenerateContent,
+    requireWorkspace: true
+  });
+
+  if (!access.ok) {
+    return access.response;
+  }
+
   try {
     const body = (await request.json()) as {
       title?: string;

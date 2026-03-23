@@ -20,11 +20,13 @@ export function EmptyStateCard({
         <span />
         <span />
         <span />
+        <i />
       </div>
       <div className="emptyStateContent">
         <p className="eyebrow">{eyebrow}</p>
         <h3>{title}</h3>
         <p className="muted">{description}</p>
+        <small className="emptyStateHint">系统反馈会持续更新到这里。</small>
         {href && actionLabel ? (
           <Link className="buttonLike subtleButton" href={href}>
             {actionLabel}

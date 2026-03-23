@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { clearQueuedPublishJobs, queuePublishJobs } from "@/lib/data";
+import { requireApiAccess } from "@/lib/auth/api-guard";
+import { writeAuditLog } from "@/lib/auth/audit";
+import { canApproveContent } from "@/lib/auth/permissions";
+import { clearQueuedPublishJobs, getHotspotPack, getHotspotSignals, queuePublishJobs } from "@/lib/data";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ packId: string }> }
 ) {
   try {
+    const access = await requireApiAccess(request, {
+      authorize: canApproveContent,
+      requireWorkspace: true
+    });
+
+    if (!access.ok) {
+      return access.response;
+    }
+
+    const { viewer } = access;
     const { packId } = await params;
     const payload = (await request.json().catch(() => ({}))) as {
       scheduledAt?: string;
@@ -14,6 +27,24 @@ export async function POST(
     const result = await queuePublishJobs(packId, {
       scheduledAt: payload.scheduledAt,
       queueSource: "manual"
+    });
+    const pack = await getHotspotPack(packId);
+    const hotspot = pack ? (await getHotspotSignals()).find((item) => item.id === pack.hotspotId) : null;
+
+    await writeAuditLog({
+      workspaceId: viewer.currentWorkspace?.id,
+      actorUserId: viewer.isAuthenticated ? viewer.user.id : undefined,
+      actorDisplayName: viewer.user.displayName,
+      actorEmail: viewer.user.email,
+      entityType: "publish_queue",
+      entityId: packId,
+      action: "publish.jobs_queued",
+      payload: {
+        hotspotTitle: hotspot?.title,
+        scheduledAt: payload.scheduledAt,
+        queuedCount: result.jobs.length,
+        platforms: Array.from(new Set(result.jobs.map((job) => job.platform)))
+      }
     });
 
     return NextResponse.json({
@@ -34,13 +65,39 @@ export async function POST(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ packId: string }> }
 ) {
   try {
+    const access = await requireApiAccess(request, {
+      authorize: canApproveContent,
+      requireWorkspace: true
+    });
+
+    if (!access.ok) {
+      return access.response;
+    }
+
+    const { viewer } = access;
     const { packId } = await params;
+    const pack = await getHotspotPack(packId);
+    const hotspot = pack ? (await getHotspotSignals()).find((item) => item.id === pack.hotspotId) : null;
     const result = await clearQueuedPublishJobs({
       packId
+    });
+
+    await writeAuditLog({
+      workspaceId: viewer.currentWorkspace?.id,
+      actorUserId: viewer.isAuthenticated ? viewer.user.id : undefined,
+      actorDisplayName: viewer.user.displayName,
+      actorEmail: viewer.user.email,
+      entityType: "publish_queue",
+      entityId: packId,
+      action: "publish.queue_cleared",
+      payload: {
+        hotspotTitle: hotspot?.title,
+        removedCount: result.removedCount
+      }
     });
 
     return NextResponse.json({

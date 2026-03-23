@@ -1,21 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiAccess } from "@/lib/auth/api-guard";
 import { changePassword } from "@/lib/auth/repository";
-import { getCurrentViewer } from "@/lib/auth/session";
 
 export async function POST(request: NextRequest) {
-  const viewer = await getCurrentViewer();
+  const access = await requireApiAccess(request);
 
-  if (!viewer.isAuthenticated) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "unauthenticated"
-      },
-      {
-        status: 401
-      }
-    );
+  if (!access.ok) {
+    return access.response;
   }
+
+  const { viewer } = access;
 
   const body = (await request.json().catch(() => ({}))) as {
     currentPassword?: string;

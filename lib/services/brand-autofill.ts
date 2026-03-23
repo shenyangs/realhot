@@ -6,6 +6,8 @@ import {
 } from "@/lib/domain/brand-autofill";
 import { BrandSource, BrandStrategyPack } from "@/lib/domain/types";
 import { createUserTextContent, extractGeminiText, requestGeminiContent } from "@/lib/services/gemini-client";
+import { extractMiniMaxText, requestMiniMaxChatCompletion } from "@/lib/services/minimax-client";
+import { decideModelRoute } from "@/lib/services/model-router";
 
 interface BrandAutofillModelPayload {
   brandName: string;
@@ -430,10 +432,11 @@ function getJsonSchema() {
   };
 }
 
-function getSearchModelCandidates() {
+function getGeminiModelCandidates(preferredModel?: string) {
   return Array.from(
     new Set(
       [
+        preferredModel?.trim(),
         process.env.GEMINI_SEARCH_MODEL?.trim(),
         process.env.GEMINI_MODEL?.trim(),
         "gemini-3.1-pro-preview",
@@ -470,11 +473,14 @@ function shouldUseStructuredSearch(model: string) {
   return /^gemini-3(\.|-)/.test(model);
 }
 
-async function requestGeminiAutofill(brandName: string): Promise<{
+async function requestGeminiAutofill(
+  brandName: string,
+  preferredModel?: string
+): Promise<{
   payload: BrandAutofillModelPayload;
   model: string;
 }> {
-  const modelCandidates = getSearchModelCandidates();
+  const modelCandidates = getGeminiModelCandidates(preferredModel);
   let lastError: Error | null = null;
 
   for (const model of modelCandidates) {
@@ -540,6 +546,35 @@ async function requestGeminiAutofill(brandName: string): Promise<{
   }
 
   throw lastError ?? new Error("Gemini 深搜失败");
+}
+
+async function requestMiniMaxAutofill(
+  brandName: string,
+  model: string
+): Promise<BrandAutofillModelPayload> {
+  const response = await requestMiniMaxChatCompletion({
+    model,
+    messages: [
+      {
+        role: "system",
+        content:
+          "你是资深中国品牌策略分析师。你只能返回 JSON 对象，不要输出 Markdown、不要输出解释、不要输出代码块。"
+      },
+      {
+        role: "user",
+        content: `${buildPrompt(brandName)}\n\n请严格按照 JSON 结构输出。`
+      }
+    ],
+    timeoutMs: 60000
+  });
+  const text = extractMiniMaxText(response);
+
+  if (!text) {
+    throw new Error("MiniMax 未返回可解析的 JSON 文本");
+  }
+
+  const parsed = JSON.parse(extractJsonObject(text)) as unknown;
+  return coerceModelPayload(parsed, brandName);
 }
 
 function buildFallbackPayload(brandName: string, current: BrandStrategyPack): BrandAutofillModelPayload {
@@ -650,16 +685,34 @@ export async function autofillBrandStrategy(brandName: string): Promise<BrandAut
   const current = await getBrandStrategyPack();
   const normalizedBrandName = brandName.trim() || current.name;
   const updatedAt = new Date().toISOString();
+  const route = await decideModelRoute("strategy-planning", { feature: "brand-autofill" });
 
   try {
-    const { payload, model } = await requestGeminiAutofill(normalizedBrandName);
+    if (route.provider === "mock") {
+      throw new Error(route.reason);
+    }
+
+    let model = route.model;
+    let payload: BrandAutofillModelPayload;
+
+    if (route.provider === "gemini") {
+      const geminiResult = await requestGeminiAutofill(normalizedBrandName, model);
+      payload = geminiResult.payload;
+      model = geminiResult.model;
+    } else {
+      payload = await requestMiniMaxAutofill(normalizedBrandName, model);
+    }
     const normalized = normalizeModelPayload(payload, current);
+    const reason =
+      route.provider === "gemini"
+        ? `${route.reason} 已启用 Gemini + Google Search 尝试联网补充公开资料。`
+        : `${route.reason} 使用 MiniMax 生成结构化品牌草稿。`;
 
     return {
       route: {
-        provider: "gemini",
+        provider: route.provider,
         model,
-        reason: "使用 Gemini API 与 Google Search 基于公开网络资料生成策略草稿。"
+        reason
       },
       ...normalized,
       updatedAt
@@ -674,8 +727,8 @@ export async function autofillBrandStrategy(brandName: string): Promise<BrandAut
         model: "local-template",
         reason:
           error instanceof Error
-            ? `联网深搜暂不可用，已回退为本地草稿：${error.message}`
-            : "联网深搜暂不可用，已回退为本地草稿。"
+            ? `品牌自动填充暂不可用，已回退为本地草稿：${error.message}`
+            : "品牌自动填充暂不可用，已回退为本地草稿。"
       },
       ...normalized,
       updatedAt

@@ -7,46 +7,91 @@ import { type ViewerContext } from "@/lib/auth/types";
 
 interface NavItem {
   href: Route;
+  order: string;
   label: string;
   description: string;
+  shortLabel: string;
+  matchPrefixes?: string[];
 }
 
-const navItems: NavItem[] = [
+const baseNavItems: NavItem[] = [
   {
     href: "/",
+    order: "01",
     label: "工作台",
-    description: "先看今天有哪些热点、任务和卡点"
+    shortLabel: "总控",
+    description: "今天最该先处理什么"
   },
   {
     href: "/hotspots",
+    order: "02",
     label: "热点看板",
-    description: "看全部热点，再挑值得跟进的题"
+    shortLabel: "热点",
+    description: "先筛选，再判断，再转题"
   },
   {
     href: "/review",
+    order: "03",
     label: "选题详情台",
-    description: "集中改稿、审核，也能直接删除选题"
+    shortLabel: "选题",
+    description: "左侧决策，右侧编辑"
   },
   {
     href: "/publish",
+    order: "04",
     label: "发布执行台",
-    description: "排队发布、清空待执行、查看结果"
+    shortLabel: "发布",
+    description: "查看运行状态与失败诊断"
   },
   {
     href: "/production-studio",
+    order: "05",
     label: "内容深度制作",
-    description: "一键生成图文和视频，再统一微调"
+    shortLabel: "制作",
+    description: "一键生成后统一微调"
   },
   {
     href: "/brands",
+    order: "06",
     label: "品牌系统",
-    description: "维护品牌语境、规则和素材资产"
+    shortLabel: "品牌",
+    description: "决定系统怎么说话"
   }
 ];
 
 export function Sidebar({ viewer }: { viewer: ViewerContext }) {
   const pathname = usePathname();
-  const activeItem = navItems.find((item) => pathname === item.href) ?? navItems[0];
+  const navItems = viewer.isPlatformAdmin
+    ? [
+        ...baseNavItems,
+        {
+          href: "/admin" as Route,
+          order: "07",
+          label: "平台后台",
+          shortLabel: "管理",
+          description: "用户、组织、日志与系统配置",
+          matchPrefixes: ["/admin"]
+        }
+      ]
+    : baseNavItems;
+
+  function isItemActive(item: NavItem) {
+    if (item.href === "/") {
+      return pathname === "/";
+    }
+
+    if (pathname === item.href) {
+      return true;
+    }
+
+    if (item.matchPrefixes?.some((prefix) => pathname.startsWith(prefix))) {
+      return true;
+    }
+
+    return pathname.startsWith(`${item.href}/`);
+  }
+
+  const activeItem = navItems.find((item) => isItemActive(item)) ?? navItems[0];
 
   return (
     <aside className="sidebar">
@@ -57,15 +102,19 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
             热点驱动内容台
           </Link>
           <p className="muted">
-            从热点信号到内容发布，用一套安静、清晰、可执行的品牌工作流跑完。
+            从热点信号到内容发布，把判断、编辑、审核和执行收进同一套品牌操作系统。
           </p>
+          <div className="sidebarBrandMeta">
+            <span className="tag">运行中</span>
+            <span className="tag">{viewer.mode === "demo" ? "Demo 数据" : "实时环境"}</span>
+          </div>
         </div>
 
         <div className="sidebarSection">
           <span className="sidebarLabel">主流程</span>
           <nav className="nav" aria-label="main navigation">
             {navItems.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = isItemActive(item);
 
               return (
                 <Link
@@ -75,6 +124,10 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
                   key={item.href}
                   title={item.description}
                 >
+                  <div className="navCardHeader">
+                    <span className="navCardMeta">{item.order}</span>
+                    <span className="navCardMeta">{item.shortLabel}</span>
+                  </div>
                   <strong>{item.label}</strong>
                   <span>{item.description}</span>
                 </Link>
@@ -90,7 +143,10 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
           </div>
           <strong>{activeItem.label}</strong>
           <p className="muted">{activeItem.description}</p>
-          {viewer.currentWorkspace ? <small className="muted">{viewer.currentWorkspace.name}</small> : null}
+          <div className="sidebarStatusMeta">
+            {viewer.currentWorkspace ? <small className="muted">工作区：{viewer.currentWorkspace.name}</small> : null}
+            <small className="muted">当前角色：{viewer.isPlatformAdmin ? "平台管理员" : "业务工作台"}</small>
+          </div>
         </div>
       </div>
     </aside>

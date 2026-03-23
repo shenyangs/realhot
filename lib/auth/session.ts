@@ -1,12 +1,13 @@
 import { cookies } from "next/headers";
-import { getDemoMembershipsForRole, DEMO_USERS, DEMO_WORKSPACES } from "@/lib/auth/demo-data";
+import { DEMO_USERS } from "@/lib/auth/demo-data";
+import { APP_SESSION_COOKIE_NAME, readAppSessionToken } from "@/lib/auth/local-session";
 import { ViewerContext, ViewerMembership, ViewerWorkspace, WorkspaceRole } from "@/lib/auth/types";
 import { readLocalDataStore } from "@/lib/data/local-store";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { getSupabaseServerClient } from "@/lib/supabase/client";
 
 const DEMO_ROLE_COOKIE = "brand_os_demo_role";
-const USER_ID_COOKIE = "brand_os_user_id";
+const LEGACY_USER_ID_COOKIE = "brand_os_user_id";
 const WORKSPACE_SLUG_COOKIE = "brand_os_workspace_slug";
 const ACCESS_TOKEN_COOKIE = "brand_os_access_token";
 const REFRESH_TOKEN_COOKIE = "brand_os_refresh_token";
@@ -44,10 +45,6 @@ interface WorkspaceMembershipRow {
     | null;
 }
 
-function isWorkspaceRole(value: string | undefined): value is WorkspaceRole {
-  return value === "org_admin" || value === "operator" || value === "approver";
-}
-
 function normalizeWorkspace(input: WorkspaceMembershipRow["workspaces"]): ViewerWorkspace | null {
   const workspace = Array.isArray(input) ? input[0] : input;
 
@@ -61,45 +58,6 @@ function normalizeWorkspace(input: WorkspaceMembershipRow["workspaces"]): Viewer
     slug: workspace.slug,
     planType: workspace.plan_type ?? undefined,
     status: workspace.status ?? undefined
-  };
-}
-
-async function buildDemoViewer(role: "super_admin" | WorkspaceRole, workspaceSlug?: string | null): Promise<ViewerContext> {
-  if (role === "super_admin") {
-    return {
-      mode: "demo",
-      isAuthenticated: true,
-      isPlatformAdmin: true,
-      platformRole: "super_admin",
-      workspaceRole: null,
-      effectiveRole: "super_admin",
-      user: DEMO_USERS.super_admin,
-      currentWorkspace: null,
-      memberships: []
-    };
-  }
-
-  const store = await readLocalDataStore();
-  const memberships =
-    getDemoMembershipsForRole(role).map((membership) => ({
-      ...membership,
-      workspace: store.workspaces.find((workspace) => workspace.id === membership.workspace.id) ?? membership.workspace
-    })) ?? [];
-  const matchedWorkspace = memberships.find((membership) => membership.workspace.slug === workspaceSlug)?.workspace;
-  const currentWorkspace =
-    matchedWorkspace ??
-    (memberships.length === 1 ? memberships[0]?.workspace ?? DEMO_WORKSPACES[0] ?? null : null);
-
-  return {
-    mode: "demo",
-    isAuthenticated: true,
-    isPlatformAdmin: false,
-    platformRole: null,
-    workspaceRole: role,
-    effectiveRole: role,
-    user: DEMO_USERS[role],
-    currentWorkspace,
-    memberships
   };
 }
 
@@ -151,17 +109,6 @@ async function buildLocalViewerFromUserId(userId: string, workspaceSlug?: string
   };
 }
 
-async function getDemoRoleFromCookie(): Promise<"super_admin" | WorkspaceRole | null> {
-  const cookieStore = await cookies();
-  const role = cookieStore.get(DEMO_ROLE_COOKIE)?.value;
-
-  if (role === "super_admin" || isWorkspaceRole(role)) {
-    return role;
-  }
-
-  return null;
-}
-
 async function resolveViewerFromSupabase(userId: string, workspaceSlug?: string | null): Promise<ViewerContext | null> {
   const supabase = getSupabaseServerClient();
 
@@ -201,7 +148,7 @@ async function resolveViewerFromSupabase(userId: string, workspaceSlug?: string 
         status: membership.status
       };
     })
-    .filter((membership): membership is ViewerMembership => membership !== null);
+    .filter((membership): membership is ViewerMembership => membership !== null && membership.status === "active");
 
   const currentMembership =
     normalizedMemberships.find((membership) => membership.workspace.slug === workspaceSlug) ??
@@ -267,7 +214,7 @@ function buildGuestViewer(): ViewerContext {
 
 export async function getCurrentViewer(): Promise<ViewerContext> {
   const cookieStore = await cookies();
-  const userId = cookieStore.get(USER_ID_COOKIE)?.value;
+  const appSession = await readAppSessionToken(cookieStore.get(APP_SESSION_COOKIE_NAME)?.value);
   const workspaceSlug = cookieStore.get(WORKSPACE_SLUG_COOKIE)?.value;
   const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
 
@@ -283,20 +230,18 @@ export async function getCurrentViewer(): Promise<ViewerContext> {
         if (viewer) {
           return viewer;
         }
-
-        return buildGuestViewer();
       }
     }
   }
 
-  if (userId) {
-    const viewer = await resolveViewerFromSupabase(userId, workspaceSlug);
+  if (appSession?.userId) {
+    const viewer = await resolveViewerFromSupabase(appSession.userId, workspaceSlug);
 
     if (viewer) {
       return viewer;
     }
 
-    const localViewer = await buildLocalViewerFromUserId(userId, workspaceSlug);
+    const localViewer = await buildLocalViewerFromUserId(appSession.userId, workspaceSlug);
 
     if (localViewer) {
       return localViewer;
@@ -305,13 +250,7 @@ export async function getCurrentViewer(): Promise<ViewerContext> {
     return buildGuestViewer();
   }
 
-  const demoRole = await getDemoRoleFromCookie();
-
-  if (!demoRole) {
-    return buildGuestViewer();
-  }
-
-  return buildDemoViewer(demoRole, workspaceSlug);
+  return buildGuestViewer();
 }
 
 export async function getCurrentWorkspaceSlug(): Promise<string | null> {
@@ -325,8 +264,9 @@ export async function getCurrentUserId(): Promise<string> {
 }
 
 export const sessionCookieNames = {
+  appSession: APP_SESSION_COOKIE_NAME,
   demoRole: DEMO_ROLE_COOKIE,
-  userId: USER_ID_COOKIE,
+  legacyUserId: LEGACY_USER_ID_COOKIE,
   workspaceSlug: WORKSPACE_SLUG_COOKIE,
   accessToken: ACCESS_TOKEN_COOKIE,
   refreshToken: REFRESH_TOKEN_COOKIE

@@ -1,13 +1,14 @@
 import type { Route } from "next";
 import Link from "next/link";
-import { EmptyStateCard } from "@/components/empty-state-card";
 import { OneClickProductionButton } from "@/components/one-click-production-button";
 import { PackDeleteButton } from "@/components/pack-delete-button";
 import { PageHero } from "@/components/page-hero";
 import { PublishActions } from "@/components/publish-actions";
 import { ReviewActions } from "@/components/review-actions";
 import { ReviewEditor } from "@/components/review-editor";
-import { getBrandStrategyPack, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
+import { writeAuditLog } from "@/lib/auth/audit";
+import { getCurrentViewer } from "@/lib/auth/session";
+import { getBrandStrategyPack, getPrioritizedHotspots, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
 import type { ContentTrack, Platform, ReviewStatus } from "@/lib/domain/types";
 
 const platformLabels: Record<Platform, string> = {
@@ -28,6 +29,14 @@ const reviewStatusLabels: Record<ReviewStatus, string> = {
   "needs-edit": "待改稿"
 };
 
+type SearchParams = Promise<{
+  pack?: string;
+  variant?: string;
+  platform?: Platform;
+  status?: ReviewStatus | "all";
+  q?: string;
+}>;
+
 function getPackStatusTone(status: ReviewStatus) {
   if (status === "approved") {
     return "positive";
@@ -39,14 +48,6 @@ function getPackStatusTone(status: ReviewStatus) {
 
   return "neutral";
 }
-
-type SearchParams = Promise<{
-  pack?: string;
-  variant?: string;
-  platform?: Platform;
-  status?: ReviewStatus | "all";
-  q?: string;
-}>;
 
 function getPublishWindowRank(value?: string) {
   if (!value) {
@@ -117,16 +118,64 @@ function buildReviewHref(input: {
   return (query ? `/review?${query}` : "/review") as Route;
 }
 
+function getRiskTone(score?: number) {
+  if (score === undefined) {
+    return "neutral";
+  }
+
+  if (score <= 35) {
+    return "positive";
+  }
+
+  if (score <= 55) {
+    return "neutral";
+  }
+
+  return "warning";
+}
+
+function getRiskLabel(score?: number) {
+  if (score === undefined) {
+    return "未评估";
+  }
+
+  if (score <= 35) {
+    return `低风险 · ${score}`;
+  }
+
+  if (score <= 55) {
+    return `中风险 · ${score}`;
+  }
+
+  return `高风险 · ${score}`;
+}
+
+function getFitLabel(score?: number) {
+  if (score === undefined) {
+    return "未评估";
+  }
+
+  if (score >= 80) {
+    return `高相关 · ${score}`;
+  }
+
+  if (score >= 65) {
+    return `中相关 · ${score}`;
+  }
+
+  return `低相关 · ${score}`;
+}
+
 function getNextActionHint(status: ReviewStatus) {
   if (status === "approved") {
-    return "已通过：可以直接一键制作或进入发布执行。";
+    return "这条内容已通过审核，可以直接进入一键制作或发布执行。";
   }
 
   if (status === "needs-edit") {
-    return "待改稿：先在下方编辑区修改，再恢复待审核。";
+    return "先在右侧把稿件改到可发布状态，再恢复待审核。";
   }
 
-  return "待审核：确认可发性后，点“通过”或“退回修改”。";
+  return "先判断是否值得做，再决定通过还是退回修改。";
 }
 
 export default async function ReviewPage({
@@ -134,8 +183,13 @@ export default async function ReviewPage({
 }: {
   searchParams?: SearchParams;
 }) {
+  const viewer = await getCurrentViewer();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const [brand, packs] = await Promise.all([getBrandStrategyPack(), getReviewQueue()]);
+  const [brand, packs, prioritizedHotspots] = await Promise.all([
+    getBrandStrategyPack(),
+    getReviewQueue(),
+    getPrioritizedHotspots()
+  ]);
 
   const statusFilter = resolvedSearchParams?.status ?? "all";
   const searchQuery = resolvedSearchParams?.q?.trim() ?? "";
@@ -195,10 +249,9 @@ export default async function ReviewPage({
   if (!activePack) {
     return (
       <div className="page">
-        <section className="panel emptyPageState">
-          <p className="eyebrow">选题与审核</p>
-          <h1>还没有可编辑的选题任务</h1>
-          <p className="muted">先去同步热点并生成选题包，再回来进入编辑与审核。</p>
+        <section className="panel systemFeedbackCard">
+          <strong>还没有可处理的选题任务</strong>
+          <p className="muted">先去热点看板转入一条选题，再回到这里做决策和编辑。</p>
         </section>
       </div>
     );
@@ -207,6 +260,25 @@ export default async function ReviewPage({
   const activeVariant =
     activePack.variants.find((variant) => variant.id === resolvedSearchParams?.variant) ??
     activePack.variants[0];
+
+  if (resolvedSearchParams?.pack && viewer.isAuthenticated) {
+    const hotspot = prioritizedHotspots.find((item) => item.id === activePack.hotspotId);
+
+    await writeAuditLog({
+      workspaceId: viewer.currentWorkspace?.id,
+      actorUserId: viewer.user.id,
+      actorDisplayName: viewer.user.displayName,
+      actorEmail: viewer.user.email,
+      entityType: "hotspot_pack",
+      entityId: activePack.id,
+      action: "review.pack_viewed",
+      payload: {
+        hotspotTitle: hotspot?.title,
+        variantTitle: activeVariant?.title,
+        status: activePack.status
+      }
+    });
+  }
 
   const platformDrafts = activePack.variants.flatMap((variant) =>
     variant.platforms.map((platform) => ({
@@ -234,7 +306,7 @@ export default async function ReviewPage({
     publishWindow: activeVariant?.publishWindow,
     variantCount: activePack.variants.length
   });
-
+  const activeSignal = prioritizedHotspots.find((item) => item.id === activePack.hotspotId);
   const counts = {
     all: packs.length,
     pending: packs.filter((pack) => pack.status === "pending").length,
@@ -243,60 +315,42 @@ export default async function ReviewPage({
   };
 
   return (
-    <div className="page reviewClearPage">
+    <div className="page topicWorkbenchPage">
       <PageHero
         actions={
           <>
-            <Link className="buttonLike primaryButton" href="/publish">
+            <Link className="buttonLike primaryButton" href="#decision-actions">
+              进入审核动作
+            </Link>
+            <Link className="buttonLike subtleButton" href="/publish">
               去发布执行台
             </Link>
             <Link className="buttonLike subtleButton" href="/">
               回工作台
             </Link>
-            <Link className="buttonLike subtleButton" href="#step-3">
-              直接做审核决策
-            </Link>
           </>
         }
         context={activeVariant?.title ?? activePack.whyNow}
-        description="按固定三步走：先选题，再改稿，最后做审核或发布决策。"
+        description="左侧只回答值不值得做，右侧只负责把内容改到可发布状态。"
         eyebrow="选题详情台"
         facts={[
-          { label: "当前品牌", value: brand.name },
           { label: "当前状态", value: reviewStatusLabels[activePack.status] },
-          { label: "当前负责人", value: activePack.reviewOwner },
-          { label: "下一步", value: activePack.status === "approved" ? "发布或制作" : "先做审核" }
+          { label: "优先级", value: priorityLabel },
+          { label: "品牌相关", value: getFitLabel(activeSignal?.brandFitScore) },
+          { label: "平台建议", value: activeVariant?.platforms.map((platform) => platformLabels[platform]).join(" / ") ?? "未设置" },
+          { label: "发布窗口", value: activeVariant?.publishWindow ?? "未设置" },
+          { label: "负责人", value: activePack.reviewOwner }
         ]}
-        title="先选题，再改稿，再决策"
+        title="左决策，右编辑"
       />
 
-      <section className="panel reviewFlowGuide">
-        <div className="reviewFlowSteps">
-          <article className="reviewFlowStepCard">
-            <span className="stepBadge">步骤 1</span>
-            <strong>选择今天要处理的题</strong>
-            <p className="muted">先在左侧列表选中一条，不要同时处理多条。</p>
-          </article>
-          <article className="reviewFlowStepCard">
-            <span className="stepBadge">步骤 2</span>
-            <strong>确认并修改当前稿</strong>
-            <p className="muted">在中间切平台版本并编辑正文，保证可发性。</p>
-          </article>
-          <article className="reviewFlowStepCard">
-            <span className="stepBadge">步骤 3</span>
-            <strong>做审核决定</strong>
-            <p className="muted">通过后可一键制作与发布；不通过就退回改稿。</p>
-          </article>
-        </div>
-      </section>
-
-      <div className="reviewClearLayout">
-        <aside className="reviewClearQueue" id="step-1">
-          <section className="panel reviewRailSection">
-            <div className="reviewSimpleHeader">
+      <div className="topicWorkbenchLayout">
+        <aside className="topicDecisionColumn">
+          <section className="panel topicQueuePanel">
+            <div className="panelHeader sectionTitle">
               <div>
-                <p className="eyebrow">步骤 1</p>
-                <h3>选择选题</h3>
+                <p className="eyebrow">选题队列</p>
+                <h2>今天处理哪一条</h2>
               </div>
               <span className="muted">共 {visiblePacks.length} 条</span>
             </div>
@@ -343,7 +397,9 @@ export default async function ReviewPage({
                 <input defaultValue={searchQuery} name="q" placeholder="按标题、负责人或角度搜索" />
               </label>
               <div className="buttonRow reviewSearchActionsRow">
-                <button type="submit">应用筛选</button>
+                <button className="buttonLike subtleButton" type="submit">
+                  应用筛选
+                </button>
                 <Link className="buttonLike subtleButton" href={`/review?status=${statusFilter}`}>
                   清空
                 </Link>
@@ -351,7 +407,7 @@ export default async function ReviewPage({
             </form>
 
             {visiblePacks.length > 0 ? (
-              <div className="reviewTaskListSimple reviewTaskRailList">
+              <div className="reviewTaskListSimple topicQueueList">
                 {visiblePacks.map((pack) => {
                   const defaultVariant = pack.variants[0];
                   const isActive = pack.id === activePack.id;
@@ -387,44 +443,49 @@ export default async function ReviewPage({
                 })}
               </div>
             ) : (
-              <EmptyStateCard
-                actionLabel="去热点看板补题"
-                description="当前筛选下暂无任务。"
-                eyebrow="选题库"
-                href="/hotspots"
-                title="暂无选题"
-              />
+              <div className="systemFeedbackCard">
+                <strong>当前筛选下没有任务</strong>
+                <p className="muted">可以切换状态筛选，或回到热点看板补入新选题。</p>
+              </div>
             )}
           </section>
-        </aside>
 
-        <main className="reviewClearMain">
-          <section className="panel reviewContextPanel" id="step-2">
-            <div className="reviewSimpleHeader">
+          <section className="panel topicDecisionPanel">
+            <div className="panelHeader sectionTitle">
               <div>
-                <p className="eyebrow">步骤 2</p>
-                <h3>查看并确认当前稿</h3>
+                <p className="eyebrow">决策区</p>
+                <h2>这条值不值得做</h2>
               </div>
               <span className={`pill pill-${getPackStatusTone(activePack.status)}`}>
                 {reviewStatusLabels[activePack.status]}
               </span>
             </div>
 
-            <h2 className="reviewCurrentTitle">{activeVariant?.title ?? activePack.whyNow}</h2>
-            <p className="muted reviewCurrentHint">{getNextActionHint(activePack.status)}</p>
+            <div className="topicDecisionHeadline">
+              <h3>{activeVariant?.title ?? activePack.whyNow}</h3>
+              <p className="muted">{getNextActionHint(activePack.status)}</p>
+            </div>
 
-            <div className="definitionList compactDefinitionList reviewContextMiniFacts">
+            <div className="decisionMetricGrid">
               <div>
                 <span>优先级</span>
                 <strong>{priorityLabel}</strong>
               </div>
               <div>
-                <span>负责人</span>
-                <strong>{activePack.reviewOwner}</strong>
+                <span>品牌相关</span>
+                <strong>{getFitLabel(activeSignal?.brandFitScore)}</strong>
               </div>
               <div>
-                <span>发布时间</span>
+                <span>平台建议</span>
+                <strong>{activeVariant?.platforms.map((platform) => platformLabels[platform]).join(" / ") ?? "未设置"}</strong>
+              </div>
+              <div>
+                <span>发布窗口</span>
                 <strong>{activeVariant?.publishWindow ?? "未设置"}</strong>
+              </div>
+              <div>
+                <span>风险提醒</span>
+                <strong className={`decisionRisk decisionRisk-${getRiskTone(activeSignal?.riskScore)}`}>{getRiskLabel(activeSignal?.riskScore)}</strong>
               </div>
               <div>
                 <span>出口状态</span>
@@ -432,12 +493,77 @@ export default async function ReviewPage({
               </div>
             </div>
 
-            <div className="reviewContextNarrative reviewContextCopy">
-              <p><strong>为什么现在做：</strong>{activePack.whyNow}</p>
-              <p><strong>为什么与品牌相关：</strong>{activePack.whyUs}</p>
+            <div className="topicDecisionNarrative">
+              <div>
+                <strong>立题理由</strong>
+                <p className="muted">{activePack.whyNow}</p>
+              </div>
+              <div>
+                <strong>与品牌结合的原因</strong>
+                <p className="muted">{activePack.whyUs}</p>
+              </div>
+              <div>
+                <strong>风险提醒</strong>
+                <ul className="simpleList">
+                  {brand.redLines.slice(0, 3).map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel topicActionPanel" id="decision-actions">
+            <div className="panelHeader sectionTitle">
+              <div>
+                <p className="eyebrow">审核结论</p>
+                <h2>固定出口</h2>
+              </div>
+              <span className={`pill pill-${getPackStatusTone(activePack.status)}`}>
+                {reviewStatusLabels[activePack.status]}
+              </span>
             </div>
 
-            <div className="reviewPlatformStrip">
+            {activePack.status === "approved" ? (
+              <div className="topicApprovedStack">
+                <OneClickProductionButton packId={activePack.id} />
+                <PublishActions
+                  compact
+                  failedCount={failedCount}
+                  packId={activePack.id}
+                  publishedCount={publishedCount}
+                  queuedCount={queuedCount}
+                />
+              </div>
+            ) : (
+              <ReviewActions
+                currentNote={activePack.reviewNote}
+                currentStatus={activePack.status}
+                defaultReviewer={activePack.reviewedBy ?? activePack.reviewOwner}
+                packId={activePack.id}
+              />
+            )}
+          </section>
+
+          <details className="panel topicDangerPanel">
+            <summary>管理与危险操作</summary>
+            <div className="topicDangerBody">
+              <p className="muted">删除后会一并清空该选题关联的待发布任务，请确认这条题确实不再推进。</p>
+              <PackDeleteButton packId={activePack.id} redirectHref="/review" />
+            </div>
+          </details>
+        </aside>
+
+        <main className="topicEditorColumn">
+          <section className="panel topicPlatformPanel">
+            <div className="panelHeader sectionTitle">
+              <div>
+                <p className="eyebrow">编辑区</p>
+                <h2>平台版本</h2>
+              </div>
+            </div>
+
+            <div className="reviewPlatformStrip topicPlatformTabs">
               {platformDrafts.map((draft) => {
                 const isActive =
                   draft.variant.id === activeDraft?.variant.id &&
@@ -463,19 +589,13 @@ export default async function ReviewPage({
             </div>
           </section>
 
-          <section className="panel reviewEditorSurface" id="review-editor">
-            <div className="reviewSimpleHeader">
-              <div>
-                <p className="eyebrow">步骤 2（继续）</p>
-                <h3>修改当前版本</h3>
-              </div>
-            </div>
-
+          <section className="panel topicEditorPanel">
             {activeVariant ? (
               <ReviewEditor
                 angle={activeDraft?.variant.angle ?? activeVariant.angle}
                 brandName={brand.name}
                 brandTone={brand.tone}
+                decisionAnchorId="decision-actions"
                 initialBody={activeDraft?.variant.body ?? activeVariant.body}
                 initialHook={activeDraft?.variant.coverHook ?? activeVariant.coverHook}
                 initialTitle={activeDraft?.variant.title ?? activeVariant.title}
@@ -489,48 +609,6 @@ export default async function ReviewPage({
                 whyUs={activePack.whyUs}
               />
             ) : null}
-          </section>
-
-          <section className="panel reviewDecisionSurface" id="step-3">
-            <div className="reviewSimpleHeader">
-              <div>
-                <p className="eyebrow">步骤 3</p>
-                <h3>审核与发布决策</h3>
-              </div>
-              <span className={`pill pill-${getPackStatusTone(activePack.status)}`}>
-                {reviewStatusLabels[activePack.status]}
-              </span>
-            </div>
-
-            <p className="muted">{getNextActionHint(activePack.status)}</p>
-
-            {activePack.status === "approved" ? (
-              <div className="reviewDecisionStack">
-                <OneClickProductionButton packId={activePack.id} />
-                <PublishActions
-                  failedCount={failedCount}
-                  packId={activePack.id}
-                  publishedCount={publishedCount}
-                  queuedCount={queuedCount}
-                />
-              </div>
-            ) : (
-              <ReviewActions
-                currentNote={activePack.reviewNote}
-                currentStatus={activePack.status}
-                defaultReviewer={activePack.reviewedBy ?? activePack.reviewOwner}
-                packId={activePack.id}
-              />
-            )}
-
-            <div className="reviewDangerZone">
-              <div className="listItem">
-                <strong>不需要这条选题？</strong>
-                <span className="pill pill-warning">谨慎操作</span>
-              </div>
-              <p className="muted">删除后会一起清空它关联的待发布任务。</p>
-              <PackDeleteButton packId={activePack.id} redirectHref="/review" />
-            </div>
           </section>
         </main>
       </div>
