@@ -128,6 +128,7 @@ export function ReviewQueueBatchList({
             ok?: boolean;
             updatedCount?: number;
             failedIds?: string[];
+            failedReasons?: Record<string, string>;
             error?: string;
           }
         | null;
@@ -143,7 +144,7 @@ export function ReviewQueueBatchList({
 
       if (failedIds.length > 0) {
         setSelectedIds(failedIds);
-        setMessage(`已批量${actionLabel} ${updatedCount} 条，另有 ${failedIds.length} 条失败，请重试。`);
+        setMessage(`已批量${actionLabel} ${updatedCount} 条，另有 ${failedIds.length} 条失败，请重试或刷新后重试。`);
       } else {
         setSelectedIds([]);
         setMessage(`已批量${actionLabel} ${updatedCount} 条。`);

@@ -104,7 +104,6 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
     <aside className="sidebar">
       <div className="sidebarInner">
         <div className="sidebarBrand">
-          <span className="sidebarKicker">内容生产流程</span>
           <Link className="brandLink" href="/">
             品牌内容工作台
           </Link>

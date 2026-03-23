@@ -36,6 +36,22 @@ function isBatchStatus(input: unknown): input is Exclude<ReviewStatus, "pending"
   return input === "approved" || input === "needs-edit";
 }
 
+function formatBatchError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const message = "message" in error ? error.message : null;
+
+    if (typeof message === "string" && message.trim().length > 0) {
+      return message.trim();
+    }
+  }
+
+  return "unknown_error";
+}
+
 export async function POST(request: NextRequest) {
   try {
     const access = await requireApiAccess(request, {
@@ -72,6 +88,7 @@ export async function POST(request: NextRequest) {
     const note = payload?.note?.trim() || undefined;
     const updatedIds: string[] = [];
     const failedIds: string[] = [];
+    const failedReasons: Record<string, string> = {};
 
     for (const packId of packIds) {
       try {
@@ -85,9 +102,11 @@ export async function POST(request: NextRequest) {
           updatedIds.push(updated.id);
         } else {
           failedIds.push(packId);
+          failedReasons[packId] = "not_found_or_no_access";
         }
-      } catch {
+      } catch (error) {
         failedIds.push(packId);
+        failedReasons[packId] = formatBatchError(error);
       }
     }
 
@@ -112,11 +131,28 @@ export async function POST(request: NextRequest) {
       revalidateReviewRelatedPages(updatedIds);
     }
 
+    if (updatedIds.length === 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "批量审核未生效，请重试",
+          updatedCount: 0,
+          updatedIds,
+          failedIds,
+          failedReasons
+        },
+        {
+          status: 409
+        }
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       updatedCount: updatedIds.length,
       updatedIds,
-      failedIds
+      failedIds,
+      failedReasons
     });
   } catch (error) {
     return NextResponse.json(

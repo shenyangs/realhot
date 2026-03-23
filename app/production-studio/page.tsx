@@ -7,6 +7,8 @@ import { getAiRoutingConfig } from "@/lib/services/ai-routing-config";
 import { resolveFeatureProviderConfig } from "@/lib/services/model-router";
 import { listProductionJobs } from "@/lib/services/production-studio";
 
+export const dynamic = "force-dynamic";
+
 function jobStatusLabel(status?: string) {
   if (status === "completed") {
     return "已完成";
