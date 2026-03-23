@@ -42,6 +42,24 @@ function splitList(value: string): string[] {
     .filter(Boolean);
 }
 
+function toString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => toString(item))
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return splitList(value);
+  }
+
+  return [];
+}
+
 function uniqueList(values: string[], fallback: string[]): string[] {
   const cleaned = values
     .map((item) => item.trim())
@@ -56,21 +74,32 @@ function normalizeString(value: string | undefined, fallback: string): string {
   return trimmed && trimmed.length > 0 ? trimmed : fallback;
 }
 
-function normalizeReferences(
-  references: BrandAutofillReference[] | undefined,
-  brandName: string
-): BrandAutofillReference[] {
+function normalizeReferences(references: unknown, brandName: string): BrandAutofillReference[] {
   const seen = new Set<string>();
+  const candidates = Array.isArray(references) ? references : [];
 
-  return (references ?? [])
-    .map((item) => ({
-      title: item.title?.trim() ?? "",
-      url: item.url?.trim() ?? "",
-      label: item.label?.trim() ?? "",
-      type: item.type,
-      freshness: item.freshness,
-      value: item.value?.trim() ?? ""
-    }))
+  return candidates
+    .map((item) => {
+      const record = item as Partial<BrandAutofillReference>;
+      const type =
+        record.type === "website" ||
+        record.type === "knowledge-base" ||
+        record.type === "wechat-history" ||
+        record.type === "event" ||
+        record.type === "press"
+          ? record.type
+          : "press";
+      const freshness = record.freshness === "stable" || record.freshness === "timely" ? record.freshness : "timely";
+
+      return {
+        title: record.title?.trim() ?? "",
+        url: record.url?.trim() ?? "",
+        label: record.label?.trim() ?? "",
+        type,
+        freshness,
+        value: record.value?.trim() ?? ""
+      };
+    })
     .filter((item) => item.title && item.url)
     .filter((item) => {
       const key = `${item.title}:${item.url}`;
@@ -89,10 +118,10 @@ function normalizeReferences(
     }));
 }
 
-function normalizeMaterials(materials: string[] | undefined): string[] {
+function normalizeMaterials(materials: unknown): string[] {
   const normalized = new Set<string>();
 
-  for (const item of materials ?? []) {
+  for (const item of toStringArray(materials)) {
     const value = item.trim();
 
     if (!value) {
@@ -127,6 +156,29 @@ function normalizeMaterials(materials: string[] | undefined): string[] {
   return Array.from(normalized);
 }
 
+function coerceModelPayload(raw: unknown, requestedBrandName: string): BrandAutofillModelPayload {
+  const input = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+
+  return {
+    brandName: toString(input.brandName) || requestedBrandName,
+    sector: toString(input.sector),
+    slogan: toString(input.slogan),
+    audiences: toStringArray(input.audiences),
+    positioning: toStringArray(input.positioning),
+    topics: toStringArray(input.topics),
+    tone: toStringArray(input.tone),
+    redLines: toStringArray(input.redLines),
+    competitors: toStringArray(input.competitors),
+    recentMoves: toStringArray(input.recentMoves),
+    objective: toString(input.objective),
+    primaryPlatforms: toStringArray(input.primaryPlatforms),
+    materials: toStringArray(input.materials),
+    researchSummary: toString(input.researchSummary),
+    confidenceNote: toString(input.confidenceNote),
+    references: normalizeReferences(input.references, toString(input.brandName) || requestedBrandName)
+  };
+}
+
 function buildSourceList(brandName: string, references: BrandAutofillReference[]): BrandSource[] {
   const mapped = references.map((item) => ({
     label: item.label,
@@ -135,11 +187,7 @@ function buildSourceList(brandName: string, references: BrandAutofillReference[]
     value: item.value
   }));
 
-  if (mapped.length > 0) {
-    return mapped;
-  }
-
-  return [
+  const baseline: BrandSource[] = [
     {
       label: "官网产品页",
       type: "website",
@@ -151,8 +199,25 @@ function buildSourceList(brandName: string, references: BrandAutofillReference[]
       type: "press",
       freshness: "timely",
       value: `${brandName} 最近的媒体报道、融资或产品更新信息`
+    },
+    {
+      label: "公众号历史内容",
+      type: "wechat-history",
+      freshness: "stable",
+      value: `${brandName} 公众号近 6-12 个月的历史文章`
+    },
+    {
+      label: "近期活动资料",
+      type: "event",
+      freshness: "timely",
+      value: `${brandName} 最近一个月活动、发布会或行业峰会信息`
     }
   ];
+
+  const existingTypes = new Set(mapped.map((item) => item.type));
+  const missingBaseline = baseline.filter((item) => !existingTypes.has(item.type));
+
+  return [...mapped, ...missingBaseline];
 }
 
 function toDraft(payload: BrandAutofillModelPayload): BrandAutofillDraft {
@@ -371,7 +436,8 @@ function getSearchModelCandidates() {
       [
         process.env.GEMINI_SEARCH_MODEL?.trim(),
         process.env.GEMINI_MODEL?.trim(),
-        "gemini-3.1-pro-preview"
+        "gemini-3.1-pro-preview",
+        "gemini-2.5-pro"
       ].filter((item): item is string => Boolean(item))
     )
   );
@@ -412,16 +478,13 @@ async function requestGeminiAutofill(brandName: string): Promise<{
   let lastError: Error | null = null;
 
   for (const model of modelCandidates) {
-    try {
-      const payload = await requestGeminiContent({
-        model,
-        contents: [createUserTextContent(buildPrompt(brandName))],
+    const attempts = [
+      {
         tools: [
           {
             googleSearch: {}
           }
         ],
-        timeoutMs: 60000,
         generationConfig: shouldUseStructuredSearch(model)
           ? {
               responseMimeType: "application/json",
@@ -430,21 +493,49 @@ async function requestGeminiAutofill(brandName: string): Promise<{
           : {
               responseMimeType: "text/plain"
             }
-      });
-      const text = extractGeminiText(payload);
-
-      if (!text) {
-        throw new Error("Gemini 未返回可解析的 JSON 文本");
+      },
+      {
+        tools: [
+          {
+            googleSearch: {}
+          }
+        ],
+        generationConfig: {
+          responseMimeType: "text/plain"
+        }
+      },
+      {
+        tools: undefined,
+        generationConfig: {
+          responseMimeType: "text/plain"
+        }
       }
+    ];
 
-      const parsed = JSON.parse(extractJsonObject(text)) as BrandAutofillModelPayload;
+    for (const attempt of attempts) {
+      try {
+        const response = await requestGeminiContent({
+          model,
+          contents: [createUserTextContent(buildPrompt(brandName))],
+          tools: attempt.tools,
+          timeoutMs: 60000,
+          generationConfig: attempt.generationConfig
+        });
+        const text = extractGeminiText(response);
 
-      return {
-        payload: parsed,
-        model
-      };
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error("Gemini 深搜失败");
+        if (!text) {
+          throw new Error("Gemini 未返回可解析的 JSON 文本");
+        }
+
+        const parsed = JSON.parse(extractJsonObject(text)) as unknown;
+
+        return {
+          payload: coerceModelPayload(parsed, brandName),
+          model
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error("Gemini 深搜失败");
+      }
     }
   }
 
@@ -506,17 +597,52 @@ function buildFallbackPayload(brandName: string, current: BrandStrategyPack): Br
     ),
     recentMoves: uniqueList(
       [
-        `建议补充 ${cleaned} 最近一个月的新品、活动、合作或媒体动态`,
-        "建议补充官网 / 产品页 / 社媒主页等基础资料链接"
+        `${cleaned} 近期产品能力升级与版本更新进展`,
+        `${cleaned} 近期活动、发布会或行业峰会相关动作`,
+        `${cleaned} 近期生态合作、客户案例或渠道联动信息`,
+        `${cleaned} 近期媒体报道与品牌观点输出`
       ],
       current.recentMoves
     ),
     objective: "先建立品牌认知，再围绕核心产品价值持续做内容表达。",
     primaryPlatforms: ["公众号", "小红书", "视频号"],
-    materials: ["品牌介绍 / 手册", "产品资料", "最近一个月媒体新闻稿"],
+    materials: [...MATERIAL_OPTIONS],
     researchSummary: `当前未能完成实时联网深搜，已先为 ${cleaned} 生成一版谨慎的基础草稿。`,
     confidenceNote: "这版内容偏保守，请补充官网、产品资料和近期动态后再继续细化。",
-    references: []
+    references: [
+      {
+        title: `${cleaned} 官网`,
+        url: `https://www.google.com/search?q=${encodeURIComponent(`${cleaned} 官网`)}`,
+        label: "官网/产品页检索",
+        type: "website",
+        freshness: "stable",
+        value: `${cleaned} 官网、产品页与 About 页面`
+      },
+      {
+        title: `${cleaned} 公众号历史文章`,
+        url: `https://weixin.sogou.com/weixin?type=2&query=${encodeURIComponent(cleaned)}`,
+        label: "公众号历史内容检索",
+        type: "wechat-history",
+        freshness: "stable",
+        value: `${cleaned} 公众号近 6-12 个月历史内容`
+      },
+      {
+        title: `${cleaned} 近期活动`,
+        url: `https://www.google.com/search?q=${encodeURIComponent(`${cleaned} 发布会 活动`)}`,
+        label: "近期活动检索",
+        type: "event",
+        freshness: "timely",
+        value: `${cleaned} 最近一个月活动与发布会动态`
+      },
+      {
+        title: `${cleaned} 媒体报道`,
+        url: `https://www.google.com/search?q=${encodeURIComponent(`${cleaned} 媒体 报道`)}`,
+        label: "媒体新闻检索",
+        type: "press",
+        freshness: "timely",
+        value: `${cleaned} 最近一个月媒体报道与新闻稿`
+      }
+    ]
   };
 }
 
