@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { AiProvider } from "@/lib/domain/ai-routing";
 
 interface ProviderStatus {
@@ -26,7 +26,6 @@ export function AdminAiProviderStatusGrid({
 }: {
   providerStatus: ProviderStatus[];
 }) {
-  const hasAutoRunRef = useRef(false);
   const [pendingProviders, setPendingProviders] = useState<Partial<Record<AiProvider, boolean>>>({});
   const [testStates, setTestStates] = useState<Partial<Record<AiProvider, ProviderTestState>>>({});
 
@@ -106,15 +105,6 @@ export function AdminAiProviderStatusGrid({
       }));
     }
   }
-
-  useEffect(() => {
-    if (hasAutoRunRef.current) {
-      return;
-    }
-
-    hasAutoRunRef.current = true;
-    void Promise.all(providerStatus.map((item) => runConnectionTest(item.provider)));
-  }, [providerStatus]);
 
   function getStatusLabel(item: ProviderStatus, state?: ProviderTestState) {
     if (!item.available) {

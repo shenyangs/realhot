@@ -56,22 +56,22 @@ function buildPromptPlaceholder(input: {
   angle: string;
 }) {
   if (input.platformLabel.includes("视频号") || input.platformLabel.includes("抖音")) {
-    return "例如：压缩成长短句更清楚的口播稿，第一句先抛判断，减少书面表达。";
+    return "例如：改成能直接发的视频口播稿，去掉内部说明腔，第一句就抛判断。";
   }
 
   if (input.platformLabel.includes("公众号")) {
-    return "例如：把第一段改成更明确的行业判断，中间补一段为什么这和品牌有关，别像新闻转述。";
+    return "例如：改成真正可发的公众号成稿，去掉在教人做营销的口气，论证再完整一点。";
   }
 
   if (input.trackLabel.includes("观点")) {
-    return "例如：把观点立得更鲜明一些，先给结论，再展开判断和品牌方法。";
+    return "例如：把观点立得更鲜明一些，换一套结构，别再写成固定模板。";
   }
 
   if (/创始人|CEO|负责人/.test(input.angle)) {
-    return "例如：把第一段写得更像创始人对行业趋势的判断，减少新闻转述感。";
+    return "例如：把第一段写得更像创始人公开发言，减少内部培训感和新闻转述感。";
   }
 
-  return "例如：把开头写得更抓人，补一段行业判断，并把结尾改得更像品牌自己的观点。";
+  return "例如：把整篇改成可直接发布的成稿，别像内部说明，再换一种更有新鲜感的写法。";
 }
 
 interface PromptSuggestionState {

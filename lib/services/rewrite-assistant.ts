@@ -4,6 +4,7 @@ import {
   enforceBodyMinimumWithContext,
   resolveMinimumCharsForLabels
 } from "@/lib/services/content-quality";
+import { getPublishableDraftRuleLines, getVariationRuleLines } from "@/lib/services/publishable-content-rules";
 
 export interface RewriteVariantInput {
   title: string;
@@ -73,6 +74,10 @@ function buildPrompt(input: RewriteVariantInput) {
     "- 必须是平台专家级文风：有观点、有推理、有动作，不要学生作文腔。",
     "- 更符合中文品牌内容表达，不要英文腔。",
     "- 更好读、更好执行，不要空泛。",
+    ...getPublishableDraftRuleLines().map((line) => `- ${line}`),
+    ...getVariationRuleLines().map((line) => `- ${line}`),
+    "- 如果原稿像在教品牌怎么做营销、写内部策划说明或任务拆解，请改成真正面向外部读者的成稿。",
+    "- 不要机械套“先结论、再三点、再动作”的固定结构，除非这轮请求明确要求。",
     "- 保留原文有效信息",
     `- BODY 至少 ${minimumChars} 字，若原稿不足请补齐关键论证与执行动作。`,
     "- 不要输出额外解释",
@@ -96,15 +101,16 @@ function buildLocalRewriteFallback(input: RewriteVariantInput): {
 } {
   const minimumChars = resolveMinimumChars(input);
   const request = input.userRequest.trim();
-  const opener = `${input.brandName} 这次不打算泛泛跟热点，而是把重点放在 ${input.whyNow || "当前时机"}。`;
+  const opener = `这件事真正值得说的，不是表层热度，而是 ${input.whyNow || "它已经开始影响当下判断"}。`;
   const relevance = input.whyUs
-    ? `更关键的是，这件事和品牌相关，因为 ${input.whyUs}。`
-    : `更关键的是，这次表达要回到品牌自己的业务语境。`;
+    ? `更关键的是，它之所以值得这个品牌出来讲，是因为 ${input.whyUs}。`
+    : "更关键的是，这次表达要回到品牌自己的真实业务语境。";
   const execution =
     input.trackLabel === "快反"
-      ? "这版建议保留快反节奏，开头先给判断，中段讲清影响，结尾落到品牌动作。"
-      : "这版建议保留观点结构，先讲变化，再讲判断，最后落到品牌方法。";
-  const fallbackExtension = `为了达到平台主流内容深度，建议至少补齐这三段：1）行业变化与受影响角色；2）品牌判断依据与边界；3）本周可执行动作清单。`;
+      ? "这版建议保留快反节奏，但要更像直接可发的判断稿，不要写成内部说明。"
+      : "这版建议保留观点稿深度，但要更像成熟文章，不要写成方法讲解。";
+  const fallbackExtension =
+    "为了达到平台主流内容深度，建议补齐三类信息：变化先落到谁、旧做法为什么开始失效、今天最该先动哪一步。";
 
   const nextTitle = tightenSentence(
     [
@@ -127,7 +133,7 @@ function buildLocalRewriteFallback(input: RewriteVariantInput): {
   return {
     nextTitle,
     nextBody,
-    changeSummary: `AI 暂不可用，已先给出本地改稿建议。当前目标最低长度约 ${minimumChars} 字，建议继续补齐论证段落。`
+    changeSummary: `AI 暂不可用，已先把稿子往“可直接发布成稿”方向拉回。当前目标最低长度约 ${minimumChars} 字，建议继续补齐论证段落。`
   };
 }
 

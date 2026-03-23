@@ -290,12 +290,31 @@ create table if not exists publish_jobs (
   unique (pack_id, variant_id, platform)
 );
 
+create table if not exists production_jobs (
+  id uuid primary key default gen_random_uuid(),
+  pack_id uuid not null references hotspot_packs(id) on delete cascade,
+  job_type text not null default 'one_click',
+  status text not null default 'queued',
+  mode text not null default 'preview-pipeline',
+  run_count int not null default 1,
+  route jsonb not null default '{}'::jsonb,
+  stages jsonb not null default '[]'::jsonb,
+  outputs jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table production_jobs add column if not exists job_type text not null default 'one_click';
+
 create index if not exists idx_profiles_email on profiles(email);
 create index if not exists idx_workspace_members_user_id on workspace_members(user_id);
 create index if not exists idx_workspace_invite_codes_workspace_id on workspace_invite_codes(workspace_id);
 create index if not exists idx_brands_workspace_id on brands(workspace_id);
 create index if not exists idx_hotspot_packs_workspace_id on hotspot_packs(workspace_id);
 create index if not exists idx_publish_jobs_workspace_id on publish_jobs(workspace_id);
+create index if not exists idx_production_jobs_pack_id on production_jobs(pack_id);
+create index if not exists idx_production_jobs_pack_job_type on production_jobs(pack_id, job_type);
+create index if not exists idx_production_jobs_updated_at on production_jobs(updated_at desc);
 create index if not exists idx_audit_logs_created_at on audit_logs(created_at desc);
 create index if not exists idx_audit_logs_actor_user_id on audit_logs(actor_user_id);
 create index if not exists idx_audit_logs_workspace_id on audit_logs(workspace_id);

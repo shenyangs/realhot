@@ -5,9 +5,17 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { AiProvider } from "@/lib/domain/ai-routing";
 
+type ProductionJobType = "article" | "video" | "one_click";
+
 const providerLabels: Record<AiProvider, string> = {
   gemini: "Gemini",
   minimax: "MiniMax M2.7"
+};
+
+const jobTypeLabels: Record<ProductionJobType, string> = {
+  article: "图文",
+  video: "视频",
+  one_click: "图文+视频"
 };
 
 export function OneClickProductionButton({
@@ -31,9 +39,10 @@ export function OneClickProductionButton({
   const [imageProvider, setImageProvider] = useState<AiProvider>("minimax");
   const [videoProvider, setVideoProvider] = useState<AiProvider>("minimax");
   const [isPending, startTransition] = useTransition();
+  const [pendingJobType, setPendingJobType] = useState<ProductionJobType | null>(null);
   const defaultModelHint = defaultModel?.trim();
 
-  function runOneClick() {
+  function runProduction(jobType: ProductionJobType) {
     if (disabled) {
       if (disabledReason) {
         setMessage(disabledReason);
@@ -42,36 +51,44 @@ export function OneClickProductionButton({
     }
 
     startTransition(async () => {
-      setMessage("");
+      try {
+        setMessage("");
+        setPendingJobType(jobType);
 
-      const response = await fetch("/api/production/one-click", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          packId,
-          provider,
-          imageProvider,
-          videoProvider
-        })
-      });
+        const response = await fetch("/api/production/one-click", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            packId,
+            jobType,
+            provider,
+            imageProvider,
+            videoProvider
+          })
+        });
 
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            ok?: boolean;
-            error?: string;
-          }
-        | null;
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              ok?: boolean;
+              error?: string;
+            }
+          | null;
 
-      if (!response.ok || !payload?.ok) {
-        setMessage(payload?.error ?? "一键制作失败");
-        return;
+        if (!response.ok || !payload?.ok) {
+          setMessage(payload?.error ?? "一键制作失败");
+          return;
+        }
+
+        setMessage(`已使用${providerLabels[provider]}生成${jobTypeLabels[jobType]}首版内容，正在跳转到内容制作页...`);
+        router.push(`/production-studio/${packId}`);
+        router.refresh();
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "一键制作请求失败，请稍后重试。");
+      } finally {
+        setPendingJobType(null);
       }
-
-      setMessage(`已使用${providerLabels[provider]}生成首版内容，正在跳转到内容制作页...`);
-      router.push(`/production-studio/${packId}`);
-      router.refresh();
     });
   }
 
@@ -88,7 +105,7 @@ export function OneClickProductionButton({
         <p className="muted">
           {disabled
             ? disabledReason ?? "选题通过后可自动生成图文、视频、口播与字幕。"
-            : "自动跑首版脚本、配图、视频、口播与字幕，并进入最终工作台。"}
+            : "现在支持拆开执行：可以单独生成图文、单独生成视频，或者一键全做。"}
         </p>
       ) : null}
 
@@ -135,8 +152,28 @@ export function OneClickProductionButton({
       </label>
 
       <div className="buttonRow">
-        <button disabled={isPending || disabled} onClick={runOneClick} type="button">
-          {isPending ? "制作中..." : compact ? "一键制作图文+视频" : "开始一键制作"}
+        <button
+          disabled={isPending || disabled}
+          onClick={() => runProduction("article")}
+          type="button"
+        >
+          {isPending && pendingJobType === "article" ? "生成中..." : compact ? "生成图文" : "仅生成图文"}
+        </button>
+        <button
+          className="buttonLike subtleButton"
+          disabled={isPending || disabled}
+          onClick={() => runProduction("video")}
+          type="button"
+        >
+          {isPending && pendingJobType === "video" ? "生成中..." : compact ? "生成视频" : "仅生成视频"}
+        </button>
+        <button
+          className="buttonLike subtleButton"
+          disabled={isPending || disabled}
+          onClick={() => runProduction("one_click")}
+          type="button"
+        >
+          {isPending && pendingJobType === "one_click" ? "制作中..." : compact ? "一键全做" : "一键制作图文+视频"}
         </button>
         <Link className="buttonLike subtleButton" href={`/production-studio/${packId}`}>
           打开制作台

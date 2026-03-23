@@ -13,6 +13,7 @@ import {
   getReviewQueue
 } from "@/lib/data";
 import type { Platform } from "@/lib/domain/types";
+import { getHomepageMoment } from "@/lib/services/homepage-moment";
 
 const platformLabels: Record<Platform, string> = {
   xiaohongshu: "小红书",
@@ -97,11 +98,12 @@ export default async function HomePage() {
     redirect("/select-workspace");
   }
 
-  const [brand, prioritized, packs, syncSnapshot] = await Promise.all([
+  const [brand, prioritized, packs, syncSnapshot, homepageMoment] = await Promise.all([
     getBrandStrategyPack(),
     getPrioritizedHotspots(),
     getReviewQueue(),
-    getLatestHotspotSyncSnapshot()
+    getLatestHotspotSyncSnapshot(),
+    getHomepageMoment()
   ]);
 
   const packJobs = await Promise.all(
@@ -268,6 +270,23 @@ export default async function HomePage() {
           { label: "发布异常", value: `${failedJobs.length} 条` },
           { label: "最近同步", value: formatDateTime(syncSnapshot?.executedAt) }
         ]}
+        visual={
+          <aside className="homeHeroMomentCard" aria-label="今日时间与箴言">
+            <div className="homeHeroMomentMeta">
+              <span className="homeHeroMomentBadge">
+                {homepageMoment.weekdayLabel} · {homepageMoment.dayPeriodLabel}
+              </span>
+              <strong>{homepageMoment.dateLabel}</strong>
+              <p>{homepageMoment.timeLabel}</p>
+            </div>
+
+            <div className="homeHeroMomentQuoteBlock">
+              <span className="homeHeroMomentLabel">今日箴言</span>
+              <blockquote>{homepageMoment.quote}</blockquote>
+              <p className="homeHeroMomentSource">{homepageMoment.source}</p>
+            </div>
+          </aside>
+        }
         title="今天先处理什么"
         variant="utility"
       />

@@ -2,6 +2,7 @@ import { getBrandStrategyPack, getHotspotPack, getHotspotSignals } from "@/lib/d
 import { HotspotPack, Platform } from "@/lib/domain/types";
 import { getChinaMarketPromptLines } from "@/lib/services/china-market";
 import { runModelTask } from "@/lib/services/model-router";
+import { getPublishableDraftRuleLines, getVariationRuleLines } from "@/lib/services/publishable-content-rules";
 
 const platformLabels: Record<Platform, string> = {
   xiaohongshu: "小红书",
@@ -50,9 +51,12 @@ export async function generatePackPreview(packId: string): Promise<{
     `热点摘要: ${hotspot?.summary ?? "unknown"}`,
     "内容市场要求:",
     ...getChinaMarketPromptLines().map((line) => `- ${line}`),
+    ...getPublishableDraftRuleLines().map((line) => `- ${line}`),
+    ...getVariationRuleLines().map((line) => `- ${line}`),
     "输出要求:",
     "- 生成 2 条快反内容和 2 条观点内容，适配小红书、公众号、视频号、抖音。",
     "- 文风必须是中国平台专家级表达：有判断、有推理、有动作，不要新闻复述。",
+    "- 所有内容都要像可以直接推到审核台的发布成稿，不要像内部营销方法说明。",
     "- 小红书像判断型笔记，视频号像能直接念的口播稿，公众号像有完整论证的深度稿。",
     "- 字数至少达到主流创作者水准：快反图文 380+、口播稿 650+、公众号观点文 1300+、观点贴 720+。",
     "- 只用简体中文输出，不要英文腔，不要泛泛口号。"

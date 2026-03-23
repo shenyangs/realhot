@@ -5,9 +5,17 @@ import { useEffect, useState, useTransition } from "react";
 import type { AiProvider } from "@/lib/domain/ai-routing";
 import type { ProductionJobRecord } from "@/lib/services/production-studio";
 
+type ProductionJobType = "article" | "video" | "one_click";
+
 const providerLabels: Record<AiProvider, string> = {
   gemini: "Gemini",
   minimax: "MiniMax M2.7"
+};
+
+const jobTypeLabels: Record<ProductionJobType, string> = {
+  article: "图文",
+  video: "视频",
+  one_click: "图文+视频"
 };
 
 function isAiProvider(value: string | null | undefined): value is AiProvider {
@@ -78,6 +86,7 @@ export function ProductionStudioEditor({
   const [videoProvider, setVideoProvider] = useState<AiProvider>("minimax");
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [pendingJobType, setPendingJobType] = useState<ProductionJobType | null>(null);
 
   useEffect(() => {
     setArticleTitle(initialJob?.outputs.articleTitle ?? "");
@@ -90,51 +99,59 @@ export function ProductionStudioEditor({
     setVideoProvider("minimax");
   }, [defaultProvider, initialJob]);
 
-  function runOneClick() {
+  function runProduction(jobType: ProductionJobType) {
     if (!canRun) {
       setMessage("当前选题还未审核通过，不能执行一键制作。");
       return;
     }
 
     startTransition(async () => {
-      setMessage("");
+      try {
+        setMessage("");
+        setPendingJobType(jobType);
 
-      const response = await fetch("/api/production/one-click", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          packId,
-          provider,
-          imageProvider,
-          videoProvider
-        })
-      });
+        const response = await fetch("/api/production/one-click", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            packId,
+            jobType,
+            provider,
+            imageProvider,
+            videoProvider
+          })
+        });
 
-      const payload = (await response.json().catch(() => null)) as {
-        ok?: boolean;
-        error?: string;
-        job?: {
-          route?: {
-            effectiveProvider?: string;
-            effectiveModel?: string;
+        const payload = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          error?: string;
+          job?: {
+            route?: {
+              effectiveProvider?: string;
+              effectiveModel?: string;
+            };
           };
-        };
-      } | null;
+        } | null;
 
-      if (!response.ok || !payload?.ok) {
-        setMessage(payload?.error ?? "一键制作失败");
-        return;
+        if (!response.ok || !payload?.ok) {
+          setMessage(payload?.error ?? "一键制作失败");
+          return;
+        }
+
+        const effectiveProvider = payload?.job?.route?.effectiveProvider;
+        const providerLabel = isAiProvider(effectiveProvider) ? providerLabels[effectiveProvider] : providerLabels[provider];
+
+        setMessage(
+          `已完成${jobTypeLabels[jobType]}制作，脚本使用${providerLabel}，图片策划使用${providerLabels[imageProvider]}，视频策划使用${providerLabels[videoProvider]}。`
+        );
+        router.refresh();
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "一键制作请求失败，请稍后重试。");
+      } finally {
+        setPendingJobType(null);
       }
-
-      const effectiveProvider = payload?.job?.route?.effectiveProvider;
-      const providerLabel = isAiProvider(effectiveProvider) ? providerLabels[effectiveProvider] : providerLabels[provider];
-
-      setMessage(
-        `已完成一键制作，脚本使用${providerLabel}，图片策划使用${providerLabels[imageProvider]}，视频策划使用${providerLabels[videoProvider]}。`
-      );
-      router.refresh();
     });
   }
 
@@ -145,34 +162,38 @@ export function ProductionStudioEditor({
     }
 
     startTransition(async () => {
-      setMessage("");
+      try {
+        setMessage("");
 
-      const response = await fetch(`/api/production/packs/${packId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          articleTitle,
-          articleBody,
-          videoScript,
-          voiceoverText,
-          subtitleSrt
-        })
-      });
+        const response = await fetch(`/api/production/packs/${packId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            articleTitle,
+            articleBody,
+            videoScript,
+            voiceoverText,
+            subtitleSrt
+          })
+        });
 
-      const payload = (await response.json().catch(() => null)) as {
-        ok?: boolean;
-        error?: string;
-      } | null;
+        const payload = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          error?: string;
+        } | null;
 
-      if (!response.ok || !payload?.ok) {
-        setMessage(payload?.error ?? "保存失败");
-        return;
+        if (!response.ok || !payload?.ok) {
+          setMessage(payload?.error ?? "保存失败");
+          return;
+        }
+
+        setMessage("已保存到最终热点运营平台。\n你可以继续微调后再推入发布队列。");
+        router.refresh();
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "保存请求失败，请稍后重试。");
       }
-
-      setMessage("已保存到最终热点运营平台。\n你可以继续微调后再推入发布队列。");
-      router.refresh();
     });
   }
 
@@ -183,25 +204,29 @@ export function ProductionStudioEditor({
     }
 
     startTransition(async () => {
-      setMessage("");
+      try {
+        setMessage("");
 
-      const response = await fetch(`/api/production/packs/${packId}/publish-bundle`, {
-        method: "POST"
-      });
+        const response = await fetch(`/api/production/packs/${packId}/publish-bundle`, {
+          method: "POST"
+        });
 
-      const payload = (await response.json().catch(() => null)) as {
-        ok?: boolean;
-        queuedCount?: number;
-        error?: string;
-      } | null;
+        const payload = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          queuedCount?: number;
+          error?: string;
+        } | null;
 
-      if (!response.ok || !payload?.ok) {
-        setMessage(payload?.error ?? "推入发布队列失败");
-        return;
+        if (!response.ok || !payload?.ok) {
+          setMessage(payload?.error ?? "推入发布队列失败");
+          return;
+        }
+
+        setMessage(`已推入发布队列，共 ${payload.queuedCount ?? 0} 条任务。`);
+        router.refresh();
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "推入发布队列请求失败，请稍后重试。");
       }
-
-      setMessage(`已推入发布队列，共 ${payload.queuedCount ?? 0} 条任务。`);
-      router.refresh();
     });
   }
 
@@ -231,7 +256,8 @@ export function ProductionStudioEditor({
             </div>
 
             <p className="muted">
-              第 {initialJob.runCount} 次制作 · 模式 {initialJob.mode} · 更新时间 {new Date(initialJob.updatedAt).toLocaleString("zh-CN")}
+              第 {initialJob.runCount} 次制作 · 任务 {jobTypeLabels[initialJob.jobType]} · 模式 {initialJob.mode} · 更新时间{" "}
+              {new Date(initialJob.updatedAt).toLocaleString("zh-CN")}
             </p>
           </>
         ) : (
@@ -280,8 +306,24 @@ export function ProductionStudioEditor({
         </label>
 
         <div className="buttonRow">
-          <button disabled={isPending || !canRun} onClick={runOneClick} type="button">
-            {isPending ? "执行中..." : initialJob ? "重新一键制作" : "一键制作图文+视频"}
+          <button disabled={isPending || !canRun} onClick={() => runProduction("article")} type="button">
+            {isPending && pendingJobType === "article" ? "执行中..." : initialJob ? "重新生成图文" : "生成图文"}
+          </button>
+          <button
+            className="buttonLike subtleButton"
+            disabled={isPending || !canRun}
+            onClick={() => runProduction("video")}
+            type="button"
+          >
+            {isPending && pendingJobType === "video" ? "执行中..." : initialJob ? "重新生成视频" : "生成视频"}
+          </button>
+          <button
+            className="buttonLike subtleButton"
+            disabled={isPending || !canRun}
+            onClick={() => runProduction("one_click")}
+            type="button"
+          >
+            {isPending && pendingJobType === "one_click" ? "执行中..." : initialJob ? "重新一键全做" : "一键全做"}
           </button>
           <button disabled={isPending || !initialJob} onClick={saveDraft} type="button">
             保存当前修改

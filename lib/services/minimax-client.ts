@@ -3,11 +3,18 @@ interface MiniMaxMessage {
   content: string;
 }
 
+export interface MiniMaxTool {
+  type: string;
+}
+
 export interface MiniMaxChatRequest {
   model: string;
   messages: MiniMaxMessage[];
   temperature?: number;
   topP?: number;
+  maxTokens?: number;
+  tools?: MiniMaxTool[];
+  toolChoice?: "auto" | "none" | "required";
   timeoutMs?: number;
 }
 
@@ -84,7 +91,10 @@ export async function requestMiniMaxChatCompletion(
         model: input.model,
         messages: input.messages,
         temperature: input.temperature,
-        top_p: input.topP
+        top_p: input.topP,
+        max_tokens: input.maxTokens,
+        tools: input.tools,
+        tool_choice: input.toolChoice
       })
     });
 

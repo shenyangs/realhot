@@ -4,7 +4,10 @@ import { writeAuditLog } from "@/lib/auth/audit";
 import { canGenerateContent } from "@/lib/auth/permissions";
 import { getHotspotPack, getHotspotSignals } from "@/lib/data";
 import type { AiProvider } from "@/lib/domain/ai-routing";
-import { runOneClickProduction } from "@/lib/services/production-studio";
+import { runProductionJob } from "@/lib/services/production-studio";
+import type { ProductionJobType } from "@/lib/services/production-studio";
+
+export const maxDuration = 300;
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -28,6 +31,7 @@ export async function POST(request: NextRequest) {
     const { viewer } = access;
     const payload = (await request.json().catch(() => ({}))) as {
       packId?: string;
+      jobType?: string;
       provider?: AiProvider;
       model?: string;
       imageProvider?: AiProvider;
@@ -37,6 +41,10 @@ export async function POST(request: NextRequest) {
     };
 
     const packId = payload.packId?.trim();
+    const jobType: ProductionJobType =
+      payload.jobType === "article" || payload.jobType === "video" || payload.jobType === "one_click"
+        ? payload.jobType
+        : "one_click";
     const provider = payload.provider === "gemini" || payload.provider === "minimax" ? payload.provider : undefined;
     const model = payload.model?.trim() || undefined;
     const imageProvider =
@@ -62,7 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const job = await runOneClickProduction(packId, {
+    const job = await runProductionJob(packId, jobType, {
       provider,
       model,
       imageProvider,
@@ -83,6 +91,7 @@ export async function POST(request: NextRequest) {
       action: "production.one_click_generated",
       payload: {
         packId,
+        jobType,
         requestedProvider: provider,
         requestedModel: model,
         effectiveProvider: job.route.effectiveProvider,

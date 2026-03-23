@@ -47,12 +47,16 @@ export function humanizeAiError(error: unknown, provider?: AiProvider | string) 
   const normalized = message.toLowerCase();
   const label = getProviderLabel(provider);
 
-  if (normalized.includes("status 503") || normalized.includes("high demand") || normalized.includes("overloaded")) {
+  if (normalized.includes("status 503")) {
+    return `${label} 当前请求拥挤（上游 503），稍后再试。`;
+  }
+
+  if (normalized.includes("high demand") || normalized.includes("overloaded")) {
     return `${label} 当前请求拥挤，稍后再试。`;
   }
 
   if (normalized.includes("status 429")) {
-    return `${label} 当前请求过于频繁，请稍后再试。`;
+    return `${label} 当前请求过于频繁（上游 429），请稍后再试。`;
   }
 
   if (
@@ -64,7 +68,7 @@ export function humanizeAiError(error: unknown, provider?: AiProvider | string) 
   }
 
   if (normalized.includes("status 500") || normalized.includes("status 502") || normalized.includes("status 504")) {
-    return `${label} 当前服务不稳定，请稍后再试。`;
+    return `${label} 当前服务不稳定（上游异常），请稍后再试。`;
   }
 
   if (normalized.includes("未检测到 gemini_api_key")) {

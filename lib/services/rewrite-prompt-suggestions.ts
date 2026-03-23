@@ -1,5 +1,6 @@
 import { decideModelRoute, runModelTask } from "@/lib/services/model-router";
 import { countVisibleChars } from "@/lib/services/content-quality";
+import { getPublishableDraftRuleLines, getVariationRuleLines } from "@/lib/services/publishable-content-rules";
 
 export interface RewritePromptSuggestionsInput {
   title: string;
@@ -99,12 +100,14 @@ function buildFallbackPrompts(input: RewritePromptSuggestionsInput) {
   const contentLens = inferContentLens(input);
 
   const prompts = [
+    "改成可直接发布的成稿",
+    "去掉在教人做营销的口气",
     "整体更有人话，少一点术语和官腔",
     platformDirection.prompt,
     "先讲用户痛点，再给核心判断",
     "弱化学术论证，强化真实生活场景",
     "结尾给可执行动作，别停在结论",
-    "加互动提问，提升评论和转发意愿",
+    "换一套结构，别再固定三段论",
     trackDirection,
     contentLens
   ];
@@ -123,7 +126,7 @@ function buildFallbackPrompts(input: RewritePromptSuggestionsInput) {
 
   return {
     prompts: dedupePrompts(prompts).slice(0, 8),
-    summary: `优先把稿子从“内部说明”改成“可传播表达”：语气更人话、结构更抓人、并贴合${platformDirection.style}。`
+    summary: `优先把稿子从“内部说明”改成“可直接发布的内容成稿”：语气更人话、结构更抓人、并贴合${platformDirection.style}。`
   };
 }
 
@@ -135,6 +138,8 @@ function buildPrompt(input: RewritePromptSuggestionsInput) {
     "这些提示词会直接显示成按钮，供编辑一键选择。",
     "重点是告诉编辑“往哪改”，不是逐句微操。",
     "请让建议覆盖传播层思考：语气、人群、平台、结构、钩子、互动。",
+    ...getPublishableDraftRuleLines().map((line) => `- ${line}`),
+    ...getVariationRuleLines().map((line) => `- ${line}`),
     `品牌: ${input.brandName}`,
     `平台: ${input.platformLabel}`,
     `平台语境重点: ${platformDirection.style}`,
@@ -151,6 +156,8 @@ function buildPrompt(input: RewritePromptSuggestionsInput) {
     "- 用中文祈使句，直接可执行",
     "- 提示必须是大面方向，不要写具体词句替换",
     "- 至少覆盖以下 5 类中的任意 5 类：人话程度、平台风格、结构节奏、钩子冲突、互动转化、风险边界",
+    "- 至少有 2 条提示要明确把稿子从“内部说明腔”拉回“可发布成稿”。",
+    "- 至少有 1 条提示要明确要求换写法，避免继续套固定模板。",
     "- 不要重复，不要只换近义词",
     "- 不能出现序号解释、长句分析、空泛鸡汤",
     "- 禁止输出“把XX改成XX”这种逐字替换句",

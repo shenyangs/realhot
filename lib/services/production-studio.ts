@@ -8,10 +8,12 @@ import type { ModelRouteDecision } from "@/lib/domain/types";
 import { generateOpenAiProductionImage } from "@/lib/services/providers/image/openai-image";
 import { generateOpenAiProductionVideo } from "@/lib/services/providers/video/openai-sora";
 import { decideModelRoute, runResolvedModelTask } from "@/lib/services/model-router";
+import { getSupabaseServerClient } from "@/lib/supabase/client";
 
 export type ProductionJobStatus = "queued" | "running" | "completed" | "failed";
 export type ProductionStageStatus = "pending" | "processing" | "done" | "failed";
 export type ProductionStageKey = "script" | "image" | "video" | "voice" | "subtitle" | "finalize";
+export type ProductionJobType = "article" | "video" | "one_click";
 
 export interface ProductionStage {
   key: ProductionStageKey;
@@ -49,6 +51,7 @@ export interface ProductionRouteInfo {
 export interface ProductionJobRecord {
   id: string;
   packId: string;
+  jobType: ProductionJobType;
   status: ProductionJobStatus;
   mode: "preview-pipeline";
   runCount: number;
@@ -61,6 +64,20 @@ export interface ProductionJobRecord {
 
 interface ProductionStore {
   jobs: ProductionJobRecord[];
+}
+
+interface ProductionJobRow {
+  id: string;
+  pack_id: string;
+  job_type: ProductionJobType | null;
+  status: ProductionJobStatus | null;
+  mode: string | null;
+  run_count: number | null;
+  route: Partial<ProductionRouteInfo> | null;
+  stages: Array<Partial<ProductionStage>> | null;
+  outputs: Partial<ProductionOutputs> | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 const assetStageBlueprint: Array<Pick<ProductionStage, "key" | "label" | "provider" | "model">> = [
@@ -104,6 +121,10 @@ let storeUpdateQueue: Promise<void> = Promise.resolve();
 let memoryStore: ProductionStore | null = null;
 let fileStoreAvailable: boolean | null = null;
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
@@ -119,6 +140,189 @@ function buildInitialStore(): ProductionStore {
   };
 }
 
+function buildDefaultOutputs(packId = "production"): ProductionOutputs {
+  return {
+    articleTitle: "",
+    articleBody: "",
+    videoHook: "",
+    videoScript: "",
+    storyboard: "",
+    imagePrompt: "",
+    videoPrompt: "",
+    subtitleSrt: "",
+    voiceoverText: "",
+    imagePreviewUrl: `https://picsum.photos/seed/${encodeURIComponent(`${packId}-cover`)}/1080/1920`,
+    videoPreviewUrl: "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+    audioPreviewUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
+  };
+}
+
+function normalizeJobStatus(value: unknown): ProductionJobStatus {
+  return value === "queued" || value === "running" || value === "completed" || value === "failed" ? value : "failed";
+}
+
+function normalizeJobType(value: unknown): ProductionJobType {
+  return value === "article" || value === "video" || value === "one_click" ? value : "one_click";
+}
+
+function normalizeStageStatus(value: unknown): ProductionStageStatus {
+  return value === "pending" || value === "processing" || value === "done" || value === "failed" ? value : "pending";
+}
+
+function normalizeStageKey(value: unknown): ProductionStageKey {
+  return value === "script" ||
+    value === "image" ||
+    value === "video" ||
+    value === "voice" ||
+    value === "subtitle" ||
+    value === "finalize"
+    ? value
+    : "script";
+}
+
+function normalizeRouteInfo(value: Partial<ProductionRouteInfo> | null | undefined): ProductionRouteInfo {
+  return {
+    requestedProvider: normalizeStoredProvider(value?.requestedProvider),
+    requestedModel: typeof value?.requestedModel === "string" && value.requestedModel.trim() ? value.requestedModel.trim() : null,
+    effectiveProvider:
+      typeof value?.effectiveProvider === "string" && value.effectiveProvider.trim()
+        ? value.effectiveProvider.trim()
+        : "mock",
+    effectiveModel:
+      typeof value?.effectiveModel === "string" && value.effectiveModel.trim()
+        ? value.effectiveModel.trim()
+        : "template-engine",
+    reason: typeof value?.reason === "string" && value.reason.trim() ? value.reason.trim() : "未记录模型路由原因。"
+  };
+}
+
+function normalizeStages(value: Array<Partial<ProductionStage>> | null | undefined): ProductionStage[] {
+  return Array.isArray(value)
+    ? value.map((stage, index) => ({
+        key: normalizeStageKey(stage?.key),
+        label: typeof stage?.label === "string" && stage.label.trim() ? stage.label.trim() : `阶段 ${index + 1}`,
+        status: normalizeStageStatus(stage?.status),
+        provider: typeof stage?.provider === "string" && stage.provider.trim() ? stage.provider.trim() : "未知提供方",
+        model: typeof stage?.model === "string" && stage.model.trim() ? stage.model.trim() : "unknown",
+        note: typeof stage?.note === "string" && stage.note.trim() ? stage.note.trim() : "暂无阶段说明。",
+        updatedAt:
+          typeof stage?.updatedAt === "string" && stage.updatedAt.trim() ? stage.updatedAt.trim() : new Date().toISOString()
+      }))
+    : [];
+}
+
+function normalizeOutputs(value: Partial<ProductionOutputs> | null | undefined, packId: string): ProductionOutputs {
+  const defaults = buildDefaultOutputs(packId);
+
+  return {
+    articleTitle: typeof value?.articleTitle === "string" ? value.articleTitle : defaults.articleTitle,
+    articleBody: typeof value?.articleBody === "string" ? value.articleBody : defaults.articleBody,
+    videoHook: typeof value?.videoHook === "string" ? value.videoHook : defaults.videoHook,
+    videoScript: typeof value?.videoScript === "string" ? value.videoScript : defaults.videoScript,
+    storyboard: typeof value?.storyboard === "string" ? value.storyboard : defaults.storyboard,
+    imagePrompt: typeof value?.imagePrompt === "string" ? value.imagePrompt : defaults.imagePrompt,
+    videoPrompt: typeof value?.videoPrompt === "string" ? value.videoPrompt : defaults.videoPrompt,
+    subtitleSrt: typeof value?.subtitleSrt === "string" ? value.subtitleSrt : defaults.subtitleSrt,
+    voiceoverText: typeof value?.voiceoverText === "string" ? value.voiceoverText : defaults.voiceoverText,
+    imagePreviewUrl: typeof value?.imagePreviewUrl === "string" ? value.imagePreviewUrl : defaults.imagePreviewUrl,
+    videoPreviewUrl: typeof value?.videoPreviewUrl === "string" ? value.videoPreviewUrl : defaults.videoPreviewUrl,
+    audioPreviewUrl: typeof value?.audioPreviewUrl === "string" ? value.audioPreviewUrl : defaults.audioPreviewUrl
+  };
+}
+
+function mapProductionJobRow(row: ProductionJobRow): ProductionJobRecord {
+  return {
+    id: row.id,
+    packId: row.pack_id,
+    jobType: normalizeJobType(row.job_type),
+    status: normalizeJobStatus(row.status),
+    mode: row.mode === "preview-pipeline" ? "preview-pipeline" : "preview-pipeline",
+    runCount: typeof row.run_count === "number" && row.run_count > 0 ? row.run_count : 1,
+    createdAt: typeof row.created_at === "string" && row.created_at.trim() ? row.created_at.trim() : new Date().toISOString(),
+    updatedAt: typeof row.updated_at === "string" && row.updated_at.trim() ? row.updated_at.trim() : new Date().toISOString(),
+    route: normalizeRouteInfo(row.route),
+    stages: normalizeStages(row.stages),
+    outputs: normalizeOutputs(row.outputs, row.pack_id)
+  };
+}
+
+function isMissingProductionJobsTable(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "42P01"
+  );
+}
+
+function getHostedJobPersistenceError() {
+  return new Error("线上环境尚未创建 production_jobs 表，请先执行最新的 db/schema.sql。");
+}
+
+async function listProductionJobsFromSupabase(): Promise<ProductionJobRecord[]> {
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("production_jobs")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .returns<ProductionJobRow[]>();
+
+  if (error || !data) {
+    if (isMissingProductionJobsTable(error)) {
+      return [];
+    }
+
+    throw error;
+  }
+
+  return data.map(mapProductionJobRow);
+}
+
+async function upsertProductionJob(job: ProductionJobRecord): Promise<void> {
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    await updateStore((store) => ({
+      ...store,
+      jobs: [job, ...store.jobs.filter((item) => item.id !== job.id)].slice(0, 80)
+    }));
+    return;
+  }
+
+  if (!isUuid(job.id) || !isUuid(job.packId)) {
+    throw new Error("production job id 非法，无法写入线上存储。");
+  }
+
+  const payload = {
+    id: job.id,
+    pack_id: job.packId,
+    job_type: job.jobType,
+    status: job.status,
+    mode: job.mode,
+    run_count: job.runCount,
+    route: job.route,
+    stages: job.stages,
+    outputs: job.outputs,
+    created_at: job.createdAt,
+    updated_at: job.updatedAt
+  };
+
+  const { error } = await supabase.from("production_jobs").upsert(payload);
+
+  if (error) {
+    if (isMissingProductionJobsTable(error)) {
+      throw getHostedJobPersistenceError();
+    }
+
+    throw error;
+  }
+}
+
 function normalizeStoredProvider(value: unknown): AiProvider | null {
   return value === "gemini" || value === "minimax" ? value : null;
 }
@@ -128,6 +332,7 @@ function normalizeStore(raw: Partial<ProductionStore> | null | undefined): Produ
     jobs: Array.isArray(raw?.jobs)
       ? clone(raw.jobs).map((job) => ({
           ...job,
+          jobType: normalizeJobType(job?.jobType),
           route: {
             requestedProvider: normalizeStoredProvider(job?.route?.requestedProvider),
             requestedModel:
@@ -640,6 +845,54 @@ async function planAssetPrompt(input: {
   }
 }
 
+function shouldDeferMediaGeneration() {
+  return process.env.VERCEL === "1" || process.env.PRODUCTION_MEDIA_MODE === "deferred";
+}
+
+function shouldRunImageForJobType(jobType: ProductionJobType) {
+  return jobType === "article" || jobType === "one_click";
+}
+
+function shouldRunVideoForJobType(jobType: ProductionJobType) {
+  return jobType === "video" || jobType === "one_click";
+}
+
+function buildDeferredAssetResult(kind: "image" | "video"): ProductionAssetExecutionResult {
+  if (kind === "image") {
+    return {
+      status: "pending",
+      provider: "OpenAI Images",
+      model: process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-1.5",
+      note: "当前先保存文案与图片提示词，真实图片素材改为后续异步生成，避免线上接口超时。"
+    };
+  }
+
+  return {
+    status: "pending",
+    provider: "OpenAI Sora",
+    model: process.env.OPENAI_VIDEO_MODEL?.trim() || "sora-2",
+    note: "当前先保存视频脚本与提示词，真实视频素材改为后续异步生成，避免线上接口超时。"
+  };
+}
+
+function buildSkippedAssetResult(kind: "image" | "video"): ProductionAssetExecutionResult {
+  if (kind === "image") {
+    return {
+      status: "pending",
+      provider: "OpenAI Images",
+      model: process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-1.5",
+      note: "本次未执行图片生成；如需封面图，请单独点击“生成图文”。"
+    };
+  }
+
+  return {
+    status: "pending",
+    provider: "OpenAI Sora",
+    model: process.env.OPENAI_VIDEO_MODEL?.trim() || "sora-2",
+    note: "本次未执行视频生成；如需短视频，请单独点击“生成视频”。"
+  };
+}
+
 async function generateImageAsset(
   packId: string,
   jobId: string,
@@ -689,12 +942,16 @@ async function generateVideoAsset(
 
 function buildStages(
   now: string,
+  jobType: ProductionJobType,
   generated: ProductionDraftGenerationResult,
   imagePlanning: ProductionPromptPlanningResult,
   videoPlanning: ProductionPromptPlanningResult,
   imageResult: ProductionAssetExecutionResult,
   videoResult: ProductionAssetExecutionResult
 ): ProductionStage[] {
+  const runsImage = shouldRunImageForJobType(jobType);
+  const runsVideo = shouldRunVideoForJobType(jobType);
+
   return [
     {
       key: "script",
@@ -710,7 +967,7 @@ function buildStages(
       label: "图片生成",
       provider: imageResult.provider,
       model: imageResult.model,
-      status: imageResult.status,
+      status: runsImage ? imageResult.status : "pending",
       note: `${imagePlanning.note} ${imageResult.note}`.trim(),
       updatedAt: now
     },
@@ -719,18 +976,26 @@ function buildStages(
       label: "视频生成",
       provider: videoResult.provider,
       model: videoResult.model,
-      status: videoResult.status,
+      status: runsVideo ? videoResult.status : "pending",
       note: `${videoPlanning.note} ${videoResult.note}`.trim(),
       updatedAt: now
     },
     {
       key: "voice",
       label: "口播合成",
-      provider: videoResult.status === "done" ? videoResult.provider : assetStageBlueprint.find((stage) => stage.key === "voice")!.provider,
-      model: videoResult.status === "done" ? videoResult.model : assetStageBlueprint.find((stage) => stage.key === "voice")!.model,
-      status: videoResult.status === "done" ? "done" : "pending",
+      provider:
+        runsVideo && videoResult.status === "done"
+          ? videoResult.provider
+          : assetStageBlueprint.find((stage) => stage.key === "voice")!.provider,
+      model:
+        runsVideo && videoResult.status === "done"
+          ? videoResult.model
+          : assetStageBlueprint.find((stage) => stage.key === "voice")!.model,
+      status: runsVideo && videoResult.status === "done" ? "done" : "pending",
       note:
-        videoResult.status === "done"
+        !runsVideo
+          ? "本次未执行视频流水线，口播阶段暂未启动。"
+          : videoResult.status === "done"
           ? "当前优先复用生成视频中的同步音轨作为预览口播。"
           : "待接独立 TTS 模块；当前未产出真实口播音轨。",
       updatedAt: now
@@ -740,8 +1005,8 @@ function buildStages(
       label: "字幕生成",
       provider: assetStageBlueprint.find((stage) => stage.key === "subtitle")!.provider,
       model: assetStageBlueprint.find((stage) => stage.key === "subtitle")!.model,
-      status: "done",
-      note: "已根据视频脚本生成可编辑 SRT 草稿。",
+      status: runsVideo ? "done" : "pending",
+      note: runsVideo ? "已根据视频脚本生成可编辑 SRT 草稿。" : "本次未执行视频流水线，字幕阶段暂未启动。",
       updatedAt: now
     },
     {
@@ -749,9 +1014,11 @@ function buildStages(
       label: "成片打包",
       provider: assetStageBlueprint.find((stage) => stage.key === "finalize")!.provider,
       model: assetStageBlueprint.find((stage) => stage.key === "finalize")!.model,
-      status: imageResult.status === "done" && videoResult.status === "done" ? "done" : "pending",
+      status: jobType === "one_click" && imageResult.status === "done" && videoResult.status === "done" ? "done" : "pending",
       note:
-        imageResult.status === "done" && videoResult.status === "done"
+        jobType !== "one_click"
+          ? "当前为分步制作任务，待另一部分内容完成后再打包成最终成片。"
+          : imageResult.status === "done" && videoResult.status === "done"
           ? "已完成真实素材预览包整理，可继续人工微调后推入发布队列。"
           : "真实多媒体素材未全部完成，当前先保留可编辑草稿。",
       updatedAt: now
@@ -760,18 +1027,66 @@ function buildStages(
 }
 
 export async function listProductionJobs(): Promise<ProductionJobRecord[]> {
+  const supabase = getSupabaseServerClient();
+
+  if (supabase) {
+    return listProductionJobsFromSupabase();
+  }
+
   const store = await readStore();
 
   return [...store.jobs].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }
 
 export async function getLatestProductionJobForPack(packId: string): Promise<ProductionJobRecord | null> {
+  return getLatestProductionJobForPackByType(packId);
+}
+
+export async function getLatestProductionJobForPackByType(
+  packId: string,
+  jobType?: ProductionJobType
+): Promise<ProductionJobRecord | null> {
+  const supabase = getSupabaseServerClient();
+
+  if (supabase && isUuid(packId)) {
+    let query = supabase
+      .from("production_jobs")
+      .select("*")
+      .eq("pack_id", packId)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+
+    if (jobType) {
+      query = query.eq("job_type", jobType);
+    }
+
+    const { data, error } = await query.maybeSingle<ProductionJobRow>();
+
+    if (error || !data) {
+      if (isMissingProductionJobsTable(error)) {
+        return null;
+      }
+
+      throw error;
+    }
+
+    return mapProductionJobRow(data);
+  }
+
   const jobs = await listProductionJobs();
-  return jobs.find((job) => job.packId === packId) ?? null;
+  return jobs.find((job) => job.packId === packId && (jobType ? job.jobType === jobType : true)) ?? null;
 }
 
 export async function runOneClickProduction(
   packId: string,
+  selection?: ProductionGenerationSelection
+): Promise<ProductionJobRecord> {
+  return runProductionJob(packId, "one_click", selection);
+}
+
+export async function runProductionJob(
+  packId: string,
+  jobType: ProductionJobType,
   selection?: ProductionGenerationSelection
 ): Promise<ProductionJobRecord> {
   const pack = await getHotspotPack(packId);
@@ -786,41 +1101,62 @@ export async function runOneClickProduction(
 
   const brand = await getBrandStrategyPack();
   const now = new Date().toISOString();
-  const previous = await getLatestProductionJobForPack(pack.id);
+  const previous = await getLatestProductionJobForPackByType(pack.id, jobType);
   const runCount = (previous?.runCount ?? 0) + 1;
-  const jobId = deterministicId(`${pack.id}:run:${runCount}`);
+  const jobId = deterministicId(`${pack.id}:${jobType}:run:${runCount}`);
   const baseOutputs = buildOutputs(pack);
   const generated = await generateDraftWithAi(pack, baseOutputs, brand.name, selection);
   let outputs = mergeOutputs(baseOutputs, generated.payload);
   const signals = await getHotspotSignals();
   const hotspot = signals.find((item) => item.id === pack.hotspotId);
   const [imagePlanning, videoPlanning] = await Promise.all([
-    planAssetPrompt({
-      kind: "image",
-      brandName: brand.name,
-      pack,
-      hotspotTitle: hotspot?.title,
-      basePrompt: outputs.imagePrompt,
-      selection: {
-        provider: selection?.imageProvider,
-        model: selection?.imageModel
-      }
-    }),
-    planAssetPrompt({
-      kind: "video",
-      brandName: brand.name,
-      pack,
-      hotspotTitle: hotspot?.title,
-      basePrompt: outputs.videoPrompt,
-      selection: {
-        provider: selection?.videoProvider,
-        model: selection?.videoModel
-      }
-    })
+    shouldRunImageForJobType(jobType)
+      ? planAssetPrompt({
+          kind: "image",
+          brandName: brand.name,
+          pack,
+          hotspotTitle: hotspot?.title,
+          basePrompt: outputs.imagePrompt,
+          selection: {
+            provider: selection?.imageProvider,
+            model: selection?.imageModel
+          }
+        })
+      : Promise.resolve({
+          route: generated.route,
+          prompt: outputs.imagePrompt,
+          note: "本次未执行图片提示词规划。"
+        }),
+    shouldRunVideoForJobType(jobType)
+      ? planAssetPrompt({
+          kind: "video",
+          brandName: brand.name,
+          pack,
+          hotspotTitle: hotspot?.title,
+          basePrompt: outputs.videoPrompt,
+          selection: {
+            provider: selection?.videoProvider,
+            model: selection?.videoModel
+          }
+        })
+      : Promise.resolve({
+          route: generated.route,
+          prompt: outputs.videoPrompt,
+          note: "本次未执行视频提示词规划。"
+        })
   ]);
+  const deferMediaGeneration = shouldDeferMediaGeneration();
   const [imageResult, videoResult] = await Promise.all([
-    generateImageAsset(pack.id, jobId, imagePlanning.prompt),
-    generateVideoAsset(pack.id, jobId, videoPlanning.prompt)
+    shouldRunImageForJobType(jobType)
+      ? deferMediaGeneration
+        ? Promise.resolve(buildDeferredAssetResult("image"))
+        : generateImageAsset(pack.id, jobId, imagePlanning.prompt)
+      : Promise.resolve(buildSkippedAssetResult("image")),
+    shouldRunVideoForJobType(jobType)
+      ? deferMediaGeneration
+        ? Promise.resolve(buildDeferredAssetResult("video"))
+        : generateVideoAsset(pack.id, jobId, videoPlanning.prompt)
+      : Promise.resolve(buildSkippedAssetResult("video"))
   ]);
 
   outputs = {
@@ -832,11 +1168,12 @@ export async function runOneClickProduction(
     audioPreviewUrl: videoResult.audioPreviewUrl ?? outputs.audioPreviewUrl
   };
   const jobStatus: ProductionJobStatus =
-    imageResult.status === "done" && videoResult.status === "done" ? "completed" : "failed";
+    imageResult.status === "failed" || videoResult.status === "failed" ? "failed" : "completed";
 
   const job: ProductionJobRecord = {
     id: jobId,
     packId: pack.id,
+    jobType,
     status: jobStatus,
     mode: "preview-pipeline",
     runCount,
@@ -849,17 +1186,14 @@ export async function runOneClickProduction(
       effectiveModel: generated.route.model,
       reason: generated.route.reason
     },
-    stages: buildStages(now, generated, imagePlanning, videoPlanning, imageResult, videoResult),
+    stages: buildStages(now, jobType, generated, imagePlanning, videoPlanning, imageResult, videoResult),
     outputs: {
       ...outputs,
       articleBody: `【品牌：${brand.name}】\n\n${outputs.articleBody}`
     }
   };
 
-  await updateStore((store) => ({
-    ...store,
-    jobs: [job, ...store.jobs.filter((item) => item.id !== job.id)].slice(0, 80)
-  }));
+  await upsertProductionJob(job);
 
   return job;
 }
@@ -868,6 +1202,44 @@ export async function updateProductionDraft(
   packId: string,
   input: Partial<Pick<ProductionOutputs, "articleTitle" | "articleBody" | "videoScript" | "voiceoverText" | "subtitleSrt">>
 ): Promise<ProductionJobRecord | null> {
+  const supabase = getSupabaseServerClient();
+
+  if (supabase && isUuid(packId)) {
+    const latest = await getLatestProductionJobForPack(packId);
+
+    if (!latest) {
+      return null;
+    }
+
+    const merged: ProductionJobRecord = {
+      ...latest,
+      updatedAt: new Date().toISOString(),
+      outputs: {
+        ...latest.outputs,
+        articleTitle: input.articleTitle ?? latest.outputs.articleTitle,
+        articleBody: input.articleBody ?? latest.outputs.articleBody,
+        videoScript: input.videoScript ?? latest.outputs.videoScript,
+        voiceoverText: input.voiceoverText ?? latest.outputs.voiceoverText,
+        subtitleSrt: input.subtitleSrt ?? latest.outputs.subtitleSrt
+      }
+    };
+
+    const finalVideoScript = merged.outputs.videoScript;
+    const finalVoiceoverText = input.voiceoverText ?? merged.outputs.voiceoverText;
+    const finalSubtitleSrt = input.subtitleSrt ?? buildSubtitleSrt(finalVideoScript);
+
+    merged.outputs = {
+      ...merged.outputs,
+      videoScript: finalVideoScript,
+      voiceoverText: finalVoiceoverText,
+      subtitleSrt: finalSubtitleSrt,
+      storyboard: buildStoryboard(finalVideoScript)
+    };
+
+    await upsertProductionJob(merged);
+    return merged;
+  }
+
   let updated: ProductionJobRecord | null = null;
 
   await updateStore((store) => {
