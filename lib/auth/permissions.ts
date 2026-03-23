@@ -1,28 +1,32 @@
 import { ViewerContext } from "@/lib/auth/types";
 
-export function canAccessAdmin(viewer: ViewerContext): boolean {
+function hasPlatformOverride(viewer: ViewerContext): boolean {
   return viewer.isPlatformAdmin;
 }
 
+export function canAccessAdmin(viewer: ViewerContext): boolean {
+  return hasPlatformOverride(viewer);
+}
+
 export function canManageMembers(viewer: ViewerContext): boolean {
-  return viewer.workspaceRole === "org_admin" || viewer.isPlatformAdmin;
+  return viewer.workspaceRole === "org_admin" || hasPlatformOverride(viewer);
 }
 
 export function canManageBrands(viewer: ViewerContext): boolean {
-  return viewer.workspaceRole === "org_admin" || viewer.isPlatformAdmin;
+  return viewer.workspaceRole === "org_admin" || hasPlatformOverride(viewer);
 }
 
 export function canGenerateContent(viewer: ViewerContext): boolean {
   return (
+    hasPlatformOverride(viewer) ||
     viewer.workspaceRole === "org_admin" ||
     viewer.workspaceRole === "operator" ||
-    viewer.workspaceRole === "media_channel" ||
-    viewer.isPlatformAdmin
+    viewer.workspaceRole === "media_channel"
   );
 }
 
 export function canApproveContent(viewer: ViewerContext): boolean {
-  return viewer.workspaceRole === "org_admin" || viewer.workspaceRole === "approver" || viewer.isPlatformAdmin;
+  return hasPlatformOverride(viewer) || viewer.workspaceRole === "org_admin" || viewer.workspaceRole === "approver";
 }
 
 export function canExportContent(viewer: ViewerContext): boolean {

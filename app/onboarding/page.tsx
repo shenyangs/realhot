@@ -13,7 +13,7 @@ export default async function OnboardingPage() {
         actions={
           <>
           <Link className="buttonLike subtleButton" href="/brands">
-            查看品牌系统
+            查看品牌底盘
           </Link>
           <Link className="buttonLike primaryButton" href="/">
             返回工作台

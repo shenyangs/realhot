@@ -7,39 +7,39 @@ import { ViewerContext } from "@/lib/auth/types";
 const routeMeta = [
   {
     href: "/",
-    eyebrow: "Command Center",
-    title: "热点运营平台",
-    description: "今天的优先处理顺序"
+    eyebrow: "Today",
+    title: "今天先做什么",
+    description: "先看当前卡在哪一步，再决定今天先处理什么"
   },
   {
     href: "/hotspots",
-    eyebrow: "Decision Board",
-    title: "热点看板",
-    description: "筛选、判断、转题"
+    eyebrow: "Opportunity Board",
+    title: "热点机会",
+    description: "先筛机会，再决定哪些值得转成选题包"
   },
   {
     href: "/review",
-    eyebrow: "Topic Review",
-    title: "选题详情台",
-    description: "按顺序判断、改稿、提交"
+    eyebrow: "Review Desk",
+    title: "审核台",
+    description: "审核选题方向，判断是否进入内容制作"
   },
   {
     href: "/publish",
-    eyebrow: "Release Console",
-    title: "发布执行台",
-    description: "运行状态与异常处理"
+    eyebrow: "Publish Center",
+    title: "发布中心",
+    description: "安排排期、执行发布并查看结果"
   },
   {
     href: "/production-studio",
     eyebrow: "Production",
-    title: "内容深度制作",
-    description: "生成后的统一微调"
+    title: "内容制作",
+    description: "把通过审核的方案做成最终可发布内容"
   },
   {
     href: "/brands",
-    eyebrow: "Brand Brain",
-    title: "品牌系统",
-    description: "品牌认知与表达规则"
+    eyebrow: "Brand Foundation",
+    title: "品牌底盘",
+    description: "统一品牌规则、表达边界和传播主题"
   },
   {
     href: "/admin",

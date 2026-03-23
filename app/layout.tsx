@@ -36,7 +36,7 @@ export default async function RootLayout({
           <main className="mainContent">
             <AppTopbar viewer={viewer} />
             {children}
-            <MobileDock />
+            <MobileDock viewer={viewer} />
           </main>
         </div>
       </body>

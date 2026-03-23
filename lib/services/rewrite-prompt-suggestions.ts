@@ -39,79 +39,105 @@ function dedupePrompts(prompts: string[]) {
   return prompts.filter((item, index) => prompts.indexOf(item) === index);
 }
 
+function getPlatformDirection(platformLabel: string) {
+  if (platformLabel.includes("小红书")) {
+    return {
+      style: "小红书分享语气",
+      prompt: "改成小红书分享体，像朋友经验帖"
+    };
+  }
+
+  if (platformLabel.includes("公众号")) {
+    return {
+      style: "公众号深度观点节奏",
+      prompt: "改成公众号深读节奏，层次更完整"
+    };
+  }
+
+  if (platformLabel.includes("视频号") || platformLabel.includes("抖音")) {
+    return {
+      style: "短视频口播节奏",
+      prompt: "改成口播句式，三秒内抛观点"
+    };
+  }
+
+  return {
+    style: "专业但人话的传播语气",
+    prompt: "整体更人话一点，减少汇报腔"
+  };
+}
+
+function getTrackDirection(trackLabel: string) {
+  if (trackLabel.includes("观点")) {
+    return "观点再鲜明一点，态度别摇摆";
+  }
+
+  return "时效感再拉满，强调当下价值";
+}
+
+function inferContentLens(input: RewritePromptSuggestionsInput) {
+  const source = `${input.title} ${input.body} ${input.angle} ${input.whyNow} ${input.whyUs}`;
+
+  if (/AI|人工智能|模型|Agent/i.test(source)) {
+    return "从真实工作场景切入，别停在 AI 大词";
+  }
+
+  if (/办公|协同|组织|团队|流程/.test(source)) {
+    return "把组织协同断点讲具体，增加代入感";
+  }
+
+  if (/企业|B端|客户|采购|决策/.test(source)) {
+    return "突出决策成本与收益，增强商业说服力";
+  }
+
+  return "补一段真实用户场景，增强可信度";
+}
+
 function buildFallbackPrompts(input: RewritePromptSuggestionsInput) {
+  const platformDirection = getPlatformDirection(input.platformLabel);
+  const trackDirection = getTrackDirection(input.trackLabel);
+  const contentLens = inferContentLens(input);
+
   const prompts = [
-    "开头更抓人一点",
-    input.trackLabel.includes("观点")
-      ? "把核心结论提前，开头先亮观点"
-      : "把时效判断提前，先讲现在为什么值得看",
-    "增加行业判断，不要像新闻摘要"
+    "整体更有人话，少一点术语和官腔",
+    platformDirection.prompt,
+    "先讲用户痛点，再给核心判断",
+    "弱化学术论证，强化真实生活场景",
+    "结尾给可执行动作，别停在结论",
+    "加互动提问，提升评论和转发意愿",
+    trackDirection,
+    contentLens
   ];
 
   if (!input.coverHook?.trim()) {
-    prompts.push("补一个更抓人的封面钩子");
+    prompts.push("补一个情绪冲突钩子，先抓停留");
   } else {
-    prompts.push("把封面钩子改得更像可传播的第一句话");
-  }
-
-  if (input.platformLabel.includes("小红书")) {
-    prompts.push("改得更像小红书会收藏的经验总结");
-    prompts.push("多一点分点表达，读起来更适合图文浏览");
-  }
-
-  if (input.platformLabel.includes("公众号")) {
-    prompts.push("拉长论证层次，更像一篇完整观点文");
-    prompts.push("增加一段过渡，让行文更像公众号文章");
-  }
-
-  if (input.platformLabel.includes("视频号") || input.platformLabel.includes("抖音")) {
-    prompts.push("压缩成更适合短视频口播的表达");
-    prompts.push("多用短句和停顿感，读起来更像真人在说");
+    prompts.push("封面句改成反常识问句，更想点开");
   }
 
   if (countVisibleChars(input.body) >= 280) {
-    prompts.push("删掉重复表达，压缩到更利落");
+    prompts.push("压缩信息密度，只保留最有传播力三点");
   } else {
-    prompts.push("补一段关键判断，让内容更完整");
-  }
-
-  if (/创始人|CEO|负责人/.test(input.angle)) {
-    prompts.push("更像创始人口吻");
-  } else {
-    prompts.push("切成更可信的专业口吻");
-  }
-
-  const source = `${input.title} ${input.body} ${input.angle}`;
-
-  if (/AI|人工智能/i.test(source)) {
-    prompts.push("把 AI 相关判断讲得更具体，不要停留在泛概念");
-  }
-
-  if (/办公|协同|组织|团队/.test(source)) {
-    prompts.push("把组织协同场景写得更具体，补清真实工作流里的断点");
-  }
-
-  if (/企业|B端|客户|采购/.test(source)) {
-    prompts.push("加强 B 端决策视角，补上客户在意的采购和落地判断");
-  }
-
-  if (/安全|权限|合规|治理/.test(source)) {
-    prompts.push("把安全、权限和治理边界讲清楚，不要只讲效率");
+    prompts.push("补一段用户决策场景，避免内容太空");
   }
 
   return {
     prompts: dedupePrompts(prompts).slice(0, 8),
-    summary: "当前未接入可用模型，已按平台、赛道和稿件主题生成本地改稿建议。"
+    summary: `优先把稿子从“内部说明”改成“可传播表达”：语气更人话、结构更抓人、并贴合${platformDirection.style}。`
   };
 }
 
 function buildPrompt(input: RewritePromptSuggestionsInput) {
+  const platformDirection = getPlatformDirection(input.platformLabel);
+
   return [
-    "你是中国品牌内容团队的总编，请根据当前稿件判断最值得点击的改稿提示词。",
+    "你是中国品牌内容团队的传播总编，请给出“方向级”的改稿建议按钮。",
     "这些提示词会直接显示成按钮，供编辑一键选择。",
-    "请只给当前稿件真正需要的修改方向，不要给空泛套路。",
+    "重点是告诉编辑“往哪改”，不是逐句微操。",
+    "请让建议覆盖传播层思考：语气、人群、平台、结构、钩子、互动。",
     `品牌: ${input.brandName}`,
     `平台: ${input.platformLabel}`,
+    `平台语境重点: ${platformDirection.style}`,
     `内容类型: ${input.trackLabel}`,
     `建议角度: ${input.angle}`,
     `为什么现在做: ${input.whyNow}`,
@@ -120,15 +146,17 @@ function buildPrompt(input: RewritePromptSuggestionsInput) {
     `品牌禁区: ${input.redLines.join("；") || "未设置"}`,
     "",
     "输出要求：",
-    "- 输出 5 到 8 条改稿提示",
-    "- 每条 8 到 24 个字，适合按钮文案",
+    "- 输出 6 到 8 条改稿提示",
+    "- 每条 10 到 28 个字，适合按钮文案",
     "- 用中文祈使句，直接可执行",
-    "- 提示要覆盖结构、口吻、观点、信息密度、钩子、风险边界中的关键问题",
+    "- 提示必须是大面方向，不要写具体词句替换",
+    "- 至少覆盖以下 5 类中的任意 5 类：人话程度、平台风格、结构节奏、钩子冲突、互动转化、风险边界",
     "- 不要重复，不要只换近义词",
-    "- 不能出现序号解释、长句分析或空泛词",
+    "- 不能出现序号解释、长句分析、空泛鸡汤",
+    "- 禁止输出“把XX改成XX”这种逐字替换句",
     "",
     "请严格输出下面结构：",
-    "SUMMARY: 用一句话概括这篇稿子当前最需要先改什么",
+    "SUMMARY: 用一句话概括这篇稿子最该先改的传播问题",
     "PROMPTS:",
     "- 提示 1",
     "- 提示 2",
@@ -153,6 +181,29 @@ function parsePromptItems(raw: string) {
   ).slice(0, 8);
 }
 
+function isDirectionLevelPrompt(value: string) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+
+  if (!normalized) {
+    return false;
+  }
+
+  // 过滤过于“逐句改写”的提示，保留传播方向级建议。
+  if (/把.{0,14}改成.{0,20}/.test(normalized)) {
+    return false;
+  }
+
+  if (/第一段|第二段|第三段|标题改成|结尾改成|删掉.{0,8}这句|替换成/.test(normalized)) {
+    return false;
+  }
+
+  if (/“[^”]+”|"[^"]+"/.test(normalized)) {
+    return false;
+  }
+
+  return true;
+}
+
 export async function generateRewritePromptSuggestions(
   input: RewritePromptSuggestionsInput
 ): Promise<RewritePromptSuggestionsResult> {
@@ -171,12 +222,15 @@ export async function generateRewritePromptSuggestions(
     const output = await runModelTask("copy-polish", buildPrompt(input), {
       feature: "rewrite-prompts"
     });
-    const prompts = parsePromptItems(extractSection(output, "PROMPTS"));
+    const rawPrompts = parsePromptItems(extractSection(output, "PROMPTS"));
+    const directionalPrompts = rawPrompts.filter((item) => isDirectionLevelPrompt(item));
     const summary = extractSection(output, "SUMMARY") || "已根据当前稿件生成本轮改稿提示。";
+    const fallback = buildFallbackPrompts(input);
+    const prompts = dedupePrompts(
+      directionalPrompts.length >= 5 ? directionalPrompts : [...directionalPrompts, ...fallback.prompts]
+    ).slice(0, 8);
 
     if (prompts.length === 0) {
-      const fallback = buildFallbackPrompts(input);
-
       return {
         prompts: fallback.prompts,
         summary,

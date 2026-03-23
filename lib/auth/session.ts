@@ -11,6 +11,7 @@ const LEGACY_USER_ID_COOKIE = "brand_os_user_id";
 const WORKSPACE_SLUG_COOKIE = "brand_os_workspace_slug";
 const ACCESS_TOKEN_COOKIE = "brand_os_access_token";
 const REFRESH_TOKEN_COOKIE = "brand_os_refresh_token";
+const TRIAL_ACCESS_COOKIE = "brand_os_trial_access";
 
 interface ProfileRow {
   id: string;
@@ -221,11 +222,24 @@ function buildGuestViewer(): ViewerContext {
   };
 }
 
+function applyTrialViewerOverride(viewer: ViewerContext): ViewerContext {
+  if (!viewer.isAuthenticated || !viewer.currentWorkspace || viewer.isPlatformAdmin) {
+    return viewer;
+  }
+
+  return {
+    ...viewer,
+    workspaceRole: null,
+    effectiveRole: "trial_guest"
+  };
+}
+
 export async function getCurrentViewer(): Promise<ViewerContext> {
   const cookieStore = await cookies();
   const appSession = await readAppSessionToken(cookieStore.get(APP_SESSION_COOKIE_NAME)?.value);
   const workspaceSlug = cookieStore.get(WORKSPACE_SLUG_COOKIE)?.value;
   const accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE)?.value;
+  const isTrialAccess = cookieStore.get(TRIAL_ACCESS_COOKIE)?.value === "1";
 
   if (accessToken) {
     const supabase = getSupabaseClient();
@@ -238,7 +252,7 @@ export async function getCurrentViewer(): Promise<ViewerContext> {
           const viewer = await resolveViewerFromSupabase(data.user.id, workspaceSlug);
 
           if (viewer) {
-            return viewer;
+            return isTrialAccess ? applyTrialViewerOverride(viewer) : viewer;
           }
         }
       } catch (error) {
@@ -251,13 +265,13 @@ export async function getCurrentViewer(): Promise<ViewerContext> {
     const viewer = await resolveViewerFromSupabase(appSession.userId, workspaceSlug);
 
     if (viewer) {
-      return viewer;
+      return isTrialAccess ? applyTrialViewerOverride(viewer) : viewer;
     }
 
     const localViewer = await buildLocalViewerFromUserId(appSession.userId, workspaceSlug);
 
     if (localViewer) {
-      return localViewer;
+      return isTrialAccess ? applyTrialViewerOverride(localViewer) : localViewer;
     }
 
     return buildGuestViewer();
@@ -282,5 +296,6 @@ export const sessionCookieNames = {
   legacyUserId: LEGACY_USER_ID_COOKIE,
   workspaceSlug: WORKSPACE_SLUG_COOKIE,
   accessToken: ACCESS_TOKEN_COOKIE,
-  refreshToken: REFRESH_TOKEN_COOKIE
+  refreshToken: REFRESH_TOKEN_COOKIE,
+  trialAccess: TRIAL_ACCESS_COOKIE
 };

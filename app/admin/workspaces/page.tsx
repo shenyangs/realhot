@@ -5,6 +5,7 @@ import { InviteCodeList } from "@/components/invite-code-list";
 import { PageHero } from "@/components/page-hero";
 import { WorkspaceSettingsForm } from "@/components/workspace-settings-form";
 import { listInviteCodesForWorkspace, listPlatformWorkspaces } from "@/lib/auth/repository";
+import { getWorkspacePlanLabel } from "@/lib/auth/workspace-plans";
 
 export default async function AdminWorkspacesPage() {
   const workspaces = await listPlatformWorkspaces();
@@ -30,7 +31,7 @@ export default async function AdminWorkspacesPage() {
             </Link>
           </>
         }
-        description="查看每个客户组织的 slug、套餐、成员规模，并在这里统一管理组织设置和邀请码。"
+        description="查看每个客户组织的链接标识、套餐、成员规模，并在这里统一管理组织设置和邀请码。"
         eyebrow="Admin / Workspaces"
         facts={[
           { label: "组织总数", value: `${workspaces.length} 个` },
@@ -50,7 +51,7 @@ export default async function AdminWorkspacesPage() {
             <div className="adminEntityHead">
               <div>
                 <strong>{workspace.name}</strong>
-                <p className="muted">slug：{workspace.slug}</p>
+                <p className="muted">组织标识：{workspace.slug}</p>
               </div>
               <span className="pill">{workspace.status}</span>
             </div>
@@ -58,7 +59,7 @@ export default async function AdminWorkspacesPage() {
             <div className="adminMetricGrid">
               <div>
                 <span>套餐</span>
-                <strong>{workspace.planType ?? "trial"}</strong>
+                <strong>{getWorkspacePlanLabel(workspace.planType)}</strong>
               </div>
               <div>
                 <span>成员数</span>

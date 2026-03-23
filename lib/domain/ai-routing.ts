@@ -6,6 +6,7 @@ export const AI_FEATURES = [
   "rewrite-prompts",
   "hotspot-insight",
   "content-generation",
+  "production-generation",
   "pack-preview",
   "brand-autofill"
 ] as const;
@@ -19,8 +20,12 @@ export interface AiRoutingConfig {
 
 export const DEFAULT_AI_ROUTING_CONFIG: AiRoutingConfig = {
   defaultProvider: "gemini",
-  featureProviderOverrides: {},
-  featureModelOverrides: {}
+  featureProviderOverrides: {
+    "production-generation": "minimax"
+  },
+  featureModelOverrides: {
+    "production-generation": "MiniMax-M2.7"
+  }
 };
 
 export const aiFeatureLabels: Record<AiFeature, string> = {
@@ -28,6 +33,7 @@ export const aiFeatureLabels: Record<AiFeature, string> = {
   "rewrite-prompts": "改稿提示生成",
   "hotspot-insight": "热点深挖",
   "content-generation": "热点内容生成",
+  "production-generation": "一键制作图文/视频",
   "pack-preview": "内容预览生成",
   "brand-autofill": "品牌自动填充"
 };

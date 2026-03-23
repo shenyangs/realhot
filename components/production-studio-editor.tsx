@@ -2,7 +2,29 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
+import type { AiProvider } from "@/lib/domain/ai-routing";
 import type { ProductionJobRecord } from "@/lib/services/production-studio";
+
+const providerLabels: Record<AiProvider, string> = {
+  gemini: "Gemini",
+  minimax: "MiniMax M2.7"
+};
+
+function isAiProvider(value: string | null | undefined): value is AiProvider {
+  return value === "gemini" || value === "minimax";
+}
+
+function resolveSelectedProvider(job: ProductionJobRecord | null, fallback: AiProvider) {
+  if (isAiProvider(job?.route.requestedProvider)) {
+    return job.route.requestedProvider;
+  }
+
+  if (isAiProvider(job?.route.effectiveProvider)) {
+    return job.route.effectiveProvider;
+  }
+
+  return fallback;
+}
 
 function stageStatusLabel(status: "pending" | "processing" | "done" | "failed") {
   if (status === "done") {
@@ -35,11 +57,15 @@ function stageTone(status: "pending" | "processing" | "done" | "failed") {
 export function ProductionStudioEditor({
   packId,
   initialJob,
-  canRun
+  canRun,
+  defaultProvider = "minimax",
+  defaultModel: _defaultModel
 }: {
   packId: string;
   initialJob: ProductionJobRecord | null;
   canRun: boolean;
+  defaultProvider?: AiProvider;
+  defaultModel?: string;
 }) {
   const router = useRouter();
   const [articleTitle, setArticleTitle] = useState(initialJob?.outputs.articleTitle ?? "");
@@ -47,6 +73,9 @@ export function ProductionStudioEditor({
   const [videoScript, setVideoScript] = useState(initialJob?.outputs.videoScript ?? "");
   const [voiceoverText, setVoiceoverText] = useState(initialJob?.outputs.voiceoverText ?? "");
   const [subtitleSrt, setSubtitleSrt] = useState(initialJob?.outputs.subtitleSrt ?? "");
+  const [provider, setProvider] = useState<AiProvider>(resolveSelectedProvider(initialJob, defaultProvider));
+  const [imageProvider, setImageProvider] = useState<AiProvider>("minimax");
+  const [videoProvider, setVideoProvider] = useState<AiProvider>("minimax");
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -56,7 +85,10 @@ export function ProductionStudioEditor({
     setVideoScript(initialJob?.outputs.videoScript ?? "");
     setVoiceoverText(initialJob?.outputs.voiceoverText ?? "");
     setSubtitleSrt(initialJob?.outputs.subtitleSrt ?? "");
-  }, [initialJob?.id]);
+    setProvider(resolveSelectedProvider(initialJob, defaultProvider));
+    setImageProvider("minimax");
+    setVideoProvider("minimax");
+  }, [defaultProvider, initialJob]);
 
   function runOneClick() {
     if (!canRun) {
@@ -72,12 +104,23 @@ export function ProductionStudioEditor({
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ packId })
+        body: JSON.stringify({
+          packId,
+          provider,
+          imageProvider,
+          videoProvider
+        })
       });
 
       const payload = (await response.json().catch(() => null)) as {
         ok?: boolean;
         error?: string;
+        job?: {
+          route?: {
+            effectiveProvider?: string;
+            effectiveModel?: string;
+          };
+        };
       } | null;
 
       if (!response.ok || !payload?.ok) {
@@ -85,7 +128,12 @@ export function ProductionStudioEditor({
         return;
       }
 
-      setMessage("已完成一键制作，页面已刷新。\n当前是可演示流程，后续可替换为真实生图/生视频接口。");
+      const effectiveProvider = payload?.job?.route?.effectiveProvider;
+      const providerLabel = isAiProvider(effectiveProvider) ? providerLabels[effectiveProvider] : providerLabels[provider];
+
+      setMessage(
+        `已完成一键制作，脚本使用${providerLabel}，图片策划使用${providerLabels[imageProvider]}，视频策划使用${providerLabels[videoProvider]}。`
+      );
       router.refresh();
     });
   }
@@ -176,7 +224,7 @@ export function ProductionStudioEditor({
                     <strong>{stage.label}</strong>
                     <span className={`pill pill-${stageTone(stage.status)}`}>{stageStatusLabel(stage.status)}</span>
                   </div>
-                  <p className="muted">{stage.provider} · {stage.model}</p>
+                  <p className="muted">智能执行阶段</p>
                   <p className="muted">{stage.note}</p>
                 </article>
               ))}
@@ -189,6 +237,47 @@ export function ProductionStudioEditor({
         ) : (
           <p className="muted">当前还没有制作结果。点击下方按钮即可生成图文/视频/字幕/口播首版。</p>
         )}
+
+        <label className="field fieldCompact">
+          <span>本次制作引擎</span>
+          <select
+            disabled={isPending || !canRun}
+            onChange={(event) => setProvider(event.target.value as AiProvider)}
+            value={provider}
+          >
+            <option value="minimax">引擎 A（默认）</option>
+            <option value="gemini">引擎 B</option>
+          </select>
+          <span className="muted">
+            将使用 {providerLabels[provider]}，系统会自动选择具体模型。
+          </span>
+        </label>
+
+        <label className="field fieldCompact">
+          <span>图片策划模型</span>
+          <select
+            disabled={isPending || !canRun}
+            onChange={(event) => setImageProvider(event.target.value as AiProvider)}
+            value={imageProvider}
+          >
+            <option value="minimax">MiniMax M2.7（默认）</option>
+            <option value="gemini">Gemini</option>
+          </select>
+          <span className="muted">只影响图片提示词规划，实际生图引擎保持不变。</span>
+        </label>
+
+        <label className="field fieldCompact">
+          <span>视频策划模型</span>
+          <select
+            disabled={isPending || !canRun}
+            onChange={(event) => setVideoProvider(event.target.value as AiProvider)}
+            value={videoProvider}
+          >
+            <option value="minimax">MiniMax M2.7（默认）</option>
+            <option value="gemini">Gemini</option>
+          </select>
+          <span className="muted">只影响视频提示词规划，实际生视频引擎保持不变。</span>
+        </label>
 
         <div className="buttonRow">
           <button disabled={isPending || !canRun} onClick={runOneClick} type="button">

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { normalizeWorkspacePlanType, WORKSPACE_PLAN_OPTIONS, WorkspacePlanType } from "@/lib/auth/workspace-plans";
 
 export function WorkspaceSettingsForm({
   canManage,
@@ -19,7 +20,7 @@ export function WorkspaceSettingsForm({
   const router = useRouter();
   const [name, setName] = useState(workspace.name);
   const [slug, setSlug] = useState(workspace.slug);
-  const [planType, setPlanType] = useState(workspace.planType ?? "trial");
+  const [planType, setPlanType] = useState<WorkspacePlanType>(normalizeWorkspacePlanType(workspace.planType));
   const [status, setStatus] = useState(workspace.status ?? "active");
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -72,12 +73,22 @@ export function WorkspaceSettingsForm({
           <input disabled={!canManage || isPending} onChange={(event) => setName(event.target.value)} value={name} />
         </label>
         <label className="field fieldCompact">
-          <span>Slug</span>
+          <span>组织标识</span>
           <input disabled={!canManage || isPending} onChange={(event) => setSlug(event.target.value)} value={slug} />
         </label>
         <label className="field fieldCompact">
           <span>套餐</span>
-          <input disabled={!canManage || isPending} onChange={(event) => setPlanType(event.target.value)} value={planType} />
+          <select
+            disabled={!canManage || isPending}
+            onChange={(event) => setPlanType(event.target.value as WorkspacePlanType)}
+            value={planType}
+          >
+            {WORKSPACE_PLAN_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
       <label className="field fieldCompact">
@@ -96,4 +107,3 @@ export function WorkspaceSettingsForm({
     </form>
   );
 }
-

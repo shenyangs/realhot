@@ -3,6 +3,7 @@ import { requireApiAccess } from "@/lib/auth/api-guard";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { canGenerateContent } from "@/lib/auth/permissions";
 import { getHotspotPack, getHotspotSignals } from "@/lib/data";
+import type { AiProvider } from "@/lib/domain/ai-routing";
 import { runOneClickProduction } from "@/lib/services/production-studio";
 
 function getErrorMessage(error: unknown): string {
@@ -27,9 +28,27 @@ export async function POST(request: NextRequest) {
     const { viewer } = access;
     const payload = (await request.json().catch(() => ({}))) as {
       packId?: string;
+      provider?: AiProvider;
+      model?: string;
+      imageProvider?: AiProvider;
+      imageModel?: string;
+      videoProvider?: AiProvider;
+      videoModel?: string;
     };
 
     const packId = payload.packId?.trim();
+    const provider = payload.provider === "gemini" || payload.provider === "minimax" ? payload.provider : undefined;
+    const model = payload.model?.trim() || undefined;
+    const imageProvider =
+      payload.imageProvider === "gemini" || payload.imageProvider === "minimax"
+        ? payload.imageProvider
+        : undefined;
+    const imageModel = payload.imageModel?.trim() || undefined;
+    const videoProvider =
+      payload.videoProvider === "gemini" || payload.videoProvider === "minimax"
+        ? payload.videoProvider
+        : undefined;
+    const videoModel = payload.videoModel?.trim() || undefined;
 
     if (!packId) {
       return NextResponse.json(
@@ -43,7 +62,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const job = await runOneClickProduction(packId);
+    const job = await runOneClickProduction(packId, {
+      provider,
+      model,
+      imageProvider,
+      imageModel,
+      videoProvider,
+      videoModel
+    });
     const pack = await getHotspotPack(packId);
     const hotspot = pack ? (await getHotspotSignals()).find((item) => item.id === pack.hotspotId) : null;
 
@@ -57,6 +83,10 @@ export async function POST(request: NextRequest) {
       action: "production.one_click_generated",
       payload: {
         packId,
+        requestedProvider: provider,
+        requestedModel: model,
+        effectiveProvider: job.route.effectiveProvider,
+        effectiveModel: job.route.effectiveModel,
         hotspotTitle: hotspot?.title,
         articleTitle: job.outputs.articleTitle,
         videoHook: job.outputs.videoHook

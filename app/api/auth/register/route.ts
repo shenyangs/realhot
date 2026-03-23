@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
       }
       response.cookies.delete(sessionCookieNames.legacyUserId);
       response.cookies.delete(sessionCookieNames.demoRole);
+      response.cookies.delete(sessionCookieNames.trialAccess);
     }
 
     return response;

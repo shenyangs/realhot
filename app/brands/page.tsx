@@ -64,8 +64,8 @@ export default async function BrandsPage() {
           </>
         }
         context={brandStrategyPack.name}
-        description="这里不是资料录入页，而是统一品牌定位、受众、语调、主题与合规边界的品牌策略中台。"
-        eyebrow="品牌系统"
+        description="先统一品牌定位、受众、语调和风险边界，后面的热点判断和内容生产才不会跑偏。"
+        eyebrow="品牌底盘"
         facts={[
           { label: "品牌名称", value: brandStrategyPack.name },
           { label: "资料完整度", value: `${completionPercent}%` },
@@ -74,7 +74,7 @@ export default async function BrandsPage() {
           { label: "表达风险等级", value: `${expressionRisk}风险` },
           { label: "行业", value: brandStrategyPack.sector }
         ]}
-        title="品牌认知中台"
+        title="品牌规则从这里定"
       />
 
       <div className="brandOverviewGrid">

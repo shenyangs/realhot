@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { readAppSessionToken } from "@/lib/auth/local-session";
 
 const PUBLIC_PATHS = ["/login", "/register"];
+const TRIAL_ACCESS_COOKIE = "brand_os_trial_access";
+const TRIAL_ALLOWED_PATHS = ["/", "/hotspots", "/account"];
 
 function isPublicPath(pathname: string) {
   if (PUBLIC_PATHS.includes(pathname)) {
@@ -34,6 +36,21 @@ export async function middleware(request: NextRequest) {
   const hasSession = hasAccessToken || hasLocalSession;
 
   if (hasSession) {
+    const isTrialAccess = request.cookies.get(TRIAL_ACCESS_COOKIE)?.value === "1";
+
+    if (isTrialAccess) {
+      const allowed = TRIAL_ALLOWED_PATHS.some((path) =>
+        path === "/"
+          ? pathname === "/"
+          : pathname === path || pathname.startsWith(`${path}/`)
+      );
+
+      if (!allowed) {
+        const redirectUrl = new URL("/", request.url);
+        return NextResponse.redirect(redirectUrl);
+      }
+    }
+
     return NextResponse.next();
   }
 

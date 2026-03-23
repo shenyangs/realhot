@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ViewerWorkspace } from "@/lib/auth/types";
+import { getWorkspacePlanLabel } from "@/lib/auth/workspace-plans";
 
 export function WorkspaceSelectionList({
   workspaces
@@ -55,7 +56,7 @@ export function WorkspaceSelectionList({
               <strong>{workspace.name}</strong>
               <p className="muted">{workspace.slug}</p>
             </div>
-            <span className="pill">{workspace.planType ?? "trial"}</span>
+            <span className="pill">{getWorkspacePlanLabel(workspace.planType)}</span>
           </div>
         </button>
       ))}
@@ -63,4 +64,3 @@ export function WorkspaceSelectionList({
     </div>
   );
 }
-

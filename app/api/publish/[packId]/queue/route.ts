@@ -3,6 +3,7 @@ import { requireApiAccess } from "@/lib/auth/api-guard";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { canApproveContent } from "@/lib/auth/permissions";
 import { clearQueuedPublishJobs, getHotspotPack, getHotspotSignals, queuePublishJobs } from "@/lib/data";
+import { getLatestProductionJobForPack } from "@/lib/services/production-studio";
 
 export async function POST(
   request: NextRequest,
@@ -23,6 +24,19 @@ export async function POST(
     const payload = (await request.json().catch(() => ({}))) as {
       scheduledAt?: string;
     };
+    const latestProductionJob = await getLatestProductionJobForPack(packId);
+
+    if (!latestProductionJob || latestProductionJob.status !== "completed") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "请先完成内容制作，再加入发布队列"
+        },
+        {
+          status: 400
+        }
+      );
+    }
 
     const result = await queuePublishJobs(packId, {
       scheduledAt: payload.scheduledAt,

@@ -1,4 +1,5 @@
 import { getQueuedPublishJobs, updatePublishJobStatus } from "@/lib/data";
+import { getLatestProductionJobForPack } from "@/lib/services/production-studio";
 
 export interface PublishRunResult {
   scanned: number;
@@ -42,6 +43,22 @@ export async function runPublishQueue(input?: {
   let failed = 0;
 
   for (const job of queued) {
+    const latestProductionJob = await getLatestProductionJobForPack(job.packId);
+
+    if (!latestProductionJob || latestProductionJob.status !== "completed") {
+      await updatePublishJobStatus(job.id, {
+        status: "failed",
+        failureReason: "未完成内容深度制作，已阻止发布"
+      });
+      failed += 1;
+      results.push({
+        id: job.id,
+        status: "failed",
+        reason: "未完成内容深度制作"
+      });
+      continue;
+    }
+
     const failedBySimulation = shouldFailJob(job.id);
 
     if (failedBySimulation) {

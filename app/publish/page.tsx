@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { OneClickProductionButton } from "@/components/one-click-production-button";
 import { PackDeleteButton } from "@/components/pack-delete-button";
 import { PageHero } from "@/components/page-hero";
 import { PublishActions } from "@/components/publish-actions";
@@ -7,6 +6,7 @@ import { PublishJobDeleteButton } from "@/components/publish-job-delete-button";
 import { PublishQueueClearButton } from "@/components/publish-queue-clear-button";
 import { getBrandStrategyPack, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
 import type { Platform } from "@/lib/domain/types";
+import { listProductionJobs } from "@/lib/services/production-studio";
 
 const platformLabels: Record<Platform, string> = {
   xiaohongshu: "小红书",
@@ -122,16 +122,27 @@ function getFailureNextStep(reason?: string) {
 }
 
 export default async function PublishPage() {
-  const [brand, packs] = await Promise.all([getBrandStrategyPack(), getReviewQueue()]);
+  const [brand, packs, productionJobs] = await Promise.all([getBrandStrategyPack(), getReviewQueue(), listProductionJobs()]);
+
+  const latestProductionJobByPack = new Map<string, (typeof productionJobs)[number]>();
+
+  for (const job of productionJobs) {
+    if (!latestProductionJobByPack.has(job.packId)) {
+      latestProductionJobByPack.set(job.packId, job);
+    }
+  }
 
   const packJobs = await Promise.all(
     packs.map(async (pack) => ({
       pack,
-      jobs: await getPublishJobsForPack(pack.id)
+      jobs: await getPublishJobsForPack(pack.id),
+      latestProductionJob: latestProductionJobByPack.get(pack.id) ?? null
     }))
   );
 
-  const readyPacks = packJobs.filter(({ pack }) => pack.status === "approved");
+  const readyPacks = packJobs.filter(
+    ({ pack, latestProductionJob }) => pack.status === "approved" && latestProductionJob?.status === "completed"
+  );
   const allJobs = packJobs.flatMap(({ pack, jobs }) =>
     jobs.map((job) => {
       const variant = pack.variants.find((item) => item.id === job.variantId);
@@ -163,10 +174,10 @@ export default async function PublishPage() {
         actions={
           <>
             <Link className="buttonLike primaryButton" href="#publish-ready">
-              去发布
+              去安排发布
             </Link>
-            <Link className="buttonLike subtleButton" href="/review">
-              回选题详情台
+            <Link className="buttonLike subtleButton" href="/production-studio">
+              回内容制作
             </Link>
             <Link className="buttonLike subtleButton" href="/">
               回工作台
@@ -174,8 +185,8 @@ export default async function PublishPage() {
           </>
         }
         context={brand.name}
-        description="这里展示运行状态，不展示原型说明。先看待发布，再看队列和失败诊断。"
-        eyebrow="发布执行台"
+        description="这里只处理已经完成制作的内容，统一安排排期、执行发布并查看结果。"
+        eyebrow="发布中心"
         facts={[
           { label: "今日待发布", value: `${readyPacks.length} 个热点包` },
           { label: "已发布", value: `${publishedJobs.length} 条` },
@@ -184,14 +195,14 @@ export default async function PublishPage() {
           { label: "最近一次发布", value: latestPublishAction ? formatDateTime(latestPublishAction.publishedAt ?? latestPublishAction.updatedAt) : "未记录" },
           { label: "最近一次失败", value: latestFailedAction ? getFailureCategory(latestFailedAction.failureReason) : "当前无失败" }
         ]}
-        title="运行中的发布控制台"
+        title="安排发布并查看结果"
       />
 
       <section className="panel publishRuntimePanel">
         <div className="panelHeader sectionTitle">
           <div>
             <p className="eyebrow">运行总览</p>
-            <h2>当前执行态</h2>
+            <h2>当前发布状态</h2>
           </div>
         </div>
 
@@ -225,13 +236,13 @@ export default async function PublishPage() {
             <div className="panelHeader sectionTitle">
               <div>
                 <p className="eyebrow">待发布内容</p>
-                <h2>直接执行的内容池</h2>
+                <h2>已完成制作的待发布池</h2>
               </div>
             </div>
 
             <div className="publishPackList">
               {readyPacks.length > 0 ? (
-                readyPacks.map(({ pack, jobs }) => {
+                readyPacks.map(({ pack, jobs, latestProductionJob }) => {
                   const queuedCount = jobs.filter((job) => job.status === "queued").length;
                   const publishedCount = jobs.filter((job) => job.status === "published").length;
                   const failedCount = jobs.filter((job) => job.status === "failed").length;
@@ -252,7 +263,9 @@ export default async function PublishPage() {
                           >
                             查看详情
                           </Link>
-                          <OneClickProductionButton compact packId={pack.id} />
+                          <Link className="buttonLike subtleButton publishPackAction" href={`/production-studio/${pack.id}`}>
+                            查看制作稿
+                          </Link>
                         </div>
                       </div>
 
@@ -270,8 +283,14 @@ export default async function PublishPage() {
                           <strong>{defaultVariant?.publishWindow ?? "未设置"}</strong>
                         </div>
                         <div className="statusFeedItem">
-                          <span>审核状态</span>
-                          <strong>已通过</strong>
+                          <span>制作状态</span>
+                          <strong>已完成</strong>
+                        </div>
+                        <div className="statusFeedItem">
+                          <span>最近制作</span>
+                          <strong>
+                            {latestProductionJob ? formatDateTime(latestProductionJob.updatedAt) : "未记录"}
+                          </strong>
                         </div>
                         <div className="statusFeedItem">
                           <span>队列状态</span>
@@ -321,9 +340,12 @@ export default async function PublishPage() {
                 })
               ) : (
                 <div className="systemFeedbackCard">
-                  <strong>当前没有待发布内容</strong>
+                  <strong>当前没有完成制作且待发布的内容</strong>
                   <p className="muted">
-                    最近一次发布：{latestPublishAction ? `${latestPublishAction.variantTitle} · ${formatDateTime(latestPublishAction.publishedAt ?? latestPublishAction.updatedAt)}` : "尚未形成发布记录"}。
+                    先去内容制作完成首版并推入发布队列；最近一次发布：
+                    {latestPublishAction
+                      ? ` ${latestPublishAction.variantTitle} · ${formatDateTime(latestPublishAction.publishedAt ?? latestPublishAction.updatedAt)}`
+                      : " 尚未形成发布记录"}。
                   </p>
                 </div>
               )}
@@ -362,7 +384,7 @@ export default async function PublishPage() {
               ) : (
                 <div className="systemFeedbackCard systemFeedbackCardCompact">
                   <strong>当前队列空闲</strong>
-                  <p className="muted">可以直接从左侧内容池立即发布，或把待发布内容加入队列。</p>
+                  <p className="muted">先从左侧已完成制作的内容入队，或去内容制作页推入发布队列。</p>
                 </div>
               )}
             </div>

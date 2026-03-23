@@ -11,6 +11,8 @@ import { listWorkspaceMembers } from "@/lib/auth/repository";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { getCurrentViewer } from "@/lib/auth/session";
 import { getBrandStrategyPack, getPrioritizedHotspots, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
+import { getAiRoutingConfig } from "@/lib/services/ai-routing-config";
+import { resolveFeatureProviderConfig } from "@/lib/services/model-router";
 import type { ContentTrack, Platform, ReviewStatus } from "@/lib/domain/types";
 
 const platformLabels: Record<Platform, string> = {
@@ -175,7 +177,7 @@ function getFitLabel(score?: number) {
 
 function getNextActionHint(status: ReviewStatus) {
   if (status === "approved") {
-    return "这条内容已通过审核，可以直接进入一键制作或发布执行。";
+    return "这条内容已通过审核，下一步先进入一键制作，再推入发布执行。";
   }
 
   if (status === "needs-edit") {
@@ -192,12 +194,14 @@ export default async function ReviewPage({
 }) {
   const viewer = await getCurrentViewer();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const [brand, packs, prioritizedHotspots, workspaceMembers] = await Promise.all([
+  const [brand, packs, prioritizedHotspots, workspaceMembers, aiRoutingConfig] = await Promise.all([
     getBrandStrategyPack(),
     getReviewQueue(),
     getPrioritizedHotspots(),
-    listWorkspaceMembers()
+    listWorkspaceMembers(),
+    getAiRoutingConfig()
   ]);
+  const productionRoute = resolveFeatureProviderConfig("production-generation", aiRoutingConfig);
 
   const statusFilter = resolvedSearchParams?.status ?? "all";
   const searchQuery = resolvedSearchParams?.q?.trim() ?? "";
@@ -259,7 +263,7 @@ export default async function ReviewPage({
       <div className="page">
         <section className="panel systemFeedbackCard">
           <strong>还没有可处理的选题任务</strong>
-          <p className="muted">先去热点看板转入一条选题，再回到这里做决策和编辑。</p>
+          <p className="muted">先去热点机会转入一条选题，再回到这里做审核判断。</p>
         </section>
       </div>
     );
@@ -370,10 +374,10 @@ export default async function ReviewPage({
         actions={
           <>
             <Link className="buttonLike primaryButton" href="#decision-actions">
-              进入审核动作
+              查看审核动作
             </Link>
-            <Link className="buttonLike subtleButton" href="/publish">
-              去发布执行台
+            <Link className="buttonLike subtleButton" href="/production-studio">
+              去内容制作
             </Link>
             <Link className="buttonLike subtleButton" href="/">
               回工作台
@@ -381,8 +385,8 @@ export default async function ReviewPage({
           </>
         }
         context={activeVariant?.title ?? activePack.whyNow}
-        description="按顺序完成：先判断选题，再改稿，最后提交审核。"
-        eyebrow="选题详情台"
+        description="这里处理的是选题包审核。先判断方向值不值得进入生产，必要时再补充修改。"
+        eyebrow="审核台"
         facts={[
           { label: "当前状态", value: reviewStatusLabels[activePack.status] },
           { label: "优先级", value: priorityLabel },
@@ -391,7 +395,7 @@ export default async function ReviewPage({
           { label: "发布窗口", value: activeVariant?.publishWindow ?? "未设置" },
           { label: "负责人", value: activePack.reviewOwner }
         ]}
-        title="按顺序处理"
+        title="这条能不能进入生产"
       />
 
       <div className="topicWorkbenchLayout">
@@ -399,7 +403,7 @@ export default async function ReviewPage({
           <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">第 1 步</p>
-              <h2>选今天处理哪一条</h2>
+              <h2>先选今天要处理的选题包</h2>
             </div>
             <span className="muted">共 {visiblePacks.length} 条</span>
           </div>
@@ -494,7 +498,7 @@ export default async function ReviewPage({
           ) : (
             <div className="systemFeedbackCard">
               <strong>当前筛选下没有任务</strong>
-              <p className="muted">可以切换状态筛选，或回到热点看板补入新选题。</p>
+              <p className="muted">可以切换状态筛选，或回到热点机会补入新选题。</p>
             </div>
           )}
         </section>
@@ -503,7 +507,7 @@ export default async function ReviewPage({
           <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">第 2 步</p>
-              <h2>判断这条值不值得做</h2>
+              <h2>判断这条是否值得进入生产</h2>
             </div>
             <span className={`pill pill-${getPackStatusTone(activePack.status)}`}>
               {reviewStatusLabels[activePack.status]}
@@ -566,7 +570,7 @@ export default async function ReviewPage({
           <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">第 3 步</p>
-              <h2>确认要改哪一个平台版本</h2>
+              <h2>查看当前平台方案</h2>
             </div>
           </div>
 
@@ -600,7 +604,7 @@ export default async function ReviewPage({
           <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">第 4 步</p>
-              <h2>改稿并确认结果</h2>
+              <h2>必要时补充修改</h2>
             </div>
           </div>
 
@@ -629,7 +633,7 @@ export default async function ReviewPage({
           <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">第 5 步</p>
-              <h2>提交审核结论</h2>
+              <h2>给出审核结论</h2>
             </div>
             <span className={`pill pill-${getPackStatusTone(activePack.status)}`}>
               {reviewStatusLabels[activePack.status]}
@@ -638,7 +642,11 @@ export default async function ReviewPage({
 
           {activePack.status === "approved" ? (
             <div className="topicApprovedStack">
-              <OneClickProductionButton packId={activePack.id} />
+              <OneClickProductionButton
+                defaultModel={productionRoute.model}
+                defaultProvider={productionRoute.provider}
+                packId={activePack.id}
+              />
               <PublishActions
                 compact
                 failedCount={failedCount}

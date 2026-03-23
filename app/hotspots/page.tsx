@@ -3,8 +3,12 @@ import Link from "next/link";
 import { BackToTopButton } from "@/components/back-to-top-button";
 import { HotspotActionButton } from "@/components/hotspot-action-button";
 import { HotspotDecisionBasis } from "@/components/hotspot-decision-basis";
+import { PageAutoRefresh } from "@/components/page-auto-refresh";
 import { PageHero } from "@/components/page-hero";
+import { canGenerateContent } from "@/lib/auth";
+import { getCurrentViewer } from "@/lib/auth/session";
 import { getBrandStrategyPack, getHotspotSignals, getLatestHotspotSyncSnapshot, getReviewQueue } from "@/lib/data";
+import { ensureHotspotsFresh } from "@/lib/services/hotspot-auto-sync";
 import type { HotspotKind } from "@/lib/domain/types";
 import { prioritizeHotspots, type PrioritizedHotspot } from "@/lib/services/hotspot-engine";
 
@@ -625,6 +629,11 @@ export default async function HotspotsPage({
 }: {
   searchParams?: SearchParams;
 }) {
+  await ensureHotspotsFresh();
+  const viewer = await getCurrentViewer();
+  const canGenerate = canGenerateContent(viewer);
+  const isTrialAccess = viewer.effectiveRole === "trial_guest";
+
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const [brand, hotspots, syncSnapshot, packs] = await Promise.all([
     getBrandStrategyPack(),
@@ -758,23 +767,33 @@ export default async function HotspotsPage({
 
   return (
     <div className="page hotspotBoardPageV2">
+      <PageAutoRefresh intervalMs={3 * 60 * 1000} />
+
       <PageHero
         actions={
           <>
-            <Link className="buttonLike primaryButton" href="/review">
-              进入选题详情台
+            {isTrialAccess ? (
+              <Link className="buttonLike primaryButton" href="/">
+                回工作台
+              </Link>
+            ) : (
+              <Link className="buttonLike primaryButton" href="/review">
+                去审核台
+              </Link>
+            )}
+            <Link className="buttonLike subtleButton" href={isTrialAccess ? "/account" : "/"}>
+              {isTrialAccess ? "查看试用权限" : "回工作台"}
             </Link>
-            <Link className="buttonLike subtleButton" href="/">
-              回工作台
-            </Link>
-            <Link className="buttonLike subtleButton" href="/brands">
-              查看品牌系统
-            </Link>
+            {!isTrialAccess ? (
+              <Link className="buttonLike subtleButton" href="/brands">
+                查看品牌底盘
+              </Link>
+            ) : null}
           </>
         }
         context={brand.name}
-        description="先筛选，再判断，再转题。默认只展示做决定真正需要的信息。"
-        eyebrow="热点决策看板"
+        description="这里先筛机会，不急着写内容。先判断哪些热点值得转成选题包。"
+        eyebrow="热点机会"
         facts={[
           { label: "当前品牌", value: brand.name },
           { label: "高潜热点", value: `${highPotentialCount} 条` },
@@ -783,14 +802,14 @@ export default async function HotspotsPage({
           { label: "低风险", value: `${lowRiskCount} 条` },
           { label: "最近同步", value: formatDateTime(syncSnapshot?.executedAt) }
         ]}
-        title="先筛掉不该做的，再转该做的"
+        title="今天有哪些值得跟"
       />
 
       <section className="panel hotspotOverviewPanel">
         <div className="panelHeader sectionTitle">
           <div>
             <p className="eyebrow">运行总览</p>
-            <h2>看板当前状态</h2>
+            <h2>机会池当前状态</h2>
           </div>
         </div>
 
@@ -1285,11 +1304,13 @@ export default async function HotspotsPage({
                     hotspotId={signal.id}
                     packId={existingPack?.packId}
                     platform={existingPack?.platform}
+                    readOnly={!canGenerate}
                     variantId={existingPack?.variantId}
                   />
                 </div>
 
                 <HotspotDecisionBasis
+                  allowAiActions={canGenerate}
                   fallbackReasons={{
                     whyNow: reasonNow,
                     whyBrand: reasonBrand,
@@ -1308,7 +1329,7 @@ export default async function HotspotsPage({
         ) : (
           <section className="panel systemFeedbackCard">
             <strong>当前筛选下没有可处理热点</strong>
-            <p className="muted">建议下一步：放宽一个筛选条件，或回到品牌系统补充近期动态与表达规则。</p>
+            <p className="muted">建议下一步：放宽一个筛选条件，或回到品牌底盘补充近期动态与表达规则。</p>
           </section>
         )}
       </section>

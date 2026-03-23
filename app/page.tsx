@@ -82,6 +82,7 @@ function getFailureSummary(reason?: string) {
 
 export default async function HomePage() {
   const viewer = await getCurrentViewer();
+  const isTrialAccess = viewer.effectiveRole === "trial_guest";
 
   if (viewer.isPlatformAdmin && !viewer.currentWorkspace) {
     if (viewer.memberships.length > 0) {
@@ -192,33 +193,88 @@ export default async function HomePage() {
   }>;
 
   const heroPrimaryHref =
-    (pendingPacks.length > 0 ? "/review" : failedJobs.length > 0 ? "/publish" : highPotentialHotspots.length > 0 ? "/hotspots" : "/brands") as Route;
+    (isTrialAccess
+      ? "/hotspots"
+      : pendingPacks.length > 0
+        ? "/review"
+        : failedJobs.length > 0
+          ? "/publish"
+          : highPotentialHotspots.length > 0
+            ? "/hotspots"
+            : "/brands") as Route;
   const heroPrimaryLabel =
-    pendingPacks.length > 0 ? "继续处理今日任务" : failedJobs.length > 0 ? "处理发布异常" : highPotentialHotspots.length > 0 ? "去看高潜机会" : "完善品牌系统";
+    isTrialAccess
+      ? "去看热点机会"
+      : pendingPacks.length > 0
+        ? "先去审核台"
+        : failedJobs.length > 0
+          ? "去发布中心"
+          : highPotentialHotspots.length > 0
+            ? "去看热点机会"
+            : "完善品牌底盘";
 
   return (
     <div className="page workbenchPageV2">
+      <section className="panel brandWorkbenchCard">
+        <div className="brandWorkbenchHead">
+          <div>
+            <p className="eyebrow">品牌底盘</p>
+            <h2>{brand.name}</h2>
+            <p className="muted">先把品牌定位、语调和表达边界定清楚，后面的热点判断和内容制作才不会跑偏。</p>
+          </div>
+          <div className="brandWorkbenchActions">
+            <Link className="buttonLike primaryButton" href="/brands">
+              打开品牌底盘
+            </Link>
+            <span className="pill pill-neutral">{brand.sector}</span>
+          </div>
+        </div>
+
+        <div className="brandWorkbenchMeta">
+          <div className="brandWorkbenchStat">
+            <span>当前服务品牌</span>
+            <strong>{brand.name}</strong>
+          </div>
+          <div className="brandWorkbenchStat">
+            <span>品牌语气</span>
+            <strong>{brand.tone.slice(0, 2).join(" / ") || "待补充"}</strong>
+          </div>
+          <div className="brandWorkbenchStat">
+            <span>近期重点</span>
+            <strong>{brand.recentMoves[0] ?? "待补充最近动态"}</strong>
+          </div>
+        </div>
+      </section>
+
       <PageHero
         actions={
           <>
             <Link className="buttonLike primaryButton" href={heroPrimaryHref}>
               {heroPrimaryLabel}
             </Link>
-            <Link className="buttonLike subtleButton" href="/publish">
-              查看发布状态
-            </Link>
-            <Link className="buttonLike subtleButton" href="/brands">
-              查看品牌系统
-            </Link>
+            {isTrialAccess ? (
+              <Link className="buttonLike subtleButton" href="/account">
+                查看试用权限
+              </Link>
+            ) : (
+              <>
+                <Link className="buttonLike subtleButton" href="/publish">
+                  去发布中心
+                </Link>
+                <Link className="buttonLike subtleButton" href="/brands">
+                  查看品牌底盘
+                </Link>
+              </>
+            )}
           </>
         }
         context={brand.name}
-        description="先处理出口，再决定是否补题。首页只保留今天最该先做的三件事。"
-        eyebrow="工作台总控"
+        description="先看当前卡在哪一步，再决定今天先处理什么。这里不是功能总控台，而是你的今日工作入口。"
+        eyebrow="首页"
         facts={[
-          { label: "当前品牌", value: brand.name },
           { label: "今日核心任务", value: `${pendingPacks.length + needsEditPacks.length + failedJobs.length} 项` },
           { label: "待审核", value: `${pendingPacks.length} 条` },
+          { label: "待改稿", value: `${needsEditPacks.length} 条` },
           { label: "高优热点", value: `${highPotentialHotspots.length} 条` },
           { label: "发布异常", value: `${failedJobs.length} 条` },
           { label: "最近同步", value: formatDateTime(syncSnapshot?.executedAt) }
@@ -256,10 +312,10 @@ export default async function HomePage() {
               <article className="priorityCommandItem priorityCommandItemQuiet">
                 <div>
                   <strong>当前主链路运行平稳</strong>
-                  <p className="muted">审核口、发布口都没有堆积，可以继续从热点里补充新题。</p>
+                  <p className="muted">审核和发布都没有堆积，现在更适合继续从热点机会里补充新选题。</p>
                 </div>
                 <Link className="buttonLike subtleButton" href="/hotspots">
-                  打开热点看板
+                  打开热点机会
                 </Link>
               </article>
             )}
@@ -338,6 +394,7 @@ export default async function HomePage() {
                         hotspotId={signal.id}
                         packId={existingPack?.packId}
                         platform={existingPack?.platform}
+                        readOnly={isTrialAccess}
                         variantId={existingPack?.variantId}
                       />
                     </div>
@@ -347,7 +404,7 @@ export default async function HomePage() {
             ) : (
               <div className="systemFeedbackCard">
                 <strong>当前没有高优热点</strong>
-                <p className="muted">建议下一步：去品牌系统补充近期动态，提升品牌相关性判断命中率。</p>
+                <p className="muted">建议下一步：去品牌底盘补充近期动态，提升热点相关性判断命中率。</p>
               </div>
             )}
           </div>
@@ -431,6 +488,53 @@ export default async function HomePage() {
           </div>
         </section>
       </div>
+
+      <section className="summaryGrid adminSummaryGrid">
+        <article className="panel summaryCard summaryCardElevated">
+          <p className="eyebrow">第 1 步</p>
+          <h3>热点机会</h3>
+          <p className="muted">先筛今天值得跟的机会，不急着立刻写内容。</p>
+        </article>
+        <article className="panel summaryCard summaryCardElevated">
+          <p className="eyebrow">第 2 步</p>
+          <h3>审核台</h3>
+          <p className="muted">把热点转成选题包后，在这里判断方向值不值得进入生产。</p>
+        </article>
+        <article className="panel summaryCard summaryCardElevated">
+          <p className="eyebrow">第 3 步</p>
+          <h3>内容制作</h3>
+          <p className="muted">通过审核后，再把方案做成最终可发布的内容版本。</p>
+        </article>
+        <article className="panel summaryCard summaryCardElevated">
+          <p className="eyebrow">第 4 步</p>
+          <h3>发布中心</h3>
+          <p className="muted">最后统一安排排期、执行发布，并查看结果和失败原因。</p>
+        </article>
+      </section>
+
+      <section className="panel">
+        <div className="panelHeader sectionTitle">
+          <div>
+            <p className="eyebrow">快速入口</p>
+            <h2>我现在该去哪里</h2>
+          </div>
+        </div>
+
+        <div className="buttonRow">
+          <Link className="buttonLike subtleButton" href="/hotspots">
+            想找新机会，去热点机会
+          </Link>
+          <Link className="buttonLike subtleButton" href="/review">
+            想看待审核内容，去审核台
+          </Link>
+          <Link className="buttonLike subtleButton" href="/production-studio">
+            想继续做稿，去内容制作
+          </Link>
+          <Link className="buttonLike subtleButton" href="/publish">
+            想安排发布，去发布中心
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

@@ -70,7 +70,19 @@ export async function POST(
       reviewer: payload.reviewer
     });
 
-    const hotspot = updated ? (await getHotspotSignals()).find((item) => item.id === updated.hotspotId) : null;
+    if (!updated) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "审核状态未更新，请刷新后重试（记录不存在或无权限）"
+        },
+        {
+          status: 404
+        }
+      );
+    }
+
+    const hotspot = (await getHotspotSignals()).find((item) => item.id === updated.hotspotId);
 
     await writeAuditLog({
       workspaceId: viewer.currentWorkspace?.id,
@@ -82,16 +94,17 @@ export async function POST(
       action: "review.status_updated",
       payload: {
         hotspotTitle: hotspot?.title,
-        status: updated?.status ?? payload.status,
+        status: updated.status,
         reviewer: payload.reviewer,
         note: payload.note,
-        variantTitles: updated?.variants.map((variant) => variant.title)
+        variantTitles: updated.variants.map((variant) => variant.title)
       }
     });
 
     return NextResponse.json({
       ok: true,
-      pack: updated
+      pack: updated,
+      nextWorkflowPath: updated.status === "approved" ? `/production-studio/${updated.id}` : null
     });
   } catch (error) {
     return NextResponse.json(

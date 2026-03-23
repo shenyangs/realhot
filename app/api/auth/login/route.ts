@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
       response.cookies.delete(sessionCookieNames.refreshToken);
       response.cookies.delete(sessionCookieNames.legacyUserId);
       response.cookies.delete(sessionCookieNames.demoRole);
+      response.cookies.delete(sessionCookieNames.trialAccess);
 
       if (result.workspaceSlug) {
         response.cookies.set(
@@ -227,6 +228,7 @@ export async function POST(request: NextRequest) {
   );
   response.cookies.delete(sessionCookieNames.legacyUserId);
   response.cookies.delete(sessionCookieNames.demoRole);
+  response.cookies.delete(sessionCookieNames.trialAccess);
 
   if (workspaceCount === 1 && workspaceRecord?.slug) {
     response.cookies.set(

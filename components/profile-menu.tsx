@@ -7,12 +7,13 @@ import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { roleLabels, type ViewerContext } from "@/lib/auth/types";
 
 const roleDescriptions = {
-  super_admin: "管理全平台用户、组织、邀请码、系统配置和异常处理。",
+  super_admin: "管理全平台用户、组织、邀请码、系统配置和异常处理，也可直接测试审核、制作与发布链路。",
   org_admin: "管理当前组织的成员、品牌、资料、邀请码与工作区设置。",
   operator: "负责热点捕捉、策划生成、内容编辑和提交审核。",
   media_channel: "负责渠道分发策略、发布节奏和媒介协同执行。",
   approver: "负责审核内容、退回修改、控制是否允许导出与发布。",
-  guest: "尚未登录，仅能看到登录与注册入口。"
+  guest: "尚未登录，仅能看到登录与注册入口。",
+  trial_guest: "试用模式仅支持浏览首页与热点机会，无法执行转题、审核、制作与发布。"
 } as const;
 
 function getInitials(name: string) {
@@ -64,12 +65,12 @@ export function ProfileMenu({ viewer }: { viewer: ViewerContext }) {
             <Link href="/account" onClick={() => setOpen(false)}>
               账号中心
             </Link>
-            {viewer.memberships.length > 0 ? (
+            {viewer.memberships.length > 0 || viewer.isPlatformAdmin ? (
               <Link href="/" onClick={() => setOpen(false)}>
                 业务工作台
               </Link>
             ) : null}
-            {!viewer.isPlatformAdmin ? (
+            {!viewer.isPlatformAdmin && viewer.effectiveRole !== "trial_guest" ? (
               <Link href="/team" onClick={() => setOpen(false)}>
                 成员与组织
               </Link>

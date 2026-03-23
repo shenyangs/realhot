@@ -17,7 +17,7 @@ export default async function AdminAiRoutingPage() {
   const effectiveRouteConfigs = Object.fromEntries(
     AI_FEATURES.map((feature) => [feature, resolveFeatureProviderConfig(feature, config)])
   );
-  const providerStatus = listProviderConfigs("content-generation");
+  const providerStatus = listProviderConfigs("production-generation");
   const availableProviders = providerStatus.filter((item) => item.available).length;
 
   return (
@@ -39,7 +39,7 @@ export default async function AdminAiRoutingPage() {
           { label: "默认提供方", value: providerLabels[config.defaultProvider] },
           { label: "可用提供方", value: `${availableProviders}/${providerStatus.length}` },
           { label: "覆盖能力", value: `${AI_FEATURES.length} 项` },
-          { label: "当前重点", value: "全局默认 + 分功能覆写" }
+          { label: "当前重点", value: "一键制作默认 MiniMax" }
         ]}
         title="模型路由设置"
       />

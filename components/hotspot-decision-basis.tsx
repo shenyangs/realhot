@@ -5,6 +5,7 @@ import { HotspotInsightTrigger } from "@/components/hotspot-insight-trigger";
 
 interface HotspotDecisionBasisProps {
   hotspotId: string;
+  allowAiActions?: boolean;
   fallbackReasons: {
     whyNow: string;
     whyBrand: string;
@@ -67,7 +68,12 @@ function mapInsightToReasons(payload: HotspotInsightPayload, fallback: HotspotDe
   };
 }
 
-export function HotspotDecisionBasis({ hotspotId, fallbackReasons, sourceLinks }: HotspotDecisionBasisProps) {
+export function HotspotDecisionBasis({
+  hotspotId,
+  allowAiActions = true,
+  fallbackReasons,
+  sourceLinks
+}: HotspotDecisionBasisProps) {
   const [reasons, setReasons] = useState(fallbackReasons);
   const [isAiLoaded, setIsAiLoaded] = useState(false);
   const [message, setMessage] = useState("");
@@ -115,7 +121,7 @@ export function HotspotDecisionBasis({ hotspotId, fallbackReasons, sourceLinks }
       onToggle={(event) => {
         const target = event.currentTarget as HTMLDetailsElement;
 
-        if (target.open && !isAiLoaded && !isPending) {
+        if (allowAiActions && target.open && !isAiLoaded && !isPending) {
           loadAiReasons();
         }
       }}
@@ -135,12 +141,16 @@ export function HotspotDecisionBasis({ hotspotId, fallbackReasons, sourceLinks }
           {isPending ? "正在提炼该条热点的执行切口..." : reasons.angle}
         </p>
 
-        <div className="inlineActions">
-          <button className="buttonLike subtleButton" disabled={isPending} onClick={loadAiReasons} type="button">
-            {isPending ? "AI判断中..." : isAiLoaded ? "重新AI判断" : "AI单独判断"}
-          </button>
-          <span className="muted">每条热点独立判断，不复用固定模板。</span>
-        </div>
+        {allowAiActions ? (
+          <div className="inlineActions">
+            <button className="buttonLike subtleButton" disabled={isPending} onClick={loadAiReasons} type="button">
+              {isPending ? "AI判断中..." : isAiLoaded ? "重新AI判断" : "AI单独判断"}
+            </button>
+            <span className="muted">每条热点独立判断，不复用固定模板。</span>
+          </div>
+        ) : (
+          <p className="muted">试用模式下仅可查看基础判断依据。</p>
+        )}
 
         {message ? <p className="muted inlineActionMessage">{message}</p> : null}
 
@@ -151,7 +161,7 @@ export function HotspotDecisionBasis({ hotspotId, fallbackReasons, sourceLinks }
             </a>
           ))}
         </div>
-        <HotspotInsightTrigger hotspotId={hotspotId} />
+        <HotspotInsightTrigger disabled={!allowAiActions} hotspotId={hotspotId} />
       </div>
     </details>
   );

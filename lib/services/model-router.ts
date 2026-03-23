@@ -31,6 +31,8 @@ const taskFeatureDefaults: Record<LlmTask, AiFeature> = {
 
 export interface ModelRouteOptions {
   feature?: AiFeature;
+  desiredProvider?: AiProvider;
+  modelOverride?: string;
 }
 
 export interface AiProviderConnectionTestResult {
@@ -52,7 +54,11 @@ function resolveGeminiModel(feature: AiFeature): string {
   return process.env.GEMINI_MODEL?.trim() || "gemini-2.5-pro";
 }
 
-function resolveMiniMaxModel(): string {
+function resolveMiniMaxModel(feature: AiFeature): string {
+  if (feature === "production-generation") {
+    return process.env.MINIMAX_PRODUCTION_MODEL?.trim() || process.env.MINIMAX_MODEL?.trim() || "MiniMax-M2.7";
+  }
+
   return process.env.MINIMAX_MODEL?.trim() || "MiniMax-M2.7";
 }
 
@@ -61,7 +67,7 @@ function resolveDefaultModel(provider: AiProvider, feature: AiFeature): string {
     return resolveGeminiModel(feature);
   }
 
-  return resolveMiniMaxModel();
+  return resolveMiniMaxModel(feature);
 }
 
 function getProviderConfigs(
@@ -90,7 +96,7 @@ function getProviderConfigs(
       model:
         options?.desiredProvider === "minimax" && resolvedModelOverride
           ? resolvedModelOverride
-          : resolveMiniMaxModel(),
+          : resolveMiniMaxModel(feature),
       available: hasMiniMaxKey,
       missingEnvKey: hasMiniMaxKey ? undefined : "MINIMAX_API_KEY"
     }
@@ -138,17 +144,23 @@ export async function decideModelRoute(
 ): Promise<ModelRouteDecision> {
   const preferred = taskPreference[task];
   const feature = resolveFeature(task, options);
-  let desiredProvider: AiProvider = DEFAULT_AI_ROUTING_CONFIG.defaultProvider;
-  let desiredModelOverride: string | undefined;
+  const manualProvider = options?.desiredProvider;
+  const manualModelOverride = options?.modelOverride?.trim() || undefined;
+  let desiredProvider: AiProvider =
+    manualProvider ?? DEFAULT_AI_ROUTING_CONFIG.featureProviderOverrides[feature] ?? DEFAULT_AI_ROUTING_CONFIG.defaultProvider;
+  let desiredModelOverride: string | undefined = manualModelOverride;
   let config: AiRoutingConfig = DEFAULT_AI_ROUTING_CONFIG;
 
-  try {
-    config = await getAiRoutingConfig();
-    desiredProvider = resolveProviderForFeature(config, feature);
-    desiredModelOverride = resolveModelOverrideForFeature(config, feature);
-  } catch {
-    desiredProvider = DEFAULT_AI_ROUTING_CONFIG.defaultProvider;
-    desiredModelOverride = undefined;
+  if (!manualProvider) {
+    try {
+      config = await getAiRoutingConfig();
+      desiredProvider = resolveProviderForFeature(config, feature);
+      desiredModelOverride = resolveModelOverrideForFeature(config, feature);
+    } catch {
+      desiredProvider =
+        DEFAULT_AI_ROUTING_CONFIG.featureProviderOverrides[feature] ?? DEFAULT_AI_ROUTING_CONFIG.defaultProvider;
+      desiredModelOverride = resolveModelOverrideForFeature(DEFAULT_AI_ROUTING_CONFIG, feature);
+    }
   }
 
   const providerConfigs = getProviderConfigs(feature, {
@@ -157,15 +169,16 @@ export async function decideModelRoute(
   });
   const desiredConfig = providerConfigs.find((config) => config.provider === desiredProvider);
   const modelReason = desiredModelOverride?.trim()
-    ? `已指定模型 ${desiredModelOverride.trim()}`
-    : `默认模型 ${resolveFeatureProviderConfig(feature, config).model}`;
+    ? `${manualProvider ? "手动指定模型" : "已指定模型"} ${desiredModelOverride.trim()}`
+    : `默认模型 ${desiredConfig?.model ?? resolveDefaultModel(desiredProvider, feature)}`;
+  const providerReasonPrefix = manualProvider ? "手动选择" : `${feature} 已配置为`;
 
   if (desiredConfig?.available) {
     return {
       task,
       provider: desiredConfig.provider,
       model: desiredConfig.model,
-      reason: `${feature} 已配置为 ${getProviderLabel(desiredConfig.provider)}，${modelReason}，按 ${preferred} 优先级执行。`
+      reason: `${providerReasonPrefix} ${getProviderLabel(desiredConfig.provider)}，${modelReason}，按 ${preferred} 优先级执行。`
     };
   }
 
@@ -180,7 +193,7 @@ export async function decideModelRoute(
       task,
       provider: fallbackConfig.provider,
       model: fallbackConfig.model,
-      reason: `${feature} 目标模型 ${getProviderLabel(desiredProvider)}${missingHint}，已自动回退到 ${getProviderLabel(fallbackConfig.provider)}。`
+      reason: `${manualProvider ? "手动选择" : feature} 目标模型 ${getProviderLabel(desiredProvider)}${missingHint}，已自动回退到 ${getProviderLabel(fallbackConfig.provider)}。`
     };
   }
 
@@ -192,13 +205,7 @@ export async function decideModelRoute(
   };
 }
 
-export async function runModelTask(
-  task: LlmTask,
-  prompt: string,
-  options?: ModelRouteOptions
-): Promise<string> {
-  const route = await decideModelRoute(task, options);
-
+export async function runResolvedModelTask(route: ModelRouteDecision, prompt: string): Promise<string> {
   if (route.provider === "mock") {
     return [
       `[${route.task}]`,
@@ -221,6 +228,32 @@ export async function runModelTask(
     `Provider ${route.provider} is configured in the router but not implemented yet.`,
     "Fallback to template output."
   ].join("\n");
+}
+
+export async function runModelTaskWithRoute(
+  task: LlmTask,
+  prompt: string,
+  options?: ModelRouteOptions
+): Promise<{
+  route: ModelRouteDecision;
+  output: string;
+}> {
+  const route = await decideModelRoute(task, options);
+  const output = await runResolvedModelTask(route, prompt);
+
+  return {
+    route,
+    output
+  };
+}
+
+export async function runModelTask(
+  task: LlmTask,
+  prompt: string,
+  options?: ModelRouteOptions
+): Promise<string> {
+  const result = await runModelTaskWithRoute(task, prompt, options);
+  return result.output;
 }
 
 export async function testAiProviderConnection(

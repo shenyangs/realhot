@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
+import { TrialAccessButton } from "@/components/trial-access-button";
 import { getLoginMode } from "@/lib/auth/repository";
 import { getCurrentViewer } from "@/lib/auth/session";
 
@@ -73,6 +74,17 @@ export default async function LoginPage() {
               邀码注册
             </Link>
           </div>
+        </article>
+
+        <article className="panel">
+          <div className="panelHeader">
+            <div>
+              <p className="eyebrow">Trial</p>
+              <h3>游客演示入口</h3>
+            </div>
+          </div>
+          <p className="muted">适合给客户现场演示：可浏览首页和热点机会、可切换筛选，但不能转题、审核、制作或发布。</p>
+          <TrialAccessButton />
         </article>
       </section>
 

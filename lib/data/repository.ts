@@ -679,7 +679,7 @@ export async function updateHotspotPackReview(
   }
 
   if (!data) {
-    return updateHotspotPackReviewInLocalStore(packId, input);
+    return null;
   }
 
   return (await getHotspotPack(packId)) ?? null;

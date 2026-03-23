@@ -10,6 +10,7 @@ interface HotspotActionButtonProps {
   packId?: string;
   variantId?: string;
   platform?: string;
+  readOnly?: boolean;
 }
 
 function buildReviewHref(input: {
@@ -36,11 +37,20 @@ export function HotspotActionButton({
   hotspotId,
   packId,
   variantId,
-  platform
+  platform,
+  readOnly = false
 }: HotspotActionButtonProps) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  if (readOnly) {
+    return (
+      <button className="buttonLike subtleButton" disabled type="button">
+        试用模式 · 仅浏览
+      </button>
+    );
+  }
 
   if (packId) {
     return (

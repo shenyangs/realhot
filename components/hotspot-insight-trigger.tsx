@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 
 interface HotspotInsightTriggerProps {
   hotspotId: string;
+  disabled?: boolean;
 }
 
 interface HotspotInsightPayload {
@@ -17,12 +18,16 @@ interface HotspotInsightPayload {
   riskNote: string;
 }
 
-export function HotspotInsightTrigger({ hotspotId }: HotspotInsightTriggerProps) {
+export function HotspotInsightTrigger({ hotspotId, disabled = false }: HotspotInsightTriggerProps) {
   const [message, setMessage] = useState("");
   const [result, setResult] = useState<HotspotInsightPayload | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function fetchInsight() {
+    if (disabled) {
+      return;
+    }
+
     startTransition(async () => {
       setMessage("");
 
@@ -56,10 +61,12 @@ export function HotspotInsightTrigger({ hotspotId }: HotspotInsightTriggerProps)
   return (
     <div className="hotspotInsightBlock">
       <div className="hotspotInsightActions">
-        <button className="buttonLike subtleButton" disabled={isPending} onClick={fetchInsight} type="button">
-          {isPending ? "正在生成专业判断..." : "补充专业判断"}
+        <button className="buttonLike subtleButton" disabled={disabled || isPending} onClick={fetchInsight} type="button">
+          {disabled ? "试用模式不可用" : isPending ? "正在生成专业判断..." : "补充专业判断"}
         </button>
-        <span className="muted">按需补充该热点的品牌结合路径、执行策略与风险边界。</span>
+        <span className="muted">
+          {disabled ? "试用模式仅展示静态热点信息。" : "按需补充该热点的品牌结合路径、执行策略与风险边界。"}
+        </span>
       </div>
 
       {message ? <p className="muted inlineActionMessage">{message}</p> : null}

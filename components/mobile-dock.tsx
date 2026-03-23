@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
+import type { ViewerContext } from "@/lib/auth/types";
 
 interface MobileNavItem {
   href: Route;
@@ -12,15 +13,29 @@ interface MobileNavItem {
 }
 
 const workbenchNavItems: MobileNavItem[] = [
-  { href: "/", label: "工作台", short: "总控" },
-  { href: "/hotspots", label: "热点", short: "筛选" },
-  { href: "/review", label: "审核", short: "决策" },
-  { href: "/publish", label: "发布", short: "执行" },
-  { href: "/production-studio", label: "制作", short: "成片" }
+  { href: "/", label: "首页", short: "先做什么" },
+  { href: "/hotspots", label: "热点", short: "找机会" },
+  { href: "/review", label: "审核", short: "做判断" },
+  { href: "/production-studio", label: "制作", short: "做成稿" },
+  { href: "/publish", label: "发布", short: "去执行" }
+];
+
+const trialNavItems: MobileNavItem[] = [
+  { href: "/", label: "首页", short: "先做什么" },
+  { href: "/hotspots", label: "热点", short: "找机会" }
+];
+
+const adminWorkbenchNavItems: MobileNavItem[] = [
+  { href: "/", label: "首页", short: "先做什么" },
+  { href: "/hotspots", label: "热点", short: "找机会" },
+  { href: "/review", label: "审核", short: "做判断" },
+  { href: "/production-studio", label: "制作", short: "做成稿" },
+  { href: "/publish", label: "发布", short: "去执行" },
+  { href: "/admin", label: "后台", short: "管理", matchPrefixes: ["/admin"] }
 ];
 
 const adminNavItems: MobileNavItem[] = [
-  { href: "/", label: "工作台", short: "返回" },
+  { href: "/", label: "首页", short: "返回" },
   { href: "/admin", label: "后台", short: "总览", matchPrefixes: ["/admin/vercel-usage"] },
   { href: "/admin/users", label: "用户", short: "账号" },
   { href: "/admin/workspaces", label: "组织", short: "空间" },
@@ -28,9 +43,16 @@ const adminNavItems: MobileNavItem[] = [
   { href: "/admin/logs", label: "日志", short: "记录" }
 ];
 
-export function MobileDock() {
+export function MobileDock({ viewer }: { viewer: ViewerContext }) {
   const pathname = usePathname();
-  const navItems = pathname.startsWith("/admin") ? adminNavItems : workbenchNavItems;
+  const isTrial = viewer.effectiveRole === "trial_guest";
+  const navItems = isTrial
+    ? trialNavItems
+    : viewer.isPlatformAdmin && viewer.memberships.length > 0
+      ? adminWorkbenchNavItems
+      : pathname.startsWith("/admin")
+        ? adminNavItems
+        : workbenchNavItems;
   const navClassName = `mobileDockNav ${navItems.length > 5 ? "mobileDockNavDense" : ""}`;
 
   function isItemActive(item: MobileNavItem) {

@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { ReviewStatus } from "@/lib/domain/types";
@@ -65,7 +66,7 @@ export function ReviewActions({
 
   const primaryAction =
     currentStatus === "pending"
-      ? { label: "通过并进入下游", status: "approved" as ReviewStatus }
+      ? { label: "通过并进入制作台", status: "approved" as ReviewStatus }
       : currentStatus === "needs-edit"
         ? { label: "提交审核", status: "pending" as ReviewStatus }
         : null;
@@ -104,15 +105,32 @@ export function ReviewActions({
         })
       });
 
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            error?: string;
+            pack?: {
+              status?: ReviewStatus;
+            } | null;
+            nextWorkflowPath?: string | null;
+          }
+        | null;
+
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as {
-          error?: string;
-        } | null;
         setMessage(payload?.error ?? "审核写回失败");
         return;
       }
 
-      setMessage(`已更新为 ${status}`);
+      const nextStatus = payload?.pack?.status ?? status;
+      const statusLabel = reviewStatusLabels[nextStatus] ?? nextStatus;
+
+      if (nextStatus === "approved") {
+        setMessage("已通过审核，正在进入内容制作页...");
+        router.push((payload?.nextWorkflowPath ?? `/production-studio/${packId}`) as Route);
+        router.refresh();
+        return;
+      }
+
+      setMessage(`审核状态已更新为：${statusLabel}`);
       router.refresh();
     });
   }

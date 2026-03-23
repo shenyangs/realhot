@@ -1,6 +1,6 @@
 export type PlatformRole = "super_admin";
 export type WorkspaceRole = "org_admin" | "operator" | "media_channel" | "approver";
-export type AppRole = PlatformRole | WorkspaceRole | "guest";
+export type AppRole = PlatformRole | WorkspaceRole | "guest" | "trial_guest";
 
 export interface ViewerUser {
   id: string;
@@ -48,5 +48,6 @@ export const roleLabels: Record<AppRole, string> = {
   operator: "热点策划",
   media_channel: "媒介渠道",
   approver: "审核者",
-  guest: "未登录"
+  guest: "未登录",
+  trial_guest: "试用访客（只读）"
 };

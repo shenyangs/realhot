@@ -7,7 +7,7 @@ import { getCurrentViewer } from "@/lib/auth/session";
 const roleExplainMap = {
   super_admin: {
     title: "超级管理员",
-    body: "负责整个平台：用户、组织、邀请码、系统配置、问题排查与数据收口。"
+    body: "负责整个平台：用户、组织、邀请码、系统配置、问题排查与数据收口，同时默认拥有审核、制作与发布测试权限。"
   },
   org_admin: {
     title: "组织管理员",
@@ -24,6 +24,10 @@ const roleExplainMap = {
   approver: {
     title: "审核者",
     body: "负责审核通过/退回、风险把关和是否允许导出或进入发布。"
+  },
+  trial_guest: {
+    title: "试用访客（只读）",
+    body: "可浏览首页与热点机会，用于演示产品能力；不具备转选题、审核、制作、发布等执行权限。"
   },
   guest: {
     title: "未登录",
@@ -89,10 +93,12 @@ export default async function AccountPage() {
             <div>
               <span>热点与策划</span>
               <strong>
-                {viewer.effectiveRole === "approver"
+                {viewer.effectiveRole === "trial_guest"
+                  ? "仅可浏览首页与热点机会"
+                  : viewer.effectiveRole === "approver"
                   ? "可查看与审核"
                   : viewer.effectiveRole === "super_admin"
-                    ? "可全局查看"
+                    ? "可全局查看、审核与制作"
                     : "可查看并参与执行"}
               </strong>
             </div>

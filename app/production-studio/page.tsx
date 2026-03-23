@@ -3,6 +3,8 @@ import { EmptyStateCard } from "@/components/empty-state-card";
 import { OneClickProductionButton } from "@/components/one-click-production-button";
 import { PageHero } from "@/components/page-hero";
 import { getBrandStrategyPack, getReviewQueue } from "@/lib/data";
+import { getAiRoutingConfig } from "@/lib/services/ai-routing-config";
+import { resolveFeatureProviderConfig } from "@/lib/services/model-router";
 import { listProductionJobs } from "@/lib/services/production-studio";
 
 function jobStatusLabel(status?: string) {
@@ -38,7 +40,13 @@ function jobStatusTone(status?: string) {
 }
 
 export default async function ProductionStudioPage() {
-  const [brand, packs, jobs] = await Promise.all([getBrandStrategyPack(), getReviewQueue(), listProductionJobs()]);
+  const [brand, packs, jobs, aiRoutingConfig] = await Promise.all([
+    getBrandStrategyPack(),
+    getReviewQueue(),
+    listProductionJobs(),
+    getAiRoutingConfig()
+  ]);
+  const productionRoute = resolveFeatureProviderConfig("production-generation", aiRoutingConfig);
 
   const latestJobByPack = new Map<string, (typeof jobs)[number]>();
 
@@ -56,30 +64,30 @@ export default async function ProductionStudioPage() {
         actions={
           <>
             <Link className="buttonLike primaryButton" href="/review">
-              回到选题详情台
+              回审核台
             </Link>
             <Link className="buttonLike subtleButton" href="/publish">
-              查看发布执行台
+              去发布中心
             </Link>
           </>
         }
         context={brand.name}
-        description="审核通过后可一键生成图文、视频、口播与字幕，再在本页完成最终微调。"
-        eyebrow="内容深度制作"
+        description="这里处理通过审核后的方案，把内容做成最终稿，再推入发布。"
+        eyebrow="内容制作"
         facts={[
           { label: "可执行选题", value: `${approvedPacks.length} 条` },
           { label: "已制作", value: `${jobs.filter((job) => job.status === "completed").length} 条` },
           { label: "制作失败", value: `${jobs.filter((job) => job.status === "failed").length} 条` },
           { label: "模式", value: "可演示流水线" }
         ]}
-        title="最终热点运营平台"
+        title="把通过的方案做成最终稿"
       />
 
       <section className="panel">
         <div className="panelHeader sectionTitle">
           <div>
-            <p className="eyebrow">一键制作入口</p>
-            <h3>按选题进入深度制作</h3>
+            <p className="eyebrow">制作入口</p>
+            <h3>从已通过的选题开始做成稿</h3>
           </div>
         </div>
 
@@ -118,6 +126,8 @@ export default async function ProductionStudioPage() {
                     compact
                     disabled={pack.status !== "approved"}
                     disabledReason="当前选题未通过审核，不能执行一键制作。"
+                    defaultModel={productionRoute.model}
+                    defaultProvider={productionRoute.provider}
                     packId={pack.id}
                   />
                 </article>
@@ -126,9 +136,9 @@ export default async function ProductionStudioPage() {
           </div>
         ) : (
           <EmptyStateCard
-            actionLabel="去热点看板补题"
+            actionLabel="去热点机会补题"
             description="当前没有选题。先生成选题包，再来做一键制作。"
-            eyebrow="内容深度制作"
+            eyebrow="内容制作"
             href="/hotspots"
             title="暂无可制作选题"
           />

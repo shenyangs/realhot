@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { WORKSPACE_PLAN_OPTIONS, WorkspacePlanType } from "@/lib/auth/workspace-plans";
 
 function normalizeSlug(value: string) {
   return value
@@ -16,7 +17,7 @@ export function AdminWorkspaceCreateForm() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
-  const [planType, setPlanType] = useState("trial");
+  const [planType, setPlanType] = useState<WorkspacePlanType>("trial");
   const [status, setStatus] = useState("active");
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -85,22 +86,23 @@ export function AdminWorkspaceCreateForm() {
           />
         </label>
         <label className="field fieldCompact">
-          <span>Slug</span>
+          <span>组织标识</span>
           <input
             disabled={isPending}
             onChange={(event) => setSlug(normalizeSlug(event.target.value))}
-            placeholder="例如 sam-studio"
+            placeholder="用于链接和系统识别，例如 sam-studio"
             value={slug}
           />
         </label>
         <label className="field fieldCompact">
           <span>套餐</span>
-          <input
-            disabled={isPending}
-            onChange={(event) => setPlanType(event.target.value)}
-            placeholder="trial / pro / enterprise"
-            value={planType}
-          />
+          <select disabled={isPending} onChange={(event) => setPlanType(event.target.value as WorkspacePlanType)} value={planType}>
+            {WORKSPACE_PLAN_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
       <label className="field fieldCompact">

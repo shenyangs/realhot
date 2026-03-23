@@ -77,8 +77,6 @@ function buildPromptPlaceholder(input: {
 interface PromptSuggestionState {
   prompts: string[];
   summary: string;
-  provider?: string;
-  model?: string;
 }
 
 export function ReviewEditor({
@@ -321,10 +319,6 @@ export function ReviewEditor({
               ok?: boolean;
               prompts?: string[];
               summary?: string;
-              route?: {
-                provider?: string;
-                model?: string;
-              };
               error?: string;
             }
           | null;
@@ -336,9 +330,7 @@ export function ReviewEditor({
 
         setPromptSuggestions({
           prompts: payload.prompts,
-          summary: payload.summary ?? "",
-          provider: payload.route?.provider,
-          model: payload.route?.model
+          summary: payload.summary ?? ""
         });
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
@@ -399,10 +391,6 @@ export function ReviewEditor({
             ok?: boolean;
             prompts?: string[];
             summary?: string;
-            route?: {
-              provider?: string;
-              model?: string;
-            };
             error?: string;
           }
         | null;
@@ -414,9 +402,7 @@ export function ReviewEditor({
 
       setPromptSuggestions({
         prompts: payload.prompts,
-        summary: payload.summary ?? "",
-        provider: payload.route?.provider,
-        model: payload.route?.model
+        summary: payload.summary ?? ""
       });
     } catch (error) {
       setPromptSuggestionsError(error instanceof Error ? error.message : "改稿提示生成失败");
@@ -475,7 +461,7 @@ export function ReviewEditor({
         return;
       }
 
-      const provider = payload.route?.provider ?? "unknown";
+      const provider = "AI 助手";
       const summary = payload.changeSummary ?? "已生成一轮改稿结果。";
       const timestamp = new Date().toISOString();
 
@@ -680,11 +666,6 @@ export function ReviewEditor({
             </button>
           ))}
         </div>
-        {promptSuggestions.provider ? (
-          <p className="muted">
-            当前提示模型：{promptSuggestions.provider} · {promptSuggestions.model ?? "默认模型"}
-          </p>
-        ) : null}
         {promptSuggestionsError ? <p className="muted">{promptSuggestionsError}</p> : null}
 
         <label className="field">

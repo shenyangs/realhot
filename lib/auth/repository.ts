@@ -6,6 +6,7 @@ import { APP_SESSION_TTL_SECONDS, getSessionCookieOptions } from "@/lib/auth/loc
 import { hashPassword, verifyStoredPassword } from "@/lib/auth/passwords";
 import { getCurrentViewer, sessionCookieNames } from "@/lib/auth/session";
 import { ManagedAccountSummary, ViewerUser, ViewerWorkspace, WorkspaceRole } from "@/lib/auth/types";
+import { requireWorkspacePlanType } from "@/lib/auth/workspace-plans";
 import { readLocalDataStore, updateLocalDataStore } from "@/lib/data/local-store";
 import { getSupabaseClient, getSupabaseServerClient } from "@/lib/supabase/client";
 
@@ -1413,7 +1414,7 @@ export async function createWorkspace(input: {
   const viewer = await getCurrentViewer();
   const name = input.name.trim();
   const slug = input.slug.trim().toLowerCase();
-  const planType = input.planType?.trim() || "trial";
+  const planType = input.planType?.trim() ? requireWorkspacePlanType(input.planType) : "trial";
   const status = input.status?.trim() || "active";
 
   if (!name) {
@@ -1540,7 +1541,7 @@ export async function updateWorkspace(input: {
               ...item,
               name: input.name?.trim() || item.name,
               slug: input.slug?.trim() || item.slug,
-              planType: input.planType?.trim() || item.planType,
+              planType: input.planType !== undefined ? requireWorkspacePlanType(input.planType) : item.planType,
               status: input.status?.trim() || item.status
             }
       )
@@ -1580,7 +1581,7 @@ export async function updateWorkspace(input: {
 
   if (input.name) payload.name = input.name.trim();
   if (input.slug) payload.slug = input.slug.trim();
-  if (input.planType) payload.plan_type = input.planType.trim();
+  if (input.planType !== undefined) payload.plan_type = requireWorkspacePlanType(input.planType);
   if (input.status) payload.status = input.status.trim();
 
   const { data, error } = await supabase

@@ -18,62 +18,67 @@ const baseNavItems: NavItem[] = [
   {
     href: "/",
     order: "01",
-    label: "工作台",
-    shortLabel: "总控",
-    description: "今天最该先处理什么"
+    label: "首页",
+    shortLabel: "先做什么",
+    description: "先看今天卡在哪一步，再决定先处理什么"
   },
   {
     href: "/hotspots",
     order: "02",
-    label: "热点看板",
-    shortLabel: "热点",
-    description: "先筛选，再判断，再转题"
+    label: "热点机会",
+    shortLabel: "找机会",
+    description: "先筛机会，再决定哪些值得转成选题包"
   },
   {
     href: "/review",
     order: "03",
-    label: "选题详情台",
-    shortLabel: "选题",
-    description: "按顺序判断、改稿、提交"
+    label: "审核台",
+    shortLabel: "做判断",
+    description: "审核选题方向，判断是否进入内容制作"
   },
   {
     href: "/production-studio",
     order: "04",
-    label: "内容深度制作",
-    shortLabel: "制作",
-    description: "一键生成后统一微调"
+    label: "内容制作",
+    shortLabel: "做成稿",
+    description: "把通过审核的方案做成最终可发布内容"
   },
   {
     href: "/publish",
     order: "05",
-    label: "发布执行台",
-    shortLabel: "发布",
-    description: "查看运行状态与失败诊断"
+    label: "发布中心",
+    shortLabel: "去发布",
+    description: "安排排期、执行发布并查看结果"
   },
   {
     href: "/brands",
     order: "06",
-    label: "品牌系统",
-    shortLabel: "品牌",
-    description: "统一定位、语调边界与传播主题"
+    label: "品牌底盘",
+    shortLabel: "定规则",
+    description: "统一品牌定位、表达边界和传播主题"
   }
 ];
 
+const trialNavItems: NavItem[] = baseNavItems.filter((item) => item.href === "/" || item.href === "/hotspots");
+
 export function Sidebar({ viewer }: { viewer: ViewerContext }) {
   const pathname = usePathname();
-  const navItems = viewer.isPlatformAdmin
-    ? [
-        ...baseNavItems,
-        {
-          href: "/admin" as Route,
-          order: "07",
-          label: "平台后台",
-          shortLabel: "管理",
-          description: "用户、组织、日志与系统配置",
-          matchPrefixes: ["/admin"]
-        }
-      ]
-    : baseNavItems;
+  const isTrial = viewer.effectiveRole === "trial_guest";
+  const navItems = isTrial
+    ? trialNavItems
+    : viewer.isPlatformAdmin
+      ? [
+          ...baseNavItems,
+          {
+            href: "/admin" as Route,
+            order: "07",
+            label: "平台后台",
+            shortLabel: "管理",
+            description: "用户、组织、日志与系统配置",
+            matchPrefixes: ["/admin"]
+          }
+        ]
+      : baseNavItems;
 
   function isItemActive(item: NavItem) {
     if (item.href === "/") {
@@ -97,13 +102,15 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
     <aside className="sidebar">
       <div className="sidebarInner">
         <div className="sidebarBrand">
-          <span className="sidebarKicker">Brand OS</span>
+          <span className="sidebarKicker">内容生产流程</span>
           <Link className="brandLink" href="/">
-            热点运营平台
+            品牌内容工作台
           </Link>
           <div className="sidebarBrandMeta">
             <span className="tag">{viewer.currentWorkspace?.name ?? "平台视角"}</span>
-            <span className="tag">{viewer.mode === "demo" ? "Demo" : "Live"}</span>
+            <span className={`tag ${viewer.mode === "demo" ? "" : "tag-live"}`}>
+              {viewer.mode === "demo" ? "Demo" : "实时环境"}
+            </span>
           </div>
         </div>
 
@@ -126,6 +133,7 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
                     <span className="navCardMeta">{item.shortLabel}</span>
                   </div>
                   <strong>{item.label}</strong>
+                  <span>{item.description}</span>
                 </Link>
               );
             })}
@@ -138,7 +146,9 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
             <span className="sidebarLabel">{activeItem.label}</span>
           </div>
           <div className="sidebarContextMeta">
-            <small className="muted">{viewer.isPlatformAdmin ? "平台管理员" : "业务工作台"}</small>
+            <small className="muted">
+              {viewer.isPlatformAdmin ? "平台管理员" : isTrial ? "试用访客（只读）" : "业务工作台"}
+            </small>
             <small className="muted">{activeItem.description}</small>
           </div>
         </div>

@@ -59,15 +59,7 @@ function resolveRouteLabel(route: BrandAutofillRoute): string {
     return "本地草稿";
   }
 
-  if (route.provider === "gemini") {
-    return "Gemini 深搜";
-  }
-
-  if (route.provider === "minimax") {
-    return "MiniMax";
-  }
-
-  return route.provider;
+  return "AI 检索引擎";
 }
 
 export function BrandAutofillPanel({
@@ -239,7 +231,7 @@ export function BrandAutofillPanel({
                 查看接入表单
               </Link>
               <Link className="buttonLike subtleButton" href="/brands">
-                查看品牌系统
+                查看品牌底盘
               </Link>
             </div>
           ) : null}
