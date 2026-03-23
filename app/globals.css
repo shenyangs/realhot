@@ -1672,6 +1672,36 @@ strong {
   gap: 0.5rem;
 }
 
+.reviewLeanTaskRow {
+  padding: 0.85rem 0.9rem;
+}
+
+.reviewLeanTaskMeta {
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.reviewDecisionSurface {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.reviewDecisionStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.reviewDangerZone {
+  margin-top: 0.2rem;
+  padding: 0.9rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  background: rgba(250, 249, 245, 0.72);
+}
+
 .reviewContextLine {
   display: flex;
   flex-wrap: wrap;
@@ -1771,6 +1801,46 @@ strong {
   align-items: start;
 }
 
+.reviewClearLayout {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.84fr) minmax(0, 1.5fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.reviewClearQueue,
+.reviewClearMain {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.reviewFlowGuide {
+  padding-top: 1rem;
+}
+
+.reviewFlowSteps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.reviewFlowStepCard {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.reviewFlowStepCard strong {
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
 .reviewQueueColumn,
 .reviewEditorColumn,
 .reviewActionColumn {
@@ -1791,6 +1861,21 @@ strong {
 
 .reviewContextFacts {
   margin-top: 0;
+}
+
+.reviewCurrentTitle {
+  margin: 0;
+  font-size: 1.36rem;
+  line-height: 1.42;
+  letter-spacing: -0.02em;
+}
+
+.reviewCurrentHint {
+  margin: 0;
+}
+
+.reviewContextMiniFacts {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .reviewContextNarrative {
@@ -2386,6 +2471,7 @@ strong {
   }
 
   .reviewDeskLayout,
+  .reviewClearLayout,
   .dashboardSplit,
   .publishDeskLayout,
   .pageHeroWithVisual .pageHeroGrid,
@@ -2472,6 +2558,10 @@ strong {
   .reviewTaskRowMeta {
     align-items: flex-start;
     min-width: 0;
+  }
+
+  .reviewFlowSteps {
+    grid-template-columns: 1fr;
   }
 
   .publishPackHeader {

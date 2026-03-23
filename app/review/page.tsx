@@ -1,12 +1,12 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { EmptyStateCard } from "@/components/empty-state-card";
+import { OneClickProductionButton } from "@/components/one-click-production-button";
 import { PackDeleteButton } from "@/components/pack-delete-button";
 import { PageHero } from "@/components/page-hero";
 import { PublishActions } from "@/components/publish-actions";
 import { ReviewActions } from "@/components/review-actions";
 import { ReviewEditor } from "@/components/review-editor";
-import { OneClickProductionButton } from "@/components/one-click-production-button";
 import { getBrandStrategyPack, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
 import type { ContentTrack, Platform, ReviewStatus } from "@/lib/domain/types";
 
@@ -28,31 +28,6 @@ const reviewStatusLabels: Record<ReviewStatus, string> = {
   "needs-edit": "待改稿"
 };
 
-const statusFocusCopy: Record<
-  ReviewStatus,
-  {
-    eyebrow: string;
-    title: string;
-    description: string;
-  }
-> = {
-  pending: {
-    eyebrow: "现在要做什么",
-    title: "先做审核判断",
-    description: "先确认这版能不能发，再决定通过、退回或删除。"
-  },
-  approved: {
-    eyebrow: "现在要做什么",
-    title: "这题可以进入发布",
-    description: "可以安排发布；如果这题不需要了，也能直接删除。"
-  },
-  "needs-edit": {
-    eyebrow: "现在要做什么",
-    title: "这题先改再审",
-    description: "先把问题改清楚，再恢复到待审核。"
-  }
-};
-
 function getPackStatusTone(status: ReviewStatus) {
   if (status === "approved") {
     return "positive";
@@ -71,8 +46,6 @@ type SearchParams = Promise<{
   platform?: Platform;
   status?: ReviewStatus | "all";
   q?: string;
-  owner?: string;
-  sort?: "priority" | "deadline" | "owner";
 }>;
 
 function getPublishWindowRank(value?: string) {
@@ -111,23 +84,9 @@ function getPriorityLevel(input: {
   return "低";
 }
 
-function getPriorityWeight(label: string) {
-  if (label === "高") {
-    return 0;
-  }
-
-  if (label === "中") {
-    return 1;
-  }
-
-  return 2;
-}
-
 function buildReviewHref(input: {
   status?: string;
   q?: string;
-  owner?: string;
-  sort?: string;
   pack?: string;
   variant?: string;
   platform?: string;
@@ -140,14 +99,6 @@ function buildReviewHref(input: {
 
   if (input.q) {
     params.set("q", input.q);
-  }
-
-  if (input.owner && input.owner !== "all") {
-    params.set("owner", input.owner);
-  }
-
-  if (input.sort && input.sort !== "priority") {
-    params.set("sort", input.sort);
   }
 
   if (input.pack) {
@@ -166,6 +117,18 @@ function buildReviewHref(input: {
   return (query ? `/review?${query}` : "/review") as Route;
 }
 
+function getNextActionHint(status: ReviewStatus) {
+  if (status === "approved") {
+    return "已通过：可以直接一键制作或进入发布执行。";
+  }
+
+  if (status === "needs-edit") {
+    return "待改稿：先在下方编辑区修改，再恢复待审核。";
+  }
+
+  return "待审核：确认可发性后，点“通过”或“退回修改”。";
+}
+
 export default async function ReviewPage({
   searchParams
 }: {
@@ -173,20 +136,12 @@ export default async function ReviewPage({
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const [brand, packs] = await Promise.all([getBrandStrategyPack(), getReviewQueue()]);
+
   const statusFilter = resolvedSearchParams?.status ?? "all";
   const searchQuery = resolvedSearchParams?.q?.trim() ?? "";
-  const ownerFilter = resolvedSearchParams?.owner?.trim() ?? "all";
-  const sortBy = resolvedSearchParams?.sort ?? "priority";
 
   const filteredPacks = packs
     .filter((pack) => (statusFilter === "all" ? true : pack.status === statusFilter))
-    .filter((pack) => {
-      if (ownerFilter === "all") {
-        return true;
-      }
-
-      return pack.reviewOwner === ownerFilter;
-    })
     .filter((pack) => {
       if (!searchQuery) {
         return true;
@@ -218,18 +173,17 @@ export default async function ReviewPage({
         variantCount: right.variants.length
       });
 
-      if (sortBy === "deadline") {
-        return getPublishWindowRank(leftPrimary?.publishWindow) - getPublishWindowRank(rightPrimary?.publishWindow);
+      if (leftPriority !== rightPriority) {
+        const weight = {
+          高: 0,
+          中: 1,
+          低: 2
+        };
+
+        return weight[leftPriority] - weight[rightPriority];
       }
 
-      if (sortBy === "owner") {
-        return left.reviewOwner.localeCompare(right.reviewOwner, "zh-CN");
-      }
-
-      return (
-        getPriorityWeight(leftPriority) - getPriorityWeight(rightPriority) ||
-        getPublishWindowRank(leftPrimary?.publishWindow) - getPublishWindowRank(rightPrimary?.publishWindow)
-      );
+      return getPublishWindowRank(leftPrimary?.publishWindow) - getPublishWindowRank(rightPrimary?.publishWindow);
     });
 
   const visiblePacks = filteredPacks;
@@ -280,7 +234,6 @@ export default async function ReviewPage({
     publishWindow: activeVariant?.publishWindow,
     variantCount: activePack.variants.length
   });
-  const activeDraftCount = activePack.variants.length;
 
   const counts = {
     all: packs.length,
@@ -290,54 +243,69 @@ export default async function ReviewPage({
   };
 
   return (
-    <div className="page reviewFlatPage reviewDeskPage">
+    <div className="page reviewClearPage">
       <PageHero
         actions={
           <>
             <Link className="buttonLike primaryButton" href="/publish">
-              进入发布执行台
+              去发布执行台
             </Link>
-            <Link className="buttonLike subtleButton" href="#review-editor">
-              直接改稿
+            <Link className="buttonLike subtleButton" href="/">
+              回工作台
             </Link>
-            <Link className="buttonLike subtleButton" href={`/production-studio/${activePack.id}`}>
-              内容深度制作
+            <Link className="buttonLike subtleButton" href="#step-3">
+              直接做审核决策
             </Link>
           </>
         }
-        description="先选题，再看当前稿，再做审核决定。"
-        eyebrow="编辑台"
+        context={activeVariant?.title ?? activePack.whyNow}
+        description="按固定三步走：先选题，再改稿，最后做审核或发布决策。"
+        eyebrow="选题详情台"
         facts={[
           { label: "当前品牌", value: brand.name },
           { label: "当前状态", value: reviewStatusLabels[activePack.status] },
-          { label: "负责人", value: activePack.reviewOwner },
-          { label: "发布窗口", value: activeVariant?.publishWindow ?? "未设置" }
+          { label: "当前负责人", value: activePack.reviewOwner },
+          { label: "下一步", value: activePack.status === "approved" ? "发布或制作" : "先做审核" }
         ]}
-        context={activeVariant?.title ?? activePack.whyNow}
-        title="选题详情台"
+        title="先选题，再改稿，再决策"
       />
 
-      <div className="reviewDeskLayout">
-        <aside className="reviewQueueColumn">
-          <section className="panel reviewRailSection" id="review-tasks">
+      <section className="panel reviewFlowGuide">
+        <div className="reviewFlowSteps">
+          <article className="reviewFlowStepCard">
+            <span className="stepBadge">步骤 1</span>
+            <strong>选择今天要处理的题</strong>
+            <p className="muted">先在左侧列表选中一条，不要同时处理多条。</p>
+          </article>
+          <article className="reviewFlowStepCard">
+            <span className="stepBadge">步骤 2</span>
+            <strong>确认并修改当前稿</strong>
+            <p className="muted">在中间切平台版本并编辑正文，保证可发性。</p>
+          </article>
+          <article className="reviewFlowStepCard">
+            <span className="stepBadge">步骤 3</span>
+            <strong>做审核决定</strong>
+            <p className="muted">通过后可一键制作与发布；不通过就退回改稿。</p>
+          </article>
+        </div>
+      </section>
+
+      <div className="reviewClearLayout">
+        <aside className="reviewClearQueue" id="step-1">
+          <section className="panel reviewRailSection">
             <div className="reviewSimpleHeader">
               <div>
-                <p className="eyebrow">选题列表</p>
-                <h3>先选今天要处理的题</h3>
+                <p className="eyebrow">步骤 1</p>
+                <h3>选择选题</h3>
               </div>
-              <span className="muted">当前筛到 {visiblePacks.length} 条</span>
+              <span className="muted">共 {visiblePacks.length} 条</span>
             </div>
 
             <div className="reviewFilterRow">
               <Link
                 aria-current={statusFilter === "all" ? "page" : undefined}
                 className={`filterChip ${statusFilter === "all" ? "filterChipActive" : ""}`}
-                href={buildReviewHref({
-                  status: "all",
-                  q: searchQuery,
-                  owner: ownerFilter,
-                  sort: sortBy
-                })}
+                href={buildReviewHref({ status: "all", q: searchQuery })}
               >
                 全部
                 <strong>{counts.all}</strong>
@@ -345,12 +313,7 @@ export default async function ReviewPage({
               <Link
                 aria-current={statusFilter === "pending" ? "page" : undefined}
                 className={`filterChip ${statusFilter === "pending" ? "filterChipActive" : ""}`}
-                href={buildReviewHref({
-                  status: "pending",
-                  q: searchQuery,
-                  owner: ownerFilter,
-                  sort: sortBy
-                })}
+                href={buildReviewHref({ status: "pending", q: searchQuery })}
               >
                 待审核
                 <strong>{counts.pending}</strong>
@@ -358,12 +321,7 @@ export default async function ReviewPage({
               <Link
                 aria-current={statusFilter === "needs-edit" ? "page" : undefined}
                 className={`filterChip ${statusFilter === "needs-edit" ? "filterChipActive" : ""}`}
-                href={buildReviewHref({
-                  status: "needs-edit",
-                  q: searchQuery,
-                  owner: ownerFilter,
-                  sort: sortBy
-                })}
+                href={buildReviewHref({ status: "needs-edit", q: searchQuery })}
               >
                 待改稿
                 <strong>{counts["needs-edit"]}</strong>
@@ -371,12 +329,7 @@ export default async function ReviewPage({
               <Link
                 aria-current={statusFilter === "approved" ? "page" : undefined}
                 className={`filterChip ${statusFilter === "approved" ? "filterChipActive" : ""}`}
-                href={buildReviewHref({
-                  status: "approved",
-                  q: searchQuery,
-                  owner: ownerFilter,
-                  sort: sortBy
-                })}
+                href={buildReviewHref({ status: "approved", q: searchQuery })}
               >
                 已通过
                 <strong>{counts.approved}</strong>
@@ -387,16 +340,12 @@ export default async function ReviewPage({
               <input name="status" type="hidden" value={statusFilter} />
               <label className="field reviewSearchField">
                 <span>搜索选题</span>
-                <input
-                  defaultValue={searchQuery}
-                  name="q"
-                  placeholder="按标题、切入角度、负责人搜索"
-                />
+                <input defaultValue={searchQuery} name="q" placeholder="按标题、负责人或角度搜索" />
               </label>
               <div className="buttonRow reviewSearchActionsRow">
                 <button type="submit">应用筛选</button>
                 <Link className="buttonLike subtleButton" href={`/review?status=${statusFilter}`}>
-                  清空条件
+                  清空
                 </Link>
               </div>
             </form>
@@ -409,12 +358,10 @@ export default async function ReviewPage({
 
                   return (
                     <Link
-                      className={`reviewTaskRow ${isActive ? "reviewTaskRowActive" : ""}`}
+                      className={`reviewTaskRow reviewLeanTaskRow ${isActive ? "reviewTaskRowActive" : ""}`}
                       href={buildReviewHref({
                         status: statusFilter,
                         q: searchQuery,
-                        owner: ownerFilter,
-                        sort: sortBy,
                         pack: pack.id,
                         variant: defaultVariant?.id,
                         platform: defaultVariant?.platforms[0]
@@ -423,20 +370,17 @@ export default async function ReviewPage({
                     >
                       <div className="reviewTaskRowMain">
                         <strong className="reviewTaskTitle">{defaultVariant?.title ?? pack.whyNow}</strong>
-                        <p className="muted reviewTaskSummary">{pack.whyUs}</p>
+                        <p className="muted reviewTaskSummary">
+                          {pack.reviewOwner} · {defaultVariant?.publishWindow ?? "未设置发布时间"}
+                        </p>
                       </div>
-                      <div className="reviewTaskRowMeta">
-                        <span className={`pill pill-${getPackStatusTone(pack.status)}`}>
-                          {reviewStatusLabels[pack.status]}
-                        </span>
-                        <span className="tag">
-                          优先级 {getPriorityLevel({
-                            status: pack.status,
-                            publishWindow: defaultVariant?.publishWindow,
-                            variantCount: pack.variants.length
-                          })}
-                        </span>
-                        <small className="muted">{pack.reviewOwner}</small>
+                      <div className="reviewTaskRowMeta reviewLeanTaskMeta">
+                        <span className={`pill pill-${getPackStatusTone(pack.status)}`}>{reviewStatusLabels[pack.status]}</span>
+                        <small className="muted">优先级 {getPriorityLevel({
+                          status: pack.status,
+                          publishWindow: defaultVariant?.publishWindow,
+                          variantCount: pack.variants.length
+                        })}</small>
                       </div>
                     </Link>
                   );
@@ -454,19 +398,22 @@ export default async function ReviewPage({
           </section>
         </aside>
 
-        <main className="reviewEditorColumn">
-          <section className="panel reviewContextPanel" id="review-context">
+        <main className="reviewClearMain">
+          <section className="panel reviewContextPanel" id="step-2">
             <div className="reviewSimpleHeader">
               <div>
-                <p className="eyebrow">当前选题</p>
-                <h3>{activeVariant?.title ?? activePack.whyNow}</h3>
+                <p className="eyebrow">步骤 2</p>
+                <h3>查看并确认当前稿</h3>
               </div>
               <span className={`pill pill-${getPackStatusTone(activePack.status)}`}>
                 {reviewStatusLabels[activePack.status]}
               </span>
             </div>
 
-            <div className="pageHeroFacts reviewContextFacts">
+            <h2 className="reviewCurrentTitle">{activeVariant?.title ?? activePack.whyNow}</h2>
+            <p className="muted reviewCurrentHint">{getNextActionHint(activePack.status)}</p>
+
+            <div className="definitionList compactDefinitionList reviewContextMiniFacts">
               <div>
                 <span>优先级</span>
                 <strong>{priorityLabel}</strong>
@@ -480,22 +427,14 @@ export default async function ReviewPage({
                 <strong>{activeVariant?.publishWindow ?? "未设置"}</strong>
               </div>
               <div>
-                <span>当前平台</span>
-                <strong>{activeDraft ? platformLabels[activeDraft.platform] : "未选择"}</strong>
-              </div>
-              <div>
-                <span>版本数</span>
-                <strong>{activeDraftCount} 条</strong>
-              </div>
-              <div>
                 <span>出口状态</span>
                 <strong>排队 {queuedCount} / 发布 {publishedCount} / 失败 {failedCount}</strong>
               </div>
             </div>
 
-            <div className="reviewContextCopy reviewContextNarrative">
+            <div className="reviewContextNarrative reviewContextCopy">
               <p><strong>为什么现在做：</strong>{activePack.whyNow}</p>
-              <p><strong>为什么和品牌相关：</strong>{activePack.whyUs}</p>
+              <p><strong>为什么与品牌相关：</strong>{activePack.whyUs}</p>
             </div>
 
             <div className="reviewPlatformStrip">
@@ -510,8 +449,6 @@ export default async function ReviewPage({
                     href={buildReviewHref({
                       status: statusFilter,
                       q: searchQuery,
-                      owner: ownerFilter,
-                      sort: sortBy,
                       pack: activePack.id,
                       variant: draft.variant.id,
                       platform: draft.platform
@@ -529,8 +466,8 @@ export default async function ReviewPage({
           <section className="panel reviewEditorSurface" id="review-editor">
             <div className="reviewSimpleHeader">
               <div>
-                <p className="eyebrow">编辑区</p>
-                <h3>当前版本</h3>
+                <p className="eyebrow">步骤 2（继续）</p>
+                <h3>修改当前版本</h3>
               </div>
             </div>
 
@@ -553,84 +490,49 @@ export default async function ReviewPage({
               />
             ) : null}
           </section>
+
+          <section className="panel reviewDecisionSurface" id="step-3">
+            <div className="reviewSimpleHeader">
+              <div>
+                <p className="eyebrow">步骤 3</p>
+                <h3>审核与发布决策</h3>
+              </div>
+              <span className={`pill pill-${getPackStatusTone(activePack.status)}`}>
+                {reviewStatusLabels[activePack.status]}
+              </span>
+            </div>
+
+            <p className="muted">{getNextActionHint(activePack.status)}</p>
+
+            {activePack.status === "approved" ? (
+              <div className="reviewDecisionStack">
+                <OneClickProductionButton packId={activePack.id} />
+                <PublishActions
+                  failedCount={failedCount}
+                  packId={activePack.id}
+                  publishedCount={publishedCount}
+                  queuedCount={queuedCount}
+                />
+              </div>
+            ) : (
+              <ReviewActions
+                currentNote={activePack.reviewNote}
+                currentStatus={activePack.status}
+                defaultReviewer={activePack.reviewedBy ?? activePack.reviewOwner}
+                packId={activePack.id}
+              />
+            )}
+
+            <div className="reviewDangerZone">
+              <div className="listItem">
+                <strong>不需要这条选题？</strong>
+                <span className="pill pill-warning">谨慎操作</span>
+              </div>
+              <p className="muted">删除后会一起清空它关联的待发布任务。</p>
+              <PackDeleteButton packId={activePack.id} redirectHref="/review" />
+            </div>
+          </section>
         </main>
-
-        <aside className="reviewActionColumn" id="review-actions">
-          <section className="panel actionFocusPanel reviewActionPanel">
-            <p className="eyebrow">{statusFocusCopy[activePack.status].eyebrow}</p>
-            <h3>{statusFocusCopy[activePack.status].title}</h3>
-            <p className="muted">{statusFocusCopy[activePack.status].description}</p>
-          </section>
-
-          <section className="panel helperPanel reviewDecisionPanel">
-            <div className="listItem">
-              <strong>当前进度</strong>
-              <span className="pill pill-neutral">{reviewStatusLabels[activePack.status]}</span>
-            </div>
-            <div className="definitionList compactDefinitionList">
-              <div>
-                <span>审核优先级</span>
-                <strong>{priorityLabel}</strong>
-              </div>
-              <div>
-                <span>排队中</span>
-                <strong>{queuedCount} 条</strong>
-              </div>
-              <div>
-                <span>已发布</span>
-                <strong>{publishedCount} 条</strong>
-              </div>
-              <div>
-                <span>失败</span>
-                <strong>{failedCount} 条</strong>
-              </div>
-            </div>
-          </section>
-
-          <section className="panel helperPanel reviewNextStepBlock">
-            <OneClickProductionButton
-              disabled={activePack.status !== "approved"}
-              disabledReason="选题通过后，这里会启用一键制作图文+视频。"
-              packId={activePack.id}
-            />
-          </section>
-
-          {activePack.status === "approved" ? (
-            <PublishActions
-              failedCount={failedCount}
-              packId={activePack.id}
-              publishedCount={publishedCount}
-              queuedCount={queuedCount}
-            />
-          ) : (
-            <ReviewActions
-              currentNote={activePack.reviewNote}
-              currentStatus={activePack.status}
-              defaultReviewer={activePack.reviewedBy ?? activePack.reviewOwner}
-              packId={activePack.id}
-            />
-          )}
-
-          <section className="panel helperPanel reviewNextStepBlock">
-            <div className="listItem">
-              <strong>选题管理</strong>
-              <span className="pill pill-warning">谨慎操作</span>
-            </div>
-            <p className="muted">如果这题不再需要，可以直接删除；关联的待发布任务也会一起移除。</p>
-            <PackDeleteButton packId={activePack.id} redirectHref="/review" />
-          </section>
-
-          <section className="panel helperPanel reviewNextStepBlock">
-            <strong>接下来怎么处理</strong>
-            <p className="muted">
-              {activePack.status === "approved"
-                ? "可进入发布安排。"
-                : activePack.status === "needs-edit"
-                  ? "调整后再进入审核。"
-                  : "当前版本等待审核确认。"}
-            </p>
-          </section>
-        </aside>
       </div>
     </div>
   );
