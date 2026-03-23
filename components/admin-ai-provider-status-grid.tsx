@@ -14,7 +14,7 @@ interface ProviderTestState {
   message: string;
 }
 
-const HIGH_LATENCY_MS = 4000;
+const HIGH_LATENCY_MS = 6000;
 
 const providerLabels: Record<AiProvider, string> = {
   gemini: "Gemini",

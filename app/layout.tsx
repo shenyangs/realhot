@@ -7,7 +7,12 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Brand Content OS",
-  description: "面向品牌团队的热点判断、选题推进、改稿审核与发布执行工作台。"
+  description: "面向品牌团队的热点判断、选题推进、改稿审核与发布执行工作台。",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: ["/icon.svg"],
+    apple: [{ url: "/apple-icon.svg", type: "image/svg+xml" }]
+  }
 };
 
 export const viewport: Viewport = {
