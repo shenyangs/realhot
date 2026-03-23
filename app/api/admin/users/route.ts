@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     displayName?: string;
     password?: string;
     workspaceId?: string;
-    role?: "org_admin" | "operator" | "approver";
+    role?: "org_admin" | "operator" | "media_channel" | "approver";
   };
 
   if (!body.role) {

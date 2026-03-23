@@ -13,6 +13,7 @@ interface AiRoutingConfigRow {
   id: string;
   default_provider: string;
   feature_overrides: unknown;
+  feature_model_overrides: unknown;
 }
 
 function isAiProvider(value: unknown): value is AiProvider {
@@ -38,6 +39,25 @@ function normalizeFeatureOverrides(value: unknown): Partial<Record<AiFeature, Ai
   return next;
 }
 
+function normalizeFeatureModelOverrides(value: unknown): Partial<Record<AiFeature, string>> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  const input = value as Record<string, unknown>;
+  const next: Partial<Record<AiFeature, string>> = {};
+
+  for (const feature of AI_FEATURES) {
+    const model = input[feature];
+
+    if (typeof model === "string" && model.trim()) {
+      next[feature] = model.trim();
+    }
+  }
+
+  return next;
+}
+
 export function normalizeAiRoutingConfig(value: unknown): AiRoutingConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {
@@ -51,7 +71,8 @@ export function normalizeAiRoutingConfig(value: unknown): AiRoutingConfig {
     defaultProvider: isAiProvider(input.defaultProvider)
       ? input.defaultProvider
       : DEFAULT_AI_ROUTING_CONFIG.defaultProvider,
-    featureProviderOverrides: normalizeFeatureOverrides(input.featureProviderOverrides)
+    featureProviderOverrides: normalizeFeatureOverrides(input.featureProviderOverrides),
+    featureModelOverrides: normalizeFeatureModelOverrides(input.featureModelOverrides)
   };
 }
 
@@ -62,6 +83,15 @@ function isMissingRelationError(error: unknown): boolean {
 
   const record = error as { code?: string };
   return record.code === "42P01";
+}
+
+function isMissingColumnError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const record = error as { code?: string };
+  return record.code === "42703";
 }
 
 async function getLocalConfig(): Promise<AiRoutingConfig> {
@@ -87,12 +117,46 @@ export async function getAiRoutingConfig(): Promise<AiRoutingConfig> {
 
   const { data, error } = await supabase
     .from("platform_ai_routing_configs")
-    .select("id, default_provider, feature_overrides")
+    .select("id, default_provider, feature_overrides, feature_model_overrides")
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle<AiRoutingConfigRow>();
 
   if (error) {
+    if (isMissingColumnError(error)) {
+      const legacy = await supabase
+        .from("platform_ai_routing_configs")
+        .select("id, default_provider, feature_overrides")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{
+          id: string;
+          default_provider: string;
+          feature_overrides: unknown;
+        }>();
+
+      if (legacy.error) {
+        if (isMissingRelationError(legacy.error)) {
+          return getLocalConfig();
+        }
+
+        return {
+          ...DEFAULT_AI_ROUTING_CONFIG
+        };
+      }
+
+      if (!legacy.data) {
+        return {
+          ...DEFAULT_AI_ROUTING_CONFIG
+        };
+      }
+
+      return normalizeAiRoutingConfig({
+        defaultProvider: legacy.data.default_provider,
+        featureProviderOverrides: legacy.data.feature_overrides
+      });
+    }
+
     if (isMissingRelationError(error)) {
       return getLocalConfig();
     }
@@ -110,7 +174,8 @@ export async function getAiRoutingConfig(): Promise<AiRoutingConfig> {
 
   return normalizeAiRoutingConfig({
     defaultProvider: data.default_provider,
-    featureProviderOverrides: data.feature_overrides
+    featureProviderOverrides: data.feature_overrides,
+    featureModelOverrides: data.feature_model_overrides
   });
 }
 
@@ -141,6 +206,7 @@ export async function updateAiRoutingConfig(
   const payload = {
     default_provider: next.defaultProvider,
     feature_overrides: next.featureProviderOverrides,
+    feature_model_overrides: next.featureModelOverrides,
     updated_by: options?.actorUserId ?? null,
     updated_at: new Date().toISOString()
   };
@@ -153,6 +219,36 @@ export async function updateAiRoutingConfig(
     : await supabase.from("platform_ai_routing_configs").insert(payload);
 
   if (writeResult.error) {
+    if (isMissingColumnError(writeResult.error)) {
+      if (Object.keys(next.featureModelOverrides).length > 0) {
+        throw new Error("数据库尚未升级 feature_model_overrides 字段，暂时不能保存模型覆写");
+      }
+
+      const legacyPayload = {
+        default_provider: next.defaultProvider,
+        feature_overrides: next.featureProviderOverrides,
+        updated_by: options?.actorUserId ?? null,
+        updated_at: new Date().toISOString()
+      };
+
+      const legacyWriteResult = existing?.id
+        ? await supabase
+            .from("platform_ai_routing_configs")
+            .update(legacyPayload)
+            .eq("id", existing.id)
+        : await supabase.from("platform_ai_routing_configs").insert(legacyPayload);
+
+      if (legacyWriteResult.error) {
+        if (isMissingRelationError(legacyWriteResult.error)) {
+          return setLocalConfig(next);
+        }
+
+        throw legacyWriteResult.error;
+      }
+
+      return next;
+    }
+
     if (isMissingRelationError(writeResult.error)) {
       return setLocalConfig(next);
     }
@@ -168,6 +264,14 @@ export function resolveProviderForFeature(
   feature: AiFeature
 ): AiProvider {
   return config.featureProviderOverrides[feature] ?? config.defaultProvider;
+}
+
+export function resolveModelOverrideForFeature(
+  config: AiRoutingConfig,
+  feature: AiFeature
+): string | undefined {
+  const model = config.featureModelOverrides[feature];
+  return typeof model === "string" && model.trim() ? model.trim() : undefined;
 }
 
 export function buildEffectiveFeatureRoutes(

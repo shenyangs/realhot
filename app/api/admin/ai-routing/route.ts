@@ -51,13 +51,15 @@ export async function PATCH(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
     defaultProvider?: string;
     featureProviderOverrides?: Record<string, string>;
+    featureModelOverrides?: Record<string, string>;
   };
 
   try {
     const current = await getAiRoutingConfig();
     const next = normalizeAiRoutingConfig({
       defaultProvider: body.defaultProvider ?? current.defaultProvider,
-      featureProviderOverrides: body.featureProviderOverrides ?? current.featureProviderOverrides
+      featureProviderOverrides: body.featureProviderOverrides ?? current.featureProviderOverrides,
+      featureModelOverrides: body.featureModelOverrides ?? current.featureModelOverrides
     });
     const config = await updateAiRoutingConfig(next, {
       actorUserId: viewer.user.id
@@ -71,7 +73,8 @@ export async function PATCH(request: NextRequest) {
       action: "platform.ai_routing_updated",
       payload: {
         defaultProvider: config.defaultProvider,
-        featureProviderOverrides: config.featureProviderOverrides
+        featureProviderOverrides: config.featureProviderOverrides,
+        featureModelOverrides: config.featureModelOverrides
       }
     });
 

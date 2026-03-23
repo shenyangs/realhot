@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
     email?: string;
     displayName?: string;
-    role?: "org_admin" | "operator" | "approver";
+    role?: "org_admin" | "operator" | "media_channel" | "approver";
   };
 
   if (!body.email || !body.role) {

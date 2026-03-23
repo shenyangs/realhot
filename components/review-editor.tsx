@@ -50,12 +50,36 @@ interface SuggestionState {
   provider: string;
 }
 
-const quickPrompts = [
-  "开头更抓人一点",
-  "更像创始人口吻",
-  "增加行业判断，不要像新闻摘要",
-  "压缩成更适合短视频口播的表达"
-];
+function buildPromptPlaceholder(input: {
+  platformLabel: string;
+  trackLabel: string;
+  angle: string;
+}) {
+  if (input.platformLabel.includes("视频号") || input.platformLabel.includes("抖音")) {
+    return "例如：压缩成长短句更清楚的口播稿，第一句先抛判断，减少书面表达。";
+  }
+
+  if (input.platformLabel.includes("公众号")) {
+    return "例如：把第一段改成更明确的行业判断，中间补一段为什么这和品牌有关，别像新闻转述。";
+  }
+
+  if (input.trackLabel.includes("观点")) {
+    return "例如：把观点立得更鲜明一些，先给结论，再展开判断和品牌方法。";
+  }
+
+  if (/创始人|CEO|负责人/.test(input.angle)) {
+    return "例如：把第一段写得更像创始人对行业趋势的判断，减少新闻转述感。";
+  }
+
+  return "例如：把开头写得更抓人，补一段行业判断，并把结尾改得更像品牌自己的观点。";
+}
+
+interface PromptSuggestionState {
+  prompts: string[];
+  summary: string;
+  provider?: string;
+  model?: string;
+}
 
 export function ReviewEditor({
   packId,
@@ -81,6 +105,12 @@ export function ReviewEditor({
   const [prompt, setPrompt] = useState("");
   const [message, setMessage] = useState("");
   const [suggestion, setSuggestion] = useState<SuggestionState | null>(null);
+  const [promptSuggestions, setPromptSuggestions] = useState<PromptSuggestionState>({
+    prompts: [],
+    summary: ""
+  });
+  const [isPromptSuggestionsLoading, setIsPromptSuggestionsLoading] = useState(false);
+  const [promptSuggestionsError, setPromptSuggestionsError] = useState("");
   const [changeLog, setChangeLog] = useState<ChangeLogItem[]>([]);
   const [saveState, setSaveState] = useState<"loading" | "saving" | "saved">("loading");
   const [lastSavedAt, setLastSavedAt] = useState<string>();
@@ -105,6 +135,15 @@ export function ReviewEditor({
         trackLabel
       }),
     [platformLabel, trackLabel]
+  );
+  const promptPlaceholder = useMemo(
+    () =>
+      buildPromptPlaceholder({
+        platformLabel,
+        trackLabel,
+        angle
+      }),
+    [angle, platformLabel, trackLabel]
   );
 
   const bodyStats = useMemo(() => {
@@ -248,6 +287,143 @@ export function ReviewEditor({
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [saveState]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setIsPromptSuggestionsLoading(true);
+      setPromptSuggestionsError("");
+
+      try {
+        const response = await fetch("/api/rewrite/prompt-suggestions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            title,
+            body,
+            coverHook,
+            angle,
+            platformLabel,
+            trackLabel,
+            whyNow,
+            whyUs,
+            brandName,
+            brandTone,
+            redLines
+          }),
+          signal: controller.signal
+        });
+
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              ok?: boolean;
+              prompts?: string[];
+              summary?: string;
+              route?: {
+                provider?: string;
+                model?: string;
+              };
+              error?: string;
+            }
+          | null;
+
+        if (!response.ok || !payload?.ok || !Array.isArray(payload.prompts)) {
+          setPromptSuggestionsError(payload?.error ?? "改稿提示生成失败");
+          return;
+        }
+
+        setPromptSuggestions({
+          prompts: payload.prompts,
+          summary: payload.summary ?? "",
+          provider: payload.route?.provider,
+          model: payload.route?.model
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
+        }
+
+        setPromptSuggestionsError(error instanceof Error ? error.message : "改稿提示生成失败");
+      } finally {
+        setIsPromptSuggestionsLoading(false);
+      }
+    }, 900);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [
+    angle,
+    body,
+    brandName,
+    brandTone,
+    coverHook,
+    platformLabel,
+    redLines,
+    title,
+    trackLabel,
+    whyNow,
+    whyUs
+  ]);
+
+  async function refreshPromptSuggestions() {
+    setPromptSuggestionsError("");
+    setIsPromptSuggestionsLoading(true);
+
+    try {
+      const response = await fetch("/api/rewrite/prompt-suggestions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          title,
+          body,
+          coverHook,
+          angle,
+          platformLabel,
+          trackLabel,
+          whyNow,
+          whyUs,
+          brandName,
+          brandTone,
+          redLines
+        })
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            ok?: boolean;
+            prompts?: string[];
+            summary?: string;
+            route?: {
+              provider?: string;
+              model?: string;
+            };
+            error?: string;
+          }
+        | null;
+
+      if (!response.ok || !payload?.ok || !Array.isArray(payload.prompts)) {
+        setPromptSuggestionsError(payload?.error ?? "改稿提示生成失败");
+        return;
+      }
+
+      setPromptSuggestions({
+        prompts: payload.prompts,
+        summary: payload.summary ?? "",
+        provider: payload.route?.provider,
+        model: payload.route?.model
+      });
+    } catch (error) {
+      setPromptSuggestionsError(error instanceof Error ? error.message : "改稿提示生成失败");
+    } finally {
+      setIsPromptSuggestionsLoading(false);
+    }
+  }
 
   function requestRewrite(requestText: string) {
     if (!requestText.trim()) {
@@ -394,7 +570,7 @@ export function ReviewEditor({
         <div className="buttonRow editorWorkbenchActions">
           {decisionAnchorId ? (
             <a className="buttonLike subtleButton" href={`#${decisionAnchorId}`}>
-              去提交审核
+              下一步：提交审核
             </a>
           ) : null}
           <button
@@ -473,8 +649,27 @@ export function ReviewEditor({
           </button>
         </div>
 
+        <div className="listItem">
+          <div>
+            <strong>AI 判断的改稿方向</strong>
+            <p className="muted">
+              {promptSuggestions.summary || "AI 会根据当前稿件自动判断本轮更值得优先修改什么。"}
+            </p>
+          </div>
+          <button
+            className="buttonLike subtleButton"
+            disabled={isPromptSuggestionsLoading}
+            onClick={() => {
+              void refreshPromptSuggestions();
+            }}
+            type="button"
+          >
+            {isPromptSuggestionsLoading ? "判断中..." : "刷新提示"}
+          </button>
+        </div>
+
         <div className="promptChips">
-          {quickPrompts.map((item) => (
+          {promptSuggestions.prompts.map((item) => (
             <button
               className="promptChip"
               key={item}
@@ -484,24 +679,20 @@ export function ReviewEditor({
               {item}
             </button>
           ))}
-          {brandTone.map((tone) => (
-            <button
-              className="promptChip"
-              key={tone}
-              onClick={() => setPrompt(`把这版整体调整得更${tone}，但不要丢掉当前核心判断。`)}
-              type="button"
-            >
-              切成更{tone}的口吻
-            </button>
-          ))}
         </div>
+        {promptSuggestions.provider ? (
+          <p className="muted">
+            当前提示模型：{promptSuggestions.provider} · {promptSuggestions.model ?? "默认模型"}
+          </p>
+        ) : null}
+        {promptSuggestionsError ? <p className="muted">{promptSuggestionsError}</p> : null}
 
         <label className="field">
           <span>本轮改稿要求</span>
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="例如：把第一段写得更像创始人对行业趋势的判断，减少新闻转述感。"
+            placeholder={promptPlaceholder}
             rows={4}
           />
         </label>

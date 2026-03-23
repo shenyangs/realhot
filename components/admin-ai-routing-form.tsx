@@ -45,6 +45,29 @@ function toPayloadOverrides(
   }, {} as Partial<Record<AiFeature, AiProvider>>);
 }
 
+function toModelOverrideState(
+  input: Partial<Record<AiFeature, string>>
+): Record<AiFeature, string> {
+  return AI_FEATURES.reduce((accumulator, feature) => {
+    accumulator[feature] = input[feature] ?? "";
+    return accumulator;
+  }, {} as Record<AiFeature, string>);
+}
+
+function toPayloadModelOverrides(
+  input: Record<AiFeature, string>
+): Partial<Record<AiFeature, string>> {
+  return AI_FEATURES.reduce((accumulator, feature) => {
+    const model = input[feature]?.trim();
+
+    if (model) {
+      accumulator[feature] = model;
+    }
+
+    return accumulator;
+  }, {} as Partial<Record<AiFeature, string>>);
+}
+
 export function AdminAiRoutingForm({
   initialConfig,
   providerStatus
@@ -56,6 +79,9 @@ export function AdminAiRoutingForm({
   const [defaultProvider, setDefaultProvider] = useState<AiProvider>(initialConfig.defaultProvider);
   const [featureOverrides, setFeatureOverrides] = useState<Record<AiFeature, AiProvider | "">>(
     toOverrideState(initialConfig.featureProviderOverrides)
+  );
+  const [featureModelOverrides, setFeatureModelOverrides] = useState<Record<AiFeature, string>>(
+    toModelOverrideState(initialConfig.featureModelOverrides)
   );
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -75,7 +101,8 @@ export function AdminAiRoutingForm({
             },
             body: JSON.stringify({
               defaultProvider,
-              featureProviderOverrides: toPayloadOverrides(featureOverrides)
+              featureProviderOverrides: toPayloadOverrides(featureOverrides),
+              featureModelOverrides: toPayloadModelOverrides(featureModelOverrides)
             })
           });
 
@@ -92,6 +119,7 @@ export function AdminAiRoutingForm({
 
           setDefaultProvider(result.config.defaultProvider);
           setFeatureOverrides(toOverrideState(result.config.featureProviderOverrides));
+          setFeatureModelOverrides(toModelOverrideState(result.config.featureModelOverrides));
           setMessage("AI 路由已更新");
           router.refresh();
         });
@@ -130,9 +158,10 @@ export function AdminAiRoutingForm({
       <div className="stack">
         {AI_FEATURES.map((feature) => {
           const effectiveProvider = featureOverrides[feature] || defaultProvider;
+          const effectiveModel = featureModelOverrides[feature]?.trim() || "跟随环境默认模型";
 
           return (
-            <label className="field fieldCompact" key={feature}>
+            <div className="field fieldCompact" key={feature}>
               <span>{aiFeatureLabels[feature]}</span>
               <select
                 disabled={isPending}
@@ -144,16 +173,29 @@ export function AdminAiRoutingForm({
                   }));
                 }}
                 value={featureOverrides[feature]}
-              >
-                <option value="">跟随全局（{providerLabels[defaultProvider]}）</option>
-                {AI_PROVIDERS.map((provider) => (
-                  <option key={provider} value={provider}>
-                    {providerLabels[provider]}
+                >
+                  <option value="">跟随全局（{providerLabels[defaultProvider]}）</option>
+                  {AI_PROVIDERS.map((provider) => (
+                    <option key={provider} value={provider}>
+                      {providerLabels[provider]}
                   </option>
-                ))}
-              </select>
+                  ))}
+                </select>
               <span className="muted">当前生效：{providerLabels[effectiveProvider]}</span>
-            </label>
+              <input
+                disabled={isPending}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setFeatureModelOverrides((previous) => ({
+                    ...previous,
+                    [feature]: value
+                  }));
+                }}
+                placeholder="留空则跟随当前提供方默认模型"
+                value={featureModelOverrides[feature]}
+              />
+              <span className="muted">模型覆写：{effectiveModel}</span>
+            </div>
           );
         })}
       </div>

@@ -14,8 +14,12 @@ const roleExplainMap = {
     body: "负责自己组织的成员、品牌资料、工作区设置、邀请码和协作秩序。"
   },
   operator: {
-    title: "内容操盘手",
+    title: "热点策划",
     body: "负责热点发现、传播策划、内容生成、改稿和提审，是日常生产主力。"
+  },
+  media_channel: {
+    title: "媒介渠道",
+    body: "负责渠道适配、分发节奏、发布执行和投放协同，确保内容有效触达。"
   },
   approver: {
     title: "审核者",
@@ -112,4 +116,3 @@ export default async function AccountPage() {
     </div>
   );
 }
-

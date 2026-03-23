@@ -67,6 +67,7 @@ export function InviteCodeGenerator({
           <select onChange={(event) => setRole(event.target.value as WorkspaceRole)} value={role}>
             <option value="org_admin">{roleLabels.org_admin}</option>
             <option value="operator">{roleLabels.operator}</option>
+            <option value="media_channel">{roleLabels.media_channel}</option>
             <option value="approver">{roleLabels.approver}</option>
           </select>
         </label>

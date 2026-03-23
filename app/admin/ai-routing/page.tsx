@@ -4,7 +4,7 @@ import { AdminAiRoutingForm } from "@/components/admin-ai-routing-form";
 import { PageHero } from "@/components/page-hero";
 import { AI_FEATURES, aiFeatureLabels, AiProvider } from "@/lib/domain/ai-routing";
 import { buildEffectiveFeatureRoutes, getAiRoutingConfig } from "@/lib/services/ai-routing-config";
-import { listProviderConfigs } from "@/lib/services/model-router";
+import { listProviderConfigs, resolveFeatureProviderConfig } from "@/lib/services/model-router";
 
 const providerLabels: Record<AiProvider, string> = {
   gemini: "Gemini",
@@ -14,6 +14,9 @@ const providerLabels: Record<AiProvider, string> = {
 export default async function AdminAiRoutingPage() {
   const config = await getAiRoutingConfig();
   const effectiveRoutes = buildEffectiveFeatureRoutes(config);
+  const effectiveRouteConfigs = Object.fromEntries(
+    AI_FEATURES.map((feature) => [feature, resolveFeatureProviderConfig(feature, config)])
+  );
   const providerStatus = listProviderConfigs("content-generation");
   const availableProviders = providerStatus.filter((item) => item.available).length;
 
@@ -67,7 +70,9 @@ export default async function AdminAiRoutingPage() {
             <article className="adminModuleCard" key={feature}>
               <span className="pill pill-neutral">{aiFeatureLabels[feature]}</span>
               <strong>{providerLabels[effectiveRoutes[feature]]}</strong>
-              <p className="muted">当前该能力会默认走 {providerLabels[effectiveRoutes[feature]]}。</p>
+              <p className="muted">
+                当前该能力会默认走 {providerLabels[effectiveRoutes[feature]]} · 模型 {effectiveRouteConfigs[feature].model}
+              </p>
             </article>
           ))}
         </div>

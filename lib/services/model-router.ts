@@ -1,6 +1,10 @@
 import { LlmTask, ModelPreference, ModelRouteDecision } from "@/lib/domain/types";
-import { AiFeature, AiProvider, DEFAULT_AI_ROUTING_CONFIG } from "@/lib/domain/ai-routing";
-import { getAiRoutingConfig, resolveProviderForFeature } from "@/lib/services/ai-routing-config";
+import { AiFeature, AiProvider, AiRoutingConfig, DEFAULT_AI_ROUTING_CONFIG } from "@/lib/domain/ai-routing";
+import {
+  getAiRoutingConfig,
+  resolveModelOverrideForFeature,
+  resolveProviderForFeature
+} from "@/lib/services/ai-routing-config";
 import { createUserTextContent, extractGeminiText, requestGeminiContent } from "@/lib/services/gemini-client";
 import { extractMiniMaxText, requestMiniMaxChatCompletion } from "@/lib/services/minimax-client";
 
@@ -52,20 +56,41 @@ function resolveMiniMaxModel(): string {
   return process.env.MINIMAX_MODEL?.trim() || "MiniMax-M2.7";
 }
 
-function getProviderConfigs(feature: AiFeature): ProviderConfig[] {
+function resolveDefaultModel(provider: AiProvider, feature: AiFeature): string {
+  if (provider === "gemini") {
+    return resolveGeminiModel(feature);
+  }
+
+  return resolveMiniMaxModel();
+}
+
+function getProviderConfigs(
+  feature: AiFeature,
+  options?: {
+    desiredProvider?: AiProvider;
+    modelOverride?: string;
+  }
+): ProviderConfig[] {
   const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY?.trim());
   const hasMiniMaxKey = Boolean(process.env.MINIMAX_API_KEY?.trim());
+  const resolvedModelOverride = options?.modelOverride?.trim();
 
   return [
     {
       provider: "gemini",
-      model: resolveGeminiModel(feature),
+      model:
+        options?.desiredProvider === "gemini" && resolvedModelOverride
+          ? resolvedModelOverride
+          : resolveGeminiModel(feature),
       available: hasGeminiKey,
       missingEnvKey: hasGeminiKey ? undefined : "GEMINI_API_KEY"
     },
     {
       provider: "minimax",
-      model: resolveMiniMaxModel(),
+      model:
+        options?.desiredProvider === "minimax" && resolvedModelOverride
+          ? resolvedModelOverride
+          : resolveMiniMaxModel(),
       available: hasMiniMaxKey,
       missingEnvKey: hasMiniMaxKey ? undefined : "MINIMAX_API_KEY"
     }
@@ -74,6 +99,25 @@ function getProviderConfigs(feature: AiFeature): ProviderConfig[] {
 
 export function listProviderConfigs(feature: AiFeature = "content-generation"): ProviderConfig[] {
   return getProviderConfigs(feature);
+}
+
+export function resolveFeatureProviderConfig(
+  feature: AiFeature,
+  config: AiRoutingConfig
+): ProviderConfig {
+  const desiredProvider = resolveProviderForFeature(config, feature);
+  const modelOverride = resolveModelOverrideForFeature(config, feature);
+
+  return (
+    getProviderConfigs(feature, {
+      desiredProvider,
+      modelOverride
+    }).find((item) => item.provider === desiredProvider) ?? {
+      provider: desiredProvider,
+      model: modelOverride ?? resolveDefaultModel(desiredProvider, feature),
+      available: false
+    }
+  );
 }
 
 function getProviderLabel(provider: string): string {
@@ -95,23 +139,33 @@ export async function decideModelRoute(
   const preferred = taskPreference[task];
   const feature = resolveFeature(task, options);
   let desiredProvider: AiProvider = DEFAULT_AI_ROUTING_CONFIG.defaultProvider;
+  let desiredModelOverride: string | undefined;
+  let config: AiRoutingConfig = DEFAULT_AI_ROUTING_CONFIG;
 
   try {
-    const config = await getAiRoutingConfig();
+    config = await getAiRoutingConfig();
     desiredProvider = resolveProviderForFeature(config, feature);
+    desiredModelOverride = resolveModelOverrideForFeature(config, feature);
   } catch {
     desiredProvider = DEFAULT_AI_ROUTING_CONFIG.defaultProvider;
+    desiredModelOverride = undefined;
   }
 
-  const providerConfigs = getProviderConfigs(feature);
+  const providerConfigs = getProviderConfigs(feature, {
+    desiredProvider,
+    modelOverride: desiredModelOverride
+  });
   const desiredConfig = providerConfigs.find((config) => config.provider === desiredProvider);
+  const modelReason = desiredModelOverride?.trim()
+    ? `已指定模型 ${desiredModelOverride.trim()}`
+    : `默认模型 ${resolveFeatureProviderConfig(feature, config).model}`;
 
   if (desiredConfig?.available) {
     return {
       task,
       provider: desiredConfig.provider,
       model: desiredConfig.model,
-      reason: `${feature} 已配置为 ${getProviderLabel(desiredConfig.provider)}，按 ${preferred} 优先级执行。`
+      reason: `${feature} 已配置为 ${getProviderLabel(desiredConfig.provider)}，${modelReason}，按 ${preferred} 优先级执行。`
     };
   }
 

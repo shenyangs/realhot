@@ -21,7 +21,7 @@ export async function POST(
 
   const { workspaceId } = await context.params;
   const body = (await request.json().catch(() => ({}))) as {
-    role?: "org_admin" | "operator" | "approver";
+    role?: "org_admin" | "operator" | "media_channel" | "approver";
     quantity?: number;
     maxUses?: number;
   };

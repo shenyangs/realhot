@@ -66,9 +66,11 @@ end $$;
 do $$
 begin
   if not exists (select 1 from pg_type where typname = 'workspace_member_role') then
-    create type workspace_member_role as enum ('org_admin', 'operator', 'approver');
+    create type workspace_member_role as enum ('org_admin', 'operator', 'media_channel', 'approver');
   end if;
 end $$;
+
+alter type workspace_member_role add value if not exists 'media_channel';
 
 do $$
 begin
@@ -110,6 +112,7 @@ create table if not exists platform_ai_routing_configs (
   id uuid primary key default gen_random_uuid(),
   default_provider text not null default 'gemini',
   feature_overrides jsonb not null default '{}'::jsonb,
+  feature_model_overrides jsonb not null default '{}'::jsonb,
   updated_by uuid references profiles(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

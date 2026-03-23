@@ -10,6 +10,7 @@ const roleDescriptions = {
   super_admin: "管理全平台用户、组织、邀请码、系统配置和异常处理。",
   org_admin: "管理当前组织的成员、品牌、资料、邀请码与工作区设置。",
   operator: "负责热点捕捉、策划生成、内容编辑和提交审核。",
+  media_channel: "负责渠道分发策略、发布节奏和媒介协同执行。",
   approver: "负责审核内容、退回修改、控制是否允许导出与发布。",
   guest: "尚未登录，仅能看到登录与注册入口。"
 } as const;
@@ -107,4 +108,3 @@ export function ProfileMenu({ viewer }: { viewer: ViewerContext }) {
     </div>
   );
 }
-

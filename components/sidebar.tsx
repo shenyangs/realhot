@@ -34,7 +34,7 @@ const baseNavItems: NavItem[] = [
     order: "03",
     label: "选题详情台",
     shortLabel: "选题",
-    description: "左侧决策，右侧编辑"
+    description: "按顺序判断、改稿、提交"
   },
   {
     href: "/publish",

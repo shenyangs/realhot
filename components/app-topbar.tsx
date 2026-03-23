@@ -21,7 +21,7 @@ const routeMeta = [
     href: "/review",
     eyebrow: "Topic Review",
     title: "选题详情台",
-    description: "左决策，右编辑"
+    description: "按顺序判断、改稿、提交"
   },
   {
     href: "/publish",

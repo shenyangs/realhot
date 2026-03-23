@@ -93,6 +93,8 @@ const storeFile = path.join(storeDirectory, "production-studio.json");
 const tempStoreFile = path.join(storeDirectory, "production-studio.tmp.json");
 
 let storeUpdateQueue: Promise<void> = Promise.resolve();
+let memoryStore: ProductionStore | null = null;
+let fileStoreAvailable: boolean | null = null;
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -116,17 +118,32 @@ function normalizeStore(raw: Partial<ProductionStore> | null | undefined): Produ
 }
 
 async function ensureStoreFile(): Promise<void> {
-  await mkdir(storeDirectory, { recursive: true });
-
   try {
-    await readFile(storeFile, "utf8");
-  } catch {
-    await writeFile(storeFile, JSON.stringify(buildInitialStore(), null, 2), "utf8");
+    await mkdir(storeDirectory, { recursive: true });
+
+    try {
+      await readFile(storeFile, "utf8");
+    } catch {
+      await writeFile(storeFile, JSON.stringify(buildInitialStore(), null, 2), "utf8");
+    }
+
+    fileStoreAvailable = true;
+  } catch (error) {
+    fileStoreAvailable = false;
+    console.warn("[production-studio] Falling back to in-memory store", error);
   }
 }
 
 async function readStore(): Promise<ProductionStore> {
   await ensureStoreFile();
+
+  if (fileStoreAvailable === false) {
+    if (!memoryStore) {
+      memoryStore = buildInitialStore();
+    }
+
+    return clone(memoryStore);
+  }
 
   try {
     const content = await readFile(storeFile, "utf8");
@@ -134,17 +151,40 @@ async function readStore(): Promise<ProductionStore> {
     return normalizeStore(parsed);
   } catch {
     const initial = buildInitialStore();
-    await writeFile(storeFile, JSON.stringify(initial, null, 2), "utf8");
-    return initial;
+
+    try {
+      await writeFile(storeFile, JSON.stringify(initial, null, 2), "utf8");
+      fileStoreAvailable = true;
+      return initial;
+    } catch (error) {
+      fileStoreAvailable = false;
+      memoryStore = initial;
+      console.warn("[production-studio] Failed to rebuild store file, using memory store", error);
+      return clone(initial);
+    }
   }
 }
 
 async function writeStore(store: ProductionStore): Promise<ProductionStore> {
   const normalized = normalizeStore(store);
   await ensureStoreFile();
-  await writeFile(tempStoreFile, JSON.stringify(normalized, null, 2), "utf8");
-  await rename(tempStoreFile, storeFile);
-  return normalized;
+
+  if (fileStoreAvailable === false) {
+    memoryStore = clone(normalized);
+    return clone(normalized);
+  }
+
+  try {
+    await writeFile(tempStoreFile, JSON.stringify(normalized, null, 2), "utf8");
+    await rename(tempStoreFile, storeFile);
+    fileStoreAvailable = true;
+    return normalized;
+  } catch (error) {
+    fileStoreAvailable = false;
+    memoryStore = clone(normalized);
+    console.warn("[production-studio] Failed to persist store file, using memory store", error);
+    return clone(normalized);
+  }
 }
 
 async function updateStore(updater: (store: ProductionStore) => ProductionStore | Promise<ProductionStore>) {

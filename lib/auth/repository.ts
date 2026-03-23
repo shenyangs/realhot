@@ -1853,8 +1853,13 @@ export async function getLoginMode() {
       },
       {
         role: "operator" as const,
-        label: "内容操盘手",
+        label: "热点策划",
         email: DEMO_USERS.operator.email ?? ""
+      },
+      {
+        role: "media_channel" as const,
+        label: "媒介渠道",
+        email: DEMO_USERS.media_channel.email ?? ""
       },
       {
         role: "approver" as const,

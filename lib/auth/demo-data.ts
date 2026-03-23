@@ -78,6 +78,12 @@ export const DEMO_USERS: Record<"super_admin" | WorkspaceRole, ViewerUser> = {
     displayName: "Content Operator",
     status: "active"
   },
+  media_channel: {
+    id: "99999999-9999-9999-9999-999999999995",
+    email: "media@example.com",
+    displayName: "Media Channel",
+    status: "active"
+  },
   approver: {
     id: "99999999-9999-9999-9999-999999999994",
     email: "approver@example.com",
@@ -113,6 +119,15 @@ export const DEMO_WORKSPACE_MEMBERS: DemoWorkspaceMemberRecord[] = [
     status: "active",
     invitedBy: DEMO_USERS.org_admin.id,
     joinedAt: "2026-03-22T08:20:00+08:00"
+  },
+  {
+    id: "17171717-1717-1717-1717-171717171718",
+    workspaceId: DEMO_WORKSPACES[0].id,
+    userId: DEMO_USERS.media_channel.id,
+    role: "media_channel",
+    status: "active",
+    invitedBy: DEMO_USERS.org_admin.id,
+    joinedAt: "2026-03-22T08:30:00+08:00"
   },
   {
     id: "15151515-1515-1515-1515-151515151515",
@@ -167,6 +182,12 @@ export const DEMO_AUTH_ACCOUNTS: DemoAuthAccountRecord[] = [
   {
     userId: DEMO_USERS.operator.id,
     email: DEMO_USERS.operator.email ?? "operator@example.com",
+    password: hashPassword("Init@123"),
+    passwordSetupRequired: true
+  },
+  {
+    userId: DEMO_USERS.media_channel.id,
+    email: DEMO_USERS.media_channel.email ?? "media@example.com",
     password: hashPassword("Init@123"),
     passwordSetupRequired: true
   },

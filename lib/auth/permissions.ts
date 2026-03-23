@@ -13,7 +13,12 @@ export function canManageBrands(viewer: ViewerContext): boolean {
 }
 
 export function canGenerateContent(viewer: ViewerContext): boolean {
-  return viewer.workspaceRole === "org_admin" || viewer.workspaceRole === "operator" || viewer.isPlatformAdmin;
+  return (
+    viewer.workspaceRole === "org_admin" ||
+    viewer.workspaceRole === "operator" ||
+    viewer.workspaceRole === "media_channel" ||
+    viewer.isPlatformAdmin
+  );
 }
 
 export function canApproveContent(viewer: ViewerContext): boolean {
@@ -23,4 +28,3 @@ export function canApproveContent(viewer: ViewerContext): boolean {
 export function canExportContent(viewer: ViewerContext): boolean {
   return canApproveContent(viewer);
 }
-

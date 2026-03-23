@@ -60,7 +60,9 @@ export default async function AdminWorkspacesPage() {
 
             <WorkspaceSettingsForm canManage workspace={workspace} />
             <InviteCodeGenerator workspaceId={workspace.id} workspaceName={workspace.name} />
-            {codeMap.get(workspace.id)?.length ? <InviteCodeList codes={codeMap.get(workspace.id) ?? []} /> : null}
+            {codeMap.get(workspace.id)?.length ? (
+              <InviteCodeList appUrl={process.env.APP_URL} codes={codeMap.get(workspace.id) ?? []} workspaceName={workspace.name} />
+            ) : null}
           </article>
         ))}
       </section>

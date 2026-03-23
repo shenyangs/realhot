@@ -147,6 +147,12 @@ function normalizeStore(raw: Partial<LocalDataStore> | null | undefined): LocalD
             typeof raw.aiRoutingConfig.featureProviderOverrides === "object" &&
             !Array.isArray(raw.aiRoutingConfig.featureProviderOverrides)
               ? clone(raw.aiRoutingConfig.featureProviderOverrides)
+              : {},
+          featureModelOverrides:
+            raw.aiRoutingConfig.featureModelOverrides &&
+            typeof raw.aiRoutingConfig.featureModelOverrides === "object" &&
+            !Array.isArray(raw.aiRoutingConfig.featureModelOverrides)
+              ? clone(raw.aiRoutingConfig.featureModelOverrides)
               : {}
         }
       : initial.aiRoutingConfig,

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
 interface DemoAccount {
-  role: "super_admin" | "org_admin" | "operator" | "approver";
+  role: "super_admin" | "org_admin" | "operator" | "media_channel" | "approver";
   label: string;
   email: string;
 }
