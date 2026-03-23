@@ -55,6 +55,10 @@ function deterministicId(input: string): string {
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
+}
+
 function resolvePlatforms(track: "rapid-response" | "point-of-view", hotspot: HotspotSignal): Platform[] {
   if (track === "rapid-response") {
     return hotspot.kind === "mass"
@@ -532,10 +536,31 @@ async function persistGeneratedPack(pack: HotspotPack): Promise<{
     throw workspaceError ?? new Error("No workspace available for content pack persistence");
   }
 
+  let persistedBrandId = pack.brandId;
+
+  // In Supabase mode we must persist a UUID foreign key.
+  // When brand strategy falls back to local mock data (for example id = "brand-1"),
+  // this resolver upgrades it to an existing UUID brand id in the same workspace.
+  if (!isUuid(persistedBrandId)) {
+    const { data: firstBrand, error: brandError } = await supabase
+      .from("brands")
+      .select("id")
+      .eq("workspace_id", workspace.id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+
+    if (brandError || !firstBrand?.id) {
+      throw brandError ?? new Error("未找到可用品牌记录，请先在品牌系统保存品牌信息后再转为选题。");
+    }
+
+    persistedBrandId = firstBrand.id;
+  }
+
   const packRow = {
     id: pack.id,
     workspace_id: workspace.id,
-    brand_id: pack.brandId,
+    brand_id: persistedBrandId,
     hotspot_id: pack.hotspotId,
     status: pack.status,
     why_now: pack.whyNow,

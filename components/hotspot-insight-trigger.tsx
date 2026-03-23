@@ -57,9 +57,9 @@ export function HotspotInsightTrigger({ hotspotId }: HotspotInsightTriggerProps)
     <div className="hotspotInsightBlock">
       <div className="hotspotInsightActions">
         <button className="buttonLike subtleButton" disabled={isPending} onClick={fetchInsight} type="button">
-          {isPending ? "正在补充判断..." : "补充判断依据"}
+          {isPending ? "正在生成专业判断..." : "补充专业判断"}
         </button>
-        <span className="muted">按需补充单条热点的品牌结合与风险判断。</span>
+        <span className="muted">按需补充该热点的品牌结合路径、执行策略与风险边界。</span>
       </div>
 
       {message ? <p className="muted inlineActionMessage">{message}</p> : null}
@@ -67,32 +67,32 @@ export function HotspotInsightTrigger({ hotspotId }: HotspotInsightTriggerProps)
       {result ? (
         <div className="hotspotInsightCard">
           <div className="tagRow">
-            <span className="tag">建议重点：{result.productFocus}</span>
+            <span className="tag">策略焦点：{result.productFocus}</span>
             <span className="tag">策划评分：{result.planningScore}</span>
           </div>
           <div className="hotspotInsightList">
             <div>
-              <span>结合抓手</span>
+              <span>品牌结合路径</span>
               <p className="hotspotInsightText">{result.connectionPoint}</p>
             </div>
             <div>
-              <span>传播策略</span>
+              <span>传播策略建议</span>
               <p className="hotspotInsightText">{result.communicationStrategy}</p>
             </div>
             <div>
-              <span>策划方向</span>
+              <span>执行切口</span>
               <p className="hotspotInsightText">{result.planningDirection}</p>
             </div>
             <div>
-              <span>推荐形式</span>
+              <span>渠道与载体建议</span>
               <p className="hotspotInsightText">{result.recommendedFormat}</p>
             </div>
             <div>
-              <span>策划评价</span>
+              <span>策略评价</span>
               <p className="hotspotInsightText">{result.planningComment}</p>
             </div>
             <div>
-              <span>风险提醒</span>
+              <span>风险与边界</span>
               <p className="hotspotInsightText">{result.riskNote}</p>
             </div>
           </div>

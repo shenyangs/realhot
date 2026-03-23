@@ -64,13 +64,13 @@ export default async function BrandsPage() {
           </>
         }
         context={brandStrategyPack.name}
-        description="这里不是资料录入页，而是决定整套内容系统怎么说话、能说什么、不能说什么的品牌认知中台。"
+        description="这里不是资料录入页，而是统一品牌定位、受众、语调、主题与合规边界的品牌策略中台。"
         eyebrow="品牌系统"
         facts={[
           { label: "品牌名称", value: brandStrategyPack.name },
           { label: "资料完整度", value: `${completionPercent}%` },
-          { label: "最近使用频率", value: `${recentUsageCount} 条在流转` },
-          { label: "最近命中热点", value: `${hotspotHitCount} 条` },
+          { label: "内容调用规模", value: `${recentUsageCount} 条在流转` },
+          { label: "高相关热点", value: `${hotspotHitCount} 条` },
           { label: "表达风险等级", value: `${expressionRisk}风险` },
           { label: "行业", value: brandStrategyPack.sector }
         ]}
@@ -103,7 +103,7 @@ export default async function BrandsPage() {
           <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">品牌定位</p>
-              <h2>系统应该先知道你是谁</h2>
+              <h2>品牌战略定位与价值主张</h2>
             </div>
           </div>
 
@@ -133,7 +133,7 @@ export default async function BrandsPage() {
           <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">用户画像</p>
-              <h2>内容应该说给谁听</h2>
+              <h2>核心受众与决策角色</h2>
             </div>
           </div>
 
@@ -145,7 +145,7 @@ export default async function BrandsPage() {
                 </span>
               ))}
             </div>
-            <p className="muted">这些画像决定热点该怎么转成内容角度，而不是只决定投放渠道。</p>
+            <p className="muted">这些画像决定议题切入角度与论证深度，而不仅是投放渠道选择。</p>
           </div>
         </section>
 
@@ -153,7 +153,7 @@ export default async function BrandsPage() {
           <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">内容语气</p>
-              <h2>系统怎么说话</h2>
+              <h2>品牌语调与表达规范</h2>
             </div>
           </div>
 
@@ -165,7 +165,7 @@ export default async function BrandsPage() {
                 </span>
               ))}
             </div>
-            <p className="muted">这是系统默认使用的表达底色，影响选题判断、正文改写和审核标准。</p>
+            <p className="muted">这是系统默认语调基线，直接影响选题判断、正文改写与审核标准。</p>
           </div>
         </section>
 
@@ -173,7 +173,7 @@ export default async function BrandsPage() {
           <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">可说范围</p>
-              <h2>建议强化的表达</h2>
+              <h2>优先传播主题</h2>
             </div>
           </div>
 
@@ -191,7 +191,7 @@ export default async function BrandsPage() {
           <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">禁说范围</p>
-              <h2>审核必须卡住的边界</h2>
+              <h2>审核红线与合规边界</h2>
             </div>
           </div>
 
@@ -206,7 +206,7 @@ export default async function BrandsPage() {
           <div className="panelHeader sectionTitle">
             <div>
               <p className="eyebrow">近期动态</p>
-              <h2>最近什么最值得被系统记住</h2>
+              <h2>近期业务动态与传播重点</h2>
             </div>
           </div>
 

@@ -4,6 +4,33 @@ import { writeAuditLog } from "@/lib/auth/audit";
 import { canApproveContent } from "@/lib/auth/permissions";
 import { deleteHotspotPack, getHotspotPack, getHotspotSignals, updateHotspotPackReview } from "@/lib/data";
 
+function formatReviewRouteError(error: unknown) {
+  if (error instanceof Error) {
+    const cause = error.cause;
+    const code = cause && typeof cause === "object" && "code" in cause ? cause.code : null;
+    const causeMessage = cause && typeof cause === "object" && "message" in cause ? cause.message : null;
+    const details = [code, causeMessage].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+    return details.length > 0 ? `${error.message} (${details.join(": ")})` : error.message;
+  }
+
+  if (error && typeof error === "object") {
+    const message = "message" in error ? error.message : null;
+    const details = "details" in error ? error.details : null;
+    const hint = "hint" in error ? error.hint : null;
+    const code = "code" in error ? error.code : null;
+    const parts = [message, details, hint, code].filter(
+      (value): value is string => typeof value === "string" && value.trim().length > 0
+    );
+
+    if (parts.length > 0) {
+      return parts.join(" | ");
+    }
+  }
+
+  return "Review update failed";
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ packId: string }> }
@@ -70,7 +97,7 @@ export async function POST(
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Review update failed"
+        error: formatReviewRouteError(error)
       },
       {
         status: 500

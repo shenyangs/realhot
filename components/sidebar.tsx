@@ -55,7 +55,7 @@ const baseNavItems: NavItem[] = [
     order: "06",
     label: "品牌系统",
     shortLabel: "品牌",
-    description: "决定系统怎么说话"
+    description: "统一定位、语调边界与传播主题"
   }
 ];
 

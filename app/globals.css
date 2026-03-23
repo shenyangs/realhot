@@ -1854,6 +1854,21 @@ strong {
   line-height: 1.75;
 }
 
+.fieldHint,
+.fieldError {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.fieldHint {
+  color: var(--muted);
+}
+
+.fieldError {
+  color: #b14c40;
+}
+
 .eyebrow {
   margin-bottom: 0.1rem;
 }
@@ -2434,6 +2449,105 @@ strong {
   flex-direction: column;
   gap: 0.55rem;
   min-width: 0;
+}
+
+.reviewerField {
+  position: relative;
+}
+
+.reviewerPickerButton {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 0.82rem 0.95rem;
+  background: rgba(251, 250, 247, 0.92);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  text-align: left;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.reviewerPickerButton:hover {
+  transform: translateY(-1px);
+}
+
+.reviewerPickerButton:focus-visible,
+.reviewerPickerButtonOpen {
+  outline: none;
+  border-color: rgba(39, 54, 76, 0.28);
+  box-shadow: 0 0 0 3px rgba(39, 54, 76, 0.08);
+}
+
+.reviewerPickerButtonError {
+  border-color: rgba(177, 76, 64, 0.5);
+}
+
+.reviewerPickerCopy,
+.reviewerPickerOptionCopy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.reviewerPickerCopy strong,
+.reviewerPickerOptionCopy strong {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.reviewerPickerCopy small,
+.reviewerPickerOptionCopy small {
+  color: var(--muted);
+}
+
+.reviewerPickerAction,
+.reviewerPickerCheck {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.reviewerPickerMenu {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  border: 1px solid rgba(39, 54, 76, 0.12);
+  border-radius: 18px;
+  padding: 0.4rem;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 22px 44px rgba(20, 25, 35, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.reviewerPickerOption {
+  width: 100%;
+  border: none;
+  border-radius: 14px;
+  padding: 0.78rem 0.82rem;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  text-align: left;
+}
+
+.reviewerPickerOption:hover,
+.reviewerPickerOption:focus-visible,
+.reviewerPickerOptionSelected {
+  outline: none;
+  background: rgba(39, 54, 76, 0.06);
 }
 
 .reviewTaskRowMeta,

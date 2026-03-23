@@ -1679,18 +1679,18 @@ function scoreAgainstBrand(brand: BrandStrategyPack, item: FeedItem, kind: Hotsp
 
   const reasons = [
     topicMatches > 0 || strategySignals > 0
-      ? `命中 ${topicMatches + strategySignals} 个品牌/策略相关信号`
-      : "与品牌主题存在弱相关，需要人工复核",
+      ? `品牌匹配信号：命中 ${topicMatches + strategySignals} 项（主题/策略）`
+      : "品牌匹配信号：当前为弱相关，建议按“行业影响 + 品牌方法”框架复核",
     competitorMatches > 0
-      ? `涉及 ${competitorMatches} 个竞品或参照对象`
+      ? `市场参照信号：涉及 ${competitorMatches} 个竞品/对标对象`
       : platformSignals > 0
-        ? `命中 ${platformSignals} 个平台分发/热榜信号`
-        : "更适合行业观点切入",
+        ? `分发信号：命中 ${platformSignals} 个平台热度来源，可支持短周期传播`
+        : "切入建议：更适合从行业判断与方法论内容切入",
     weakMassPenalty > 0 || massNoisePenalty > 0
-      ? "大众热榜热度高，但品牌相关性偏弱"
+      ? "风险与时效：大众热榜热度高，但品牌相关度偏弱，建议谨慎立题"
       : velocityScore >= 80
-        ? "发布时间新，适合快反档"
-        : "适合进入观察或观点档"
+        ? "风险与时效：时效性高，建议在 24 小时内完成快反判断"
+        : "风险与时效：可进入观点储备池，待证据补强后再放大"
   ];
 
   const recommendedAction =

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { ReviewStatus } from "@/lib/domain/types";
 
 const reviewStatusLabels: Record<ReviewStatus, string> = {
@@ -10,22 +10,58 @@ const reviewStatusLabels: Record<ReviewStatus, string> = {
   "needs-edit": "待改稿"
 };
 
+interface ReviewerOption {
+  value: string;
+  description?: string;
+}
+
 export function ReviewActions({
   packId,
   currentStatus,
   currentNote,
-  defaultReviewer
+  defaultReviewer,
+  reviewerOptions
 }: {
   packId: string;
   currentStatus: ReviewStatus;
   currentNote?: string;
   defaultReviewer: string;
+  reviewerOptions: ReviewerOption[];
 }) {
   const router = useRouter();
   const [note, setNote] = useState(currentNote ?? "");
   const [reviewer, setReviewer] = useState(defaultReviewer);
+  const [isReviewerMenuOpen, setIsReviewerMenuOpen] = useState(false);
+  const [reviewerError, setReviewerError] = useState("");
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
+  const reviewerFieldRef = useRef<HTMLDivElement>(null);
+
+  const selectedReviewerOption =
+    reviewerOptions.find((option) => option.value === reviewer) ??
+    (reviewer ? { value: reviewer } : null);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!reviewerFieldRef.current?.contains(event.target as Node)) {
+        setIsReviewerMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsReviewerMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   const primaryAction =
     currentStatus === "pending"
@@ -44,7 +80,16 @@ export function ReviewActions({
   ].filter(Boolean) as Array<{ label: string; status: ReviewStatus }>;
 
   function submit(status: ReviewStatus) {
+    const normalizedReviewer = reviewer.trim();
+
+    if (!normalizedReviewer) {
+      setReviewerError("请选择审核人后再提交");
+      setMessage("");
+      return;
+    }
+
     startTransition(async () => {
+      setReviewerError("");
       setMessage("");
 
       const response = await fetch(`/api/review/${packId}`, {
@@ -55,7 +100,7 @@ export function ReviewActions({
         body: JSON.stringify({
           status,
           note,
-          reviewer
+          reviewer: normalizedReviewer
         })
       });
 
@@ -82,14 +127,57 @@ export function ReviewActions({
         <span className="pill pill-neutral">{reviewStatusLabels[currentStatus]}</span>
       </div>
 
-      <label className="field">
+      <div className="field reviewerField" ref={reviewerFieldRef}>
         <span>审核人</span>
-        <input
-          value={reviewer}
-          onChange={(event) => setReviewer(event.target.value)}
-          placeholder="品牌市场负责人"
-        />
-      </label>
+        <button
+          aria-expanded={isReviewerMenuOpen}
+          aria-haspopup="listbox"
+          className={`reviewerPickerButton ${isReviewerMenuOpen ? "reviewerPickerButtonOpen" : ""} ${reviewerError ? "reviewerPickerButtonError" : ""}`}
+          onClick={() => {
+            setIsReviewerMenuOpen((current) => !current);
+            setReviewerError("");
+          }}
+          type="button"
+        >
+          <span className="reviewerPickerCopy">
+            <strong>{selectedReviewerOption?.value || "请选择审核人"}</strong>
+            <small>{selectedReviewerOption?.description ?? "根据审批规则自动匹配，可手动更换"}</small>
+          </span>
+          <span className="reviewerPickerAction">{reviewer ? "更换" : "选择"}</span>
+        </button>
+
+        {isReviewerMenuOpen ? (
+          <div className="reviewerPickerMenu" role="listbox">
+            {reviewerOptions.map((option) => {
+              const isSelected = option.value === reviewer;
+
+              return (
+                <button
+                  aria-selected={isSelected}
+                  className={`reviewerPickerOption ${isSelected ? "reviewerPickerOptionSelected" : ""}`}
+                  key={option.value}
+                  onClick={() => {
+                    setReviewer(option.value);
+                    setReviewerError("");
+                    setIsReviewerMenuOpen(false);
+                  }}
+                  role="option"
+                  type="button"
+                >
+                  <span className="reviewerPickerOptionCopy">
+                    <strong>{option.value}</strong>
+                    {option.description ? <small>{option.description}</small> : null}
+                  </span>
+                  {isSelected ? <span className="reviewerPickerCheck">已选</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        <p className="fieldHint">根据审批规则自动匹配，可手动更换</p>
+        {reviewerError ? <p className="fieldError">{reviewerError}</p> : null}
+      </div>
 
       <label className="field">
         <span>审核备注</span>

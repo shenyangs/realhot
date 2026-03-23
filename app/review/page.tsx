@@ -6,6 +6,8 @@ import { PageHero } from "@/components/page-hero";
 import { PublishActions } from "@/components/publish-actions";
 import { ReviewActions } from "@/components/review-actions";
 import { ReviewEditor } from "@/components/review-editor";
+import { roleLabels } from "@/lib/auth";
+import { listWorkspaceMembers } from "@/lib/auth/repository";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { getCurrentViewer } from "@/lib/auth/session";
 import { getBrandStrategyPack, getPrioritizedHotspots, getPublishJobsForPack, getReviewQueue } from "@/lib/data";
@@ -36,6 +38,11 @@ type SearchParams = Promise<{
   status?: ReviewStatus | "all";
   q?: string;
 }>;
+
+interface ReviewActionReviewerOption {
+  value: string;
+  description?: string;
+}
 
 function getPackStatusTone(status: ReviewStatus) {
   if (status === "approved") {
@@ -185,10 +192,11 @@ export default async function ReviewPage({
 }) {
   const viewer = await getCurrentViewer();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const [brand, packs, prioritizedHotspots] = await Promise.all([
+  const [brand, packs, prioritizedHotspots, workspaceMembers] = await Promise.all([
     getBrandStrategyPack(),
     getReviewQueue(),
-    getPrioritizedHotspots()
+    getPrioritizedHotspots(),
+    listWorkspaceMembers()
   ]);
 
   const statusFilter = resolvedSearchParams?.status ?? "all";
@@ -301,6 +309,47 @@ export default async function ReviewPage({
   const queuedCount = jobs.filter((job) => job.status === "queued").length;
   const publishedCount = jobs.filter((job) => job.status === "published").length;
   const failedCount = jobs.filter((job) => job.status === "failed").length;
+  const reviewerRolePriority = {
+    approver: 0,
+    org_admin: 1,
+    operator: 2
+  } as const;
+  const reviewerCandidates: ReviewActionReviewerOption[] = [];
+  const currentReviewer = activePack.reviewedBy ?? activePack.reviewOwner;
+
+  if (currentReviewer) {
+    reviewerCandidates.push({
+      value: currentReviewer,
+      description: "当前审核负责人"
+    });
+  }
+
+  workspaceMembers
+    .filter((member) => member.status === "active")
+    .sort((left, right) => {
+      const roleGap = reviewerRolePriority[left.role] - reviewerRolePriority[right.role];
+
+      if (roleGap !== 0) {
+        return roleGap;
+      }
+
+      return left.user.displayName.localeCompare(right.user.displayName, "zh-Hans-CN");
+    })
+    .forEach((member) => {
+      reviewerCandidates.push({
+        value: member.user.displayName,
+        description: [roleLabels[member.role], member.user.email].filter(Boolean).join(" · ")
+      });
+    });
+
+  const reviewerOptions = reviewerCandidates.reduce<ReviewActionReviewerOption[]>((options, option) => {
+    if (options.some((item) => item.value === option.value)) {
+      return options;
+    }
+
+    options.push(option);
+    return options;
+  }, []);
   const priorityLabel = getPriorityLevel({
     status: activePack.status,
     publishWindow: activeVariant?.publishWindow,
@@ -541,6 +590,7 @@ export default async function ReviewPage({
                 currentStatus={activePack.status}
                 defaultReviewer={activePack.reviewedBy ?? activePack.reviewOwner}
                 packId={activePack.id}
+                reviewerOptions={reviewerOptions}
               />
             )}
           </section>

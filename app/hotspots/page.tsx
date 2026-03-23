@@ -1121,6 +1121,17 @@ export default async function HotspotsPage({
             const sourceTypeSummary = Array.from(
               new Set(sourceRecords.map((record) => getSourceTypeLabel(record.sourceType, record.providerId)))
             );
+            const reasonNow = signal.reasons[0] ?? "品牌匹配信号：已命中品牌主题与当前传播窗口。";
+            const reasonBrandRaw = signal.reasons[1];
+            const reasonBrand =
+              reasonBrandRaw && !reasonBrandRaw.startsWith("切入建议：")
+                ? reasonBrandRaw
+                : `品牌结合路径：建议把议题收束到 ${brand.name} 的真实产品场景与组织协同价值，再展开内容。`;
+            const reasonAngle =
+              signal.reasons[2] ??
+              (signal.recommendedAction === "ship-now"
+                ? "风险与时效：优先给出业务判断，再补充方法论解释。"
+                : "风险与时效：建议先观察证据完整度，再决定是否放大传播。");
 
             return (
               <article className="panel hotspotDecisionCard" key={signal.id}>
@@ -1178,17 +1189,15 @@ export default async function HotspotsPage({
                   <div className="hotspotBoardDetailsBody reviewContextCopy">
                     <p>
                       <strong>为什么现在值得做：</strong>
-                      {signal.reasons[0] ?? "已命中品牌主题和当前传播窗口。"}
+                      {reasonNow}
                     </p>
                     <p>
                       <strong>为什么和品牌有关：</strong>
-                      {signal.reasons[1] ?? `建议把话题收束到 ${brand.name} 的真实产品场景与组织协同价值。`}
+                      {reasonBrand}
                     </p>
                     <p>
                       <strong>可能的传播角度：</strong>
-                      {signal.recommendedAction === "ship-now"
-                        ? "先占判断位，再补方法论深度。"
-                        : "保留观察，适合等更多证据后再转成观点向内容。"}
+                      {reasonAngle}
                     </p>
                     <div className="hotspotDetailSourceLinks">
                       {sourceRecords.map((record) => (

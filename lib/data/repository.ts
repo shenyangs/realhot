@@ -280,6 +280,45 @@ function normalizeQueueBodies(packs: HotspotPack[]): HotspotPack[] {
   return packs.map(normalizePackBodies);
 }
 
+async function updateHotspotPackReviewInLocalStore(
+  packId: string,
+  input: {
+    status: HotspotPack["status"];
+    note?: string;
+    reviewer?: string;
+  }
+): Promise<HotspotPack | null> {
+  const note = input.note?.trim() ? input.note.trim() : undefined;
+  const reviewer = input.reviewer?.trim() ? input.reviewer.trim() : undefined;
+  const reviewedAt = new Date().toISOString();
+  let updatedPack: HotspotPack | null = null;
+
+  await updateLocalDataStore((store) => {
+    const packs = store.packs.map((pack) => {
+      if (pack.id !== packId) {
+        return pack;
+      }
+
+      updatedPack = {
+        ...pack,
+        status: input.status,
+        reviewNote: note,
+        reviewedBy: reviewer,
+        reviewedAt
+      };
+
+      return updatedPack;
+    });
+
+    return {
+      ...store,
+      packs
+    };
+  });
+
+  return updatedPack;
+}
+
 export async function getBrandStrategyPack(): Promise<BrandStrategyPack> {
   const supabase = getSupabaseServerClient();
 
@@ -433,7 +472,8 @@ export async function getHotspotSignals(): Promise<HotspotSignal[]> {
     .returns<HotspotRow[]>();
 
   if (error || !data || data.length === 0) {
-    return mockHotspotSignals;
+    const store = await readLocalDataStore();
+    return store.hotspots;
   }
 
   return data.map(mapHotspot);
@@ -456,7 +496,8 @@ export async function getReviewQueue(): Promise<HotspotPack[]> {
     .returns<HotspotPackRow[]>();
 
   if (error || !data || data.length === 0) {
-    return normalizeQueueBodies(mockHotspotPacks);
+    const store = await readLocalDataStore();
+    return normalizeQueueBodies(store.packs);
   }
 
   return normalizeQueueBodies(data.map(mapPack));
@@ -539,35 +580,7 @@ export async function updateHotspotPackReview(
   const supabase = getSupabaseServerClient();
 
   if (!supabase) {
-    const note = input.note?.trim() ? input.note.trim() : undefined;
-    const reviewer = input.reviewer?.trim() ? input.reviewer.trim() : undefined;
-    const reviewedAt = new Date().toISOString();
-    let updatedPack: HotspotPack | null = null;
-
-    await updateLocalDataStore((store) => {
-      const packs = store.packs.map((pack) => {
-        if (pack.id !== packId) {
-          return pack;
-        }
-
-        updatedPack = {
-          ...pack,
-          status: input.status,
-          reviewNote: note,
-          reviewedBy: reviewer,
-          reviewedAt
-        };
-
-        return updatedPack;
-      });
-
-      return {
-        ...store,
-        packs
-      };
-    });
-
-    return updatedPack;
+    return updateHotspotPackReviewInLocalStore(packId, input);
   }
 
   const payload = {
@@ -578,13 +591,19 @@ export async function updateHotspotPackReview(
     updated_at: new Date().toISOString()
   };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("hotspot_packs")
     .update(payload)
-    .eq("id", packId);
+    .eq("id", packId)
+    .select("id")
+    .maybeSingle<{ id: string }>();
 
   if (error) {
     throw error;
+  }
+
+  if (!data) {
+    return updateHotspotPackReviewInLocalStore(packId, input);
   }
 
   return (await getHotspotPack(packId)) ?? null;
