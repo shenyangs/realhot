@@ -45,32 +45,26 @@ export default async function AdminPage() {
           </>
         }
         context={viewer.user.displayName}
-        description="平台管理员视角单独收口到这里，避免和业务工作台混用。这里负责用户、组织、模型配置和关键运行记录。"
+        description="统一处理用户、组织、模型配置与关键运行记录。"
         eyebrow="Platform Admin"
         facts={[
           { label: "当前身份", value: "超级管理员" },
           { label: "运行环境", value: viewer.mode === "demo" ? "Demo" : "实时环境" },
-          { label: "管理范围", value: "用户 / 组织 / 模型 / 日志" },
-          { label: "当前入口", value: "平台后台" }
+          { label: "管理范围", value: "用户 / 组织 / 模型 / 日志" }
         ]}
         title="平台后台总控"
       />
 
       <section className="summaryGrid adminSummaryGrid">
         <article className="panel summaryCard summaryCardElevated">
-          <p className="eyebrow">管理边界</p>
-          <h3>平台侧与业务侧已拆开</h3>
-          <p className="muted">客户团队只看到热点运营平台，平台管理员在这里处理全局治理。</p>
+          <p className="eyebrow">平台治理</p>
+          <h3>用户、组织与权限</h3>
+          <p className="muted">先确认账号与组织边界，再处理后续配置。</p>
         </article>
         <article className="panel summaryCard summaryCardElevated">
-          <p className="eyebrow">当前重点</p>
-          <h3>控制权限与运行稳定性</h3>
-          <p className="muted">最后精修的目标不是加功能，而是让后台同样像成熟系统。</p>
-        </article>
-        <article className="panel summaryCard summaryCardElevated">
-          <p className="eyebrow">推荐动作</p>
-          <h3>先看用户，再看组织，再查日志</h3>
-          <p className="muted">按这个顺序最容易快速定位账号、组织和系统层面的异常。</p>
+          <p className="eyebrow">推荐顺序</p>
+          <h3>用户、组织、日志</h3>
+          <p className="muted">用最短路径排查权限、归属和运行异常。</p>
         </article>
       </section>
 

@@ -37,18 +37,18 @@ const baseNavItems: NavItem[] = [
     description: "按顺序判断、改稿、提交"
   },
   {
-    href: "/publish",
-    order: "04",
-    label: "发布执行台",
-    shortLabel: "发布",
-    description: "查看运行状态与失败诊断"
-  },
-  {
     href: "/production-studio",
-    order: "05",
+    order: "04",
     label: "内容深度制作",
     shortLabel: "制作",
     description: "一键生成后统一微调"
+  },
+  {
+    href: "/publish",
+    order: "05",
+    label: "发布执行台",
+    shortLabel: "发布",
+    description: "查看运行状态与失败诊断"
   },
   {
     href: "/brands",
@@ -97,16 +97,13 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
     <aside className="sidebar">
       <div className="sidebarInner">
         <div className="sidebarBrand">
-          <span className="sidebarKicker">热点运营平台</span>
+          <span className="sidebarKicker">Brand OS</span>
           <Link className="brandLink" href="/">
             热点运营平台
           </Link>
-          <p className="muted">
-            从热点信号到内容发布，把判断、编辑、审核和执行收进同一套品牌操作系统。
-          </p>
           <div className="sidebarBrandMeta">
-            <span className="tag">运行中</span>
-            <span className="tag">{viewer.mode === "demo" ? "Demo 数据" : "实时环境"}</span>
+            <span className="tag">{viewer.currentWorkspace?.name ?? "平台视角"}</span>
+            <span className="tag">{viewer.mode === "demo" ? "Demo" : "Live"}</span>
           </div>
         </div>
 
@@ -129,23 +126,20 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
                     <span className="navCardMeta">{item.shortLabel}</span>
                   </div>
                   <strong>{item.label}</strong>
-                  <span>{item.description}</span>
                 </Link>
               );
             })}
           </nav>
         </div>
 
-        <div className="sidebarStatusCard">
-          <div className="statusCardLabelRow">
-            <span className="statusDot" />
-            <span className="sidebarLabel">当前位置</span>
+        <div className="sidebarContextCard">
+          <div className="sidebarContextRow">
+            <span className="statusDot statusDot-neutral" />
+            <span className="sidebarLabel">{activeItem.label}</span>
           </div>
-          <strong>{activeItem.label}</strong>
-          <p className="muted">{activeItem.description}</p>
-          <div className="sidebarStatusMeta">
-            {viewer.currentWorkspace ? <small className="muted">工作区：{viewer.currentWorkspace.name}</small> : null}
-            <small className="muted">当前角色：{viewer.isPlatformAdmin ? "平台管理员" : "业务工作台"}</small>
+          <div className="sidebarContextMeta">
+            <small className="muted">{viewer.isPlatformAdmin ? "平台管理员" : "业务工作台"}</small>
+            <small className="muted">{activeItem.description}</small>
           </div>
         </div>
       </div>

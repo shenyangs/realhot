@@ -64,9 +64,13 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.workbenchSecondaryGrid,
-.brandSupportGrid {
+.workbenchSecondaryGrid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.brandSupportGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
 }
 
 .brandCoreGrid,
@@ -778,7 +782,7 @@ strong {
 .appShell {
   position: relative;
   display: grid;
-  grid-template-columns: 304px minmax(0, 1fr);
+  grid-template-columns: 272px minmax(0, 1fr);
   align-items: start;
   height: 100vh;
   overflow: hidden;
@@ -790,7 +794,7 @@ strong {
   height: 100vh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 1.5rem 1.1rem;
+  padding: 1.25rem 0.95rem;
   border-right: 1px solid var(--line);
   background: rgba(238, 236, 230, 0.74);
   backdrop-filter: blur(18px);
@@ -800,7 +804,7 @@ strong {
 .sidebarInner {
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
+  gap: 0.9rem;
   min-height: 100%;
 }
 
@@ -829,7 +833,7 @@ strong {
 .sidebarBrand {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.45rem;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(247, 245, 239, 0.78)),
     radial-gradient(circle at top left, rgba(39, 54, 76, 0.08), transparent 42%);
@@ -893,7 +897,7 @@ strong {
 
 .brandLink {
   font-family: var(--font-display), "Songti SC", serif;
-  font-size: 1.34rem;
+  font-size: 1.2rem;
   font-weight: 620;
   line-height: 1.2;
   letter-spacing: -0.01em;
@@ -902,7 +906,7 @@ strong {
 .sidebarSection {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.55rem;
 }
 
 .topbar {
@@ -1138,17 +1142,17 @@ strong {
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
 
 .navCard {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.92rem 0.95rem 0.92rem 1rem;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.6);
+  gap: 0.3rem;
+  padding: 0.78rem 0.84rem 0.78rem 0.92rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.56);
   transition:
     border-color 160ms ease,
     background 160ms ease;
@@ -1172,8 +1176,8 @@ strong {
 }
 
 .navCard strong {
-  font-size: 1rem;
-  line-height: 1.25;
+  font-size: 0.96rem;
+  line-height: 1.2;
   letter-spacing: -0.02em;
 }
 
@@ -1211,6 +1215,46 @@ strong {
   gap: 0.55rem;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(247, 245, 239, 0.66));
   backdrop-filter: blur(12px);
+}
+
+.adminConsolePage .pageHeroUtility {
+  padding: 1rem 1.05rem;
+}
+
+.adminConsolePage .pageHeroUtility .pageHeroContent {
+  gap: 0.45rem;
+}
+
+.adminConsolePage .pageHeroUtility .pageHeroDescription {
+  max-width: 58ch;
+  line-height: 1.55;
+}
+
+.adminConsolePage .pageHeroFacts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.85rem;
+}
+
+.adminConsolePage .pageHeroFacts > div {
+  padding: 0.72rem 0.8rem;
+}
+
+.adminConsolePage .summaryGrid.adminSummaryGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.adminConsolePage .summaryCard {
+  padding: 0.85rem 0.95rem;
+}
+
+.adminConsolePage .summaryCard h3 {
+  font-size: 1.02rem;
+}
+
+.adminConsolePage .summaryCardElevated {
+  min-height: 0;
 }
 
 .statusCardLabelRow {
@@ -2669,6 +2713,26 @@ strong {
   background: rgba(255, 255, 255, 0.88);
 }
 
+.sourceItem {
+  align-items: flex-start;
+}
+
+.sourceItem > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.sourceItem strong,
+.sourceItem p {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.sourceItem .pill {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
 .publishJobControls {
   display: flex;
   flex-direction: column;
@@ -3052,6 +3116,11 @@ strong {
 .onboardingGrid,
 .completionGrid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sourceLibraryGrid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  align-items: start;
 }
 
 .materialSection {
