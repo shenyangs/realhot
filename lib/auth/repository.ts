@@ -1404,6 +1404,108 @@ export async function getWorkspaceById(id: string) {
   return data ? mapWorkspaceRow(data) : null;
 }
 
+export async function createWorkspace(input: {
+  name: string;
+  slug: string;
+  planType?: string;
+  status?: string;
+}) {
+  const viewer = await getCurrentViewer();
+  const name = input.name.trim();
+  const slug = input.slug.trim().toLowerCase();
+  const planType = input.planType?.trim() || "trial";
+  const status = input.status?.trim() || "active";
+
+  if (!name) {
+    throw new Error("workspace_name_required");
+  }
+
+  if (!slug) {
+    throw new Error("workspace_slug_required");
+  }
+
+  if (viewer.mode === "demo") {
+    const existingStore = await readLocalDataStore();
+
+    if (existingStore.workspaces.some((workspace) => workspace.slug.toLowerCase() === slug)) {
+      throw new Error("workspace_slug_already_exists");
+    }
+
+    const workspace: ViewerWorkspace = {
+      id: randomUUID(),
+      name,
+      slug,
+      planType,
+      status
+    };
+
+    await updateLocalDataStore((current) => ({
+      ...current,
+      workspaces: [...current.workspaces, workspace]
+    }));
+
+    await writeAuditLog({
+      workspaceId: workspace.id,
+      actorUserId: viewer.user.id,
+      actorDisplayName: viewer.user.displayName,
+      actorEmail: viewer.user.email,
+      entityType: "workspace",
+      entityId: workspace.id,
+      action: "workspace.created",
+      payload: {
+        name: workspace.name,
+        slug: workspace.slug,
+        planType: workspace.planType,
+        status: workspace.status
+      }
+    });
+
+    return workspace;
+  }
+
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    throw new Error("supabase_not_configured");
+  }
+
+  const { data, error } = await supabase
+    .from("workspaces")
+    .insert({
+      name,
+      slug,
+      plan_type: planType,
+      status,
+      owner_user_id: viewer.user.id
+    })
+    .select("id, name, slug, plan_type, status")
+    .maybeSingle<WorkspaceRow>();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? error?.details ?? error?.hint ?? "workspace_create_failed");
+  }
+
+  const workspace = mapWorkspaceRow(data);
+
+  await writeAuditLog({
+    workspaceId: workspace.id,
+    actorUserId: viewer.user.id,
+    actorDisplayName: viewer.user.displayName,
+    actorEmail: viewer.user.email,
+    entityType: "workspace",
+    entityId: workspace.id,
+    action: "workspace.created",
+    payload: {
+      name: workspace.name,
+      slug: workspace.slug,
+      planType: workspace.planType,
+      status: workspace.status
+    }
+  });
+
+  return workspace;
+}
+
 export async function updateWorkspace(input: {
   workspaceId: string;
   name?: string;
@@ -1489,7 +1591,7 @@ export async function updateWorkspace(input: {
     .maybeSingle<WorkspaceRow>();
 
   if (error || !data) {
-    throw new Error("workspace_update_failed");
+    throw new Error(error?.message ?? error?.details ?? error?.hint ?? "workspace_update_failed");
   }
 
   const workspace = mapWorkspaceRow(data);

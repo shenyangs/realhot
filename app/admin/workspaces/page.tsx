@@ -1,3 +1,4 @@
+import { AdminWorkspaceCreateForm } from "@/components/admin-workspace-create-form";
 import Link from "next/link";
 import { InviteCodeGenerator } from "@/components/invite-code-generator";
 import { InviteCodeList } from "@/components/invite-code-list";
@@ -21,6 +22,9 @@ export default async function AdminWorkspacesPage() {
       <PageHero
         actions={
           <>
+            <Link className="buttonLike primaryButton" href="#workspace-create">
+              新增组织
+            </Link>
             <Link className="buttonLike subtleButton" href="/admin">
               返回后台总览
             </Link>
@@ -35,6 +39,10 @@ export default async function AdminWorkspacesPage() {
         ]}
         title="组织管理"
       />
+
+      <section id="workspace-create">
+        <AdminWorkspaceCreateForm />
+      </section>
 
       <section className="adminEntityList">
         {workspaces.map((workspace) => (
