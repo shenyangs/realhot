@@ -44,6 +44,8 @@ const storeFile = path.join(storeDirectory, "brand-hotspot-studio.json");
 const tempStoreFile = path.join(storeDirectory, "brand-hotspot-studio.tmp.json");
 
 let storeUpdateQueue: Promise<void> = Promise.resolve();
+let memoryStore: LocalDataStore | null = null;
+let fileStoreAvailable: boolean | null = null;
 
 function ensureRequiredLocalAccounts(store: LocalDataStore): LocalDataStore {
   const adminProfile = DEMO_USERS.super_admin;
@@ -176,17 +178,32 @@ function normalizeStore(raw: Partial<LocalDataStore> | null | undefined): LocalD
 }
 
 async function ensureStoreFile(): Promise<void> {
-  await mkdir(storeDirectory, { recursive: true });
-
   try {
-    await readFile(storeFile, "utf8");
-  } catch {
-    await writeFile(storeFile, JSON.stringify(buildInitialStore(), null, 2), "utf8");
+    await mkdir(storeDirectory, { recursive: true });
+
+    try {
+      await readFile(storeFile, "utf8");
+    } catch {
+      await writeFile(storeFile, JSON.stringify(buildInitialStore(), null, 2), "utf8");
+    }
+
+    fileStoreAvailable = true;
+  } catch (error) {
+    fileStoreAvailable = false;
+    console.warn("[local-store] Falling back to in-memory store", error);
   }
 }
 
 export async function readLocalDataStore(): Promise<LocalDataStore> {
   await ensureStoreFile();
+
+  if (fileStoreAvailable === false) {
+    if (!memoryStore) {
+      memoryStore = buildInitialStore();
+    }
+
+    return clone(memoryStore);
+  }
 
   try {
     const content = await readFile(storeFile, "utf8");
@@ -194,17 +211,40 @@ export async function readLocalDataStore(): Promise<LocalDataStore> {
     return normalizeStore(parsed);
   } catch {
     const initial = buildInitialStore();
-    await writeFile(storeFile, JSON.stringify(initial, null, 2), "utf8");
-    return initial;
+
+    try {
+      await writeFile(storeFile, JSON.stringify(initial, null, 2), "utf8");
+      fileStoreAvailable = true;
+      return initial;
+    } catch (error) {
+      fileStoreAvailable = false;
+      console.warn("[local-store] Failed to rebuild local store file, using memory store", error);
+      memoryStore = initial;
+      return clone(initial);
+    }
   }
 }
 
 export async function writeLocalDataStore(store: LocalDataStore): Promise<LocalDataStore> {
   const normalized = normalizeStore(store);
   await ensureStoreFile();
-  await writeFile(tempStoreFile, JSON.stringify(normalized, null, 2), "utf8");
-  await rename(tempStoreFile, storeFile);
-  return normalized;
+
+  if (fileStoreAvailable === false) {
+    memoryStore = clone(normalized);
+    return clone(normalized);
+  }
+
+  try {
+    await writeFile(tempStoreFile, JSON.stringify(normalized, null, 2), "utf8");
+    await rename(tempStoreFile, storeFile);
+    fileStoreAvailable = true;
+    return normalized;
+  } catch (error) {
+    fileStoreAvailable = false;
+    memoryStore = clone(normalized);
+    console.warn("[local-store] Failed to persist local store file, using memory store", error);
+    return clone(normalized);
+  }
 }
 
 export async function updateLocalDataStore(

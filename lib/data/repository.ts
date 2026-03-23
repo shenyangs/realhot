@@ -104,6 +104,25 @@ interface PublishJobRow {
   } | null;
 }
 
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean);
+}
+
+function normalizePlatforms(value: unknown): Platform[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(
+    (platform): platform is Platform =>
+      platform === "xiaohongshu" || platform === "wechat" || platform === "video-channel" || platform === "douyin"
+  );
+}
+
 export interface QueuePublishJobsResult {
   jobs: PublishJob[];
   persisted: boolean;
@@ -124,16 +143,16 @@ export interface QueuedPublishJob extends PublishJob {
 function mapBrand(row: BrandRow, sources: BrandSourceRow[]): BrandStrategyPack {
   return {
     id: row.id,
-    name: row.name,
-    slogan: row.slogan,
-    sector: row.sector,
-    audiences: row.audiences,
-    positioning: row.positioning,
-    topics: row.topics,
-    tone: row.tone,
-    redLines: row.red_lines,
-    competitors: row.competitors,
-    recentMoves: row.recent_moves,
+    name: row.name?.trim() || mockBrandStrategyPack.name,
+    slogan: row.slogan?.trim() || mockBrandStrategyPack.slogan,
+    sector: row.sector?.trim() || mockBrandStrategyPack.sector,
+    audiences: normalizeStringArray(row.audiences),
+    positioning: normalizeStringArray(row.positioning),
+    topics: normalizeStringArray(row.topics),
+    tone: normalizeStringArray(row.tone),
+    redLines: normalizeStringArray(row.red_lines),
+    competitors: normalizeStringArray(row.competitors),
+    recentMoves: normalizeStringArray(row.recent_moves),
     sources
   };
 }
@@ -171,22 +190,22 @@ function mapPack(row: HotspotPackRow): HotspotPack {
     brandId: row.brand_id,
     hotspotId: row.hotspot_id,
     status: row.status,
-    whyNow: row.why_now,
-    whyUs: row.why_us,
-    reviewOwner: row.review_owner,
+    whyNow: row.why_now?.trim() || "暂无判断",
+    whyUs: row.why_us?.trim() || "暂无品牌关联说明",
+    reviewOwner: row.review_owner?.trim() || "待分配",
     reviewNote: row.review_note ?? undefined,
     reviewedBy: row.reviewed_by ?? undefined,
     reviewedAt: row.reviewed_at ?? undefined,
     variants: (row.content_variants ?? []).map((variant) => ({
       id: variant.id,
       track: variant.track,
-      title: variant.title,
-      angle: variant.angle,
-      platforms: variant.platforms,
+      title: variant.title?.trim() || "未命名内容",
+      angle: variant.angle?.trim() || "暂无角度说明",
+      platforms: normalizePlatforms(variant.platforms),
       format: variant.format,
-      body: variant.body,
-      coverHook: variant.cover_hook,
-      publishWindow: variant.publish_window
+      body: variant.body ?? "",
+      coverHook: variant.cover_hook ?? "",
+      publishWindow: variant.publish_window?.trim() || "未设置"
     }))
   };
 }

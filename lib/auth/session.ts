@@ -116,15 +116,24 @@ async function resolveViewerFromSupabase(userId: string, workspaceSlug?: string 
     return null;
   }
 
-  const [{ data: profile }, { data: platformAdmin }, { data: memberships }] = await Promise.all([
-    supabase.from("profiles").select("id, email, display_name, avatar_url, status").eq("id", userId).maybeSingle<ProfileRow>(),
-    supabase.from("platform_admins").select("user_id").eq("user_id", userId).maybeSingle<PlatformAdminRow>(),
-    supabase
-      .from("workspace_members")
-      .select("role, status, workspaces(id, name, slug, plan_type, status)")
-      .eq("user_id", userId)
-      .returns<WorkspaceMembershipRow[]>()
-  ]);
+  let profile: ProfileRow | null = null;
+  let platformAdmin: PlatformAdminRow | null = null;
+  let memberships: WorkspaceMembershipRow[] | null = null;
+
+  try {
+    [{ data: profile }, { data: platformAdmin }, { data: memberships }] = await Promise.all([
+      supabase.from("profiles").select("id, email, display_name, avatar_url, status").eq("id", userId).maybeSingle<ProfileRow>(),
+      supabase.from("platform_admins").select("user_id").eq("user_id", userId).maybeSingle<PlatformAdminRow>(),
+      supabase
+        .from("workspace_members")
+        .select("role, status, workspaces(id, name, slug, plan_type, status)")
+        .eq("user_id", userId)
+        .returns<WorkspaceMembershipRow[]>()
+    ]);
+  } catch (error) {
+    console.error("[auth] Failed to resolve viewer from Supabase", error);
+    return null;
+  }
 
   if (!profile) {
     return null;
@@ -222,14 +231,18 @@ export async function getCurrentViewer(): Promise<ViewerContext> {
     const supabase = getSupabaseClient();
 
     if (supabase) {
-      const { data } = await supabase.auth.getUser(accessToken);
+      try {
+        const { data } = await supabase.auth.getUser(accessToken);
 
-      if (data.user?.id) {
-        const viewer = await resolveViewerFromSupabase(data.user.id, workspaceSlug);
+        if (data.user?.id) {
+          const viewer = await resolveViewerFromSupabase(data.user.id, workspaceSlug);
 
-        if (viewer) {
-          return viewer;
+          if (viewer) {
+            return viewer;
+          }
         }
+      } catch (error) {
+        console.error("[auth] Failed to read current Supabase user", error);
       }
     }
   }
