@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAccess } from "@/lib/auth/api-guard";
 import { writeAuditLog } from "@/lib/auth/audit";
-import { canGenerateContent } from "@/lib/auth/permissions";
+import { canUseHotspotInsight } from "@/lib/auth/permissions";
 import { getHotspotSignals } from "@/lib/data";
 import { generateHotspotInsight } from "@/lib/services/hotspot-insight";
 
 export async function POST(request: NextRequest) {
   try {
     const access = await requireApiAccess(request, {
-      authorize: canGenerateContent,
+      authorize: canUseHotspotInsight,
       requireWorkspace: true
     });
 

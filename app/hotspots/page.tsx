@@ -5,7 +5,7 @@ import { HotspotActionButton } from "@/components/hotspot-action-button";
 import { HotspotDecisionBasis } from "@/components/hotspot-decision-basis";
 import { PageAutoRefresh } from "@/components/page-auto-refresh";
 import { PageHero } from "@/components/page-hero";
-import { canGenerateContent } from "@/lib/auth";
+import { canGenerateContent, canUseHotspotInsight } from "@/lib/auth";
 import { getCurrentViewer } from "@/lib/auth/session";
 import { getBrandStrategyPack, getHotspotSignals, getLatestHotspotSyncSnapshot, getReviewQueue } from "@/lib/data";
 import { ensureHotspotsFresh } from "@/lib/services/hotspot-auto-sync";
@@ -632,6 +632,7 @@ export default async function HotspotsPage({
   await ensureHotspotsFresh();
   const viewer = await getCurrentViewer();
   const canGenerate = canGenerateContent(viewer);
+  const canUseInsight = canUseHotspotInsight(viewer);
   const isTrialAccess = viewer.effectiveRole === "trial_guest";
 
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
@@ -772,23 +773,15 @@ export default async function HotspotsPage({
       <PageHero
         actions={
           <>
-            {isTrialAccess ? (
-              <Link className="buttonLike primaryButton" href="/">
-                回工作台
-              </Link>
-            ) : (
-              <Link className="buttonLike primaryButton" href="/review">
-                去审核台
-              </Link>
-            )}
-            <Link className="buttonLike subtleButton" href={isTrialAccess ? "/account" : "/"}>
-              {isTrialAccess ? "查看试用权限" : "回工作台"}
+            <Link className="buttonLike primaryButton" href="/review">
+              去审核台
             </Link>
-            {!isTrialAccess ? (
-              <Link className="buttonLike subtleButton" href="/brands">
-                查看品牌底盘
-              </Link>
-            ) : null}
+            <Link className="buttonLike subtleButton" href="/">
+              回工作台
+            </Link>
+            <Link className="buttonLike subtleButton" href="/brands">
+              查看品牌底盘
+            </Link>
           </>
         }
         context={brand.name}
@@ -1304,13 +1297,13 @@ export default async function HotspotsPage({
                     hotspotId={signal.id}
                     packId={existingPack?.packId}
                     platform={existingPack?.platform}
-                    readOnly={!canGenerate}
+                    readOnly={isTrialAccess || !canGenerate}
                     variantId={existingPack?.variantId}
                   />
                 </div>
 
                 <HotspotDecisionBasis
-                  allowAiActions={canGenerate}
+                  allowAiActions={canUseInsight}
                   fallbackReasons={{
                     whyNow: reasonNow,
                     whyBrand: reasonBrand,

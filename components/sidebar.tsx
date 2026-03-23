@@ -52,7 +52,6 @@ const baseNavItems: NavItem[] = [
   }
 ];
 
-const trialNavItems: NavItem[] = baseNavItems.filter((item) => item.href === "/" || item.href === "/hotspots");
 const hiddenContextItems: NavItem[] = [
   {
     href: "/brands",
@@ -66,21 +65,19 @@ const hiddenContextItems: NavItem[] = [
 export function Sidebar({ viewer }: { viewer: ViewerContext }) {
   const pathname = usePathname();
   const isTrial = viewer.effectiveRole === "trial_guest";
-  const navItems = isTrial
-    ? trialNavItems
-    : viewer.isPlatformAdmin
-      ? [
-          ...baseNavItems,
-          {
-            href: "/admin" as Route,
-            order: "06",
-            label: "平台后台",
-            shortLabel: "管理",
-            description: "用户、组织、日志与系统配置",
-            matchPrefixes: ["/admin"]
-          }
-        ]
-      : baseNavItems;
+  const navItems = viewer.isPlatformAdmin
+    ? [
+        ...baseNavItems,
+        {
+          href: "/admin" as Route,
+          order: "06",
+          label: "平台后台",
+          shortLabel: "管理",
+          description: "用户、组织、日志与系统配置",
+          matchPrefixes: ["/admin"]
+        }
+      ]
+    : baseNavItems;
 
   function isItemActive(item: NavItem) {
     if (item.href === "/") {

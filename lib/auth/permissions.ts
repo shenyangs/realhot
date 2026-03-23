@@ -25,6 +25,10 @@ export function canGenerateContent(viewer: ViewerContext): boolean {
   );
 }
 
+export function canUseHotspotInsight(viewer: ViewerContext): boolean {
+  return canGenerateContent(viewer) || viewer.effectiveRole === "trial_guest";
+}
+
 export function canApproveContent(viewer: ViewerContext): boolean {
   return hasPlatformOverride(viewer) || viewer.workspaceRole === "org_admin" || viewer.workspaceRole === "approver";
 }

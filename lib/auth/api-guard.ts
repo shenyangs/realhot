@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { setRequestAuditContext } from "@/lib/auth/request-audit-context";
 import { getCurrentViewer } from "@/lib/auth/session";
 import { ViewerContext } from "@/lib/auth/types";
 
@@ -64,6 +65,8 @@ export async function requireApiAccess(
   request: NextRequest,
   options: RequireApiAccessOptions = {}
 ): Promise<ApiAccessSuccess | ApiAccessFailure> {
+  setRequestAuditContext(request);
+
   const shouldEnforceSameOrigin = options.requireSameOrigin ?? !["GET", "HEAD", "OPTIONS"].includes(request.method);
 
   if (shouldEnforceSameOrigin) {

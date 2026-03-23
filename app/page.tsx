@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { HotspotActionButton } from "@/components/hotspot-action-button";
 import { PageHero } from "@/components/page-hero";
+import { PageRefreshButton } from "@/components/page-refresh-button";
 import { getCurrentViewer } from "@/lib/auth/session";
 import {
   getBrandStrategyPack,
@@ -193,25 +194,21 @@ export default async function HomePage() {
   }>;
 
   const heroPrimaryHref =
-    (isTrialAccess
-      ? "/hotspots"
-      : pendingPacks.length > 0
-        ? "/review"
-        : failedJobs.length > 0
-          ? "/publish"
-          : highPotentialHotspots.length > 0
-            ? "/hotspots"
-            : "/brands") as Route;
+    (pendingPacks.length > 0
+      ? "/review"
+      : failedJobs.length > 0
+        ? "/publish"
+        : highPotentialHotspots.length > 0
+          ? "/hotspots"
+          : "/brands") as Route;
   const heroPrimaryLabel =
-    isTrialAccess
-      ? "去看热点机会"
-      : pendingPacks.length > 0
-        ? "先去审核台"
-        : failedJobs.length > 0
-          ? "去发布中心"
-          : highPotentialHotspots.length > 0
-            ? "去看热点机会"
-            : "完善品牌底盘";
+    pendingPacks.length > 0
+      ? "先去审核台"
+      : failedJobs.length > 0
+        ? "去发布中心"
+        : highPotentialHotspots.length > 0
+          ? "去看热点机会"
+          : "完善品牌底盘";
 
   return (
     <div className="page workbenchPageV2">
@@ -252,20 +249,12 @@ export default async function HomePage() {
             <Link className="buttonLike primaryButton" href={heroPrimaryHref}>
               {heroPrimaryLabel}
             </Link>
-            {isTrialAccess ? (
-              <Link className="buttonLike subtleButton" href="/account">
-                查看试用权限
-              </Link>
-            ) : (
-              <>
-                <Link className="buttonLike subtleButton" href="/publish">
-                  去发布中心
-                </Link>
-                <Link className="buttonLike subtleButton" href="/brands">
-                  查看品牌底盘
-                </Link>
-              </>
-            )}
+            <Link className="buttonLike subtleButton" href="/publish">
+              去发布中心
+            </Link>
+            <Link className="buttonLike subtleButton" href="/brands">
+              查看品牌底盘
+            </Link>
           </>
         }
         context={brand.name}
@@ -365,9 +354,12 @@ export default async function HomePage() {
               <p className="eyebrow">高潜机会</p>
               <h2>不读长文也能判断</h2>
             </div>
-            <Link className="sectionLink" href="/hotspots">
-              查看详情
-            </Link>
+            <div className="panelHeaderActions">
+              <PageRefreshButton label="刷新" />
+              <Link className="sectionLink" href="/hotspots">
+                查看详情
+              </Link>
+            </div>
           </div>
 
           <div className="compactOpportunityList">

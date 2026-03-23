@@ -116,6 +116,11 @@ export function ReviewActions({
         | null;
 
       if (!response.ok) {
+        if (response.status === 403) {
+          setMessage("当前账号没有审核权限，请切换到审核者 / 组织管理员 / 超级管理员账号后再提交。");
+          return;
+        }
+
         setMessage(payload?.error ?? "审核写回失败");
         return;
       }
@@ -193,7 +198,7 @@ export function ReviewActions({
           </div>
         ) : null}
 
-        <p className="fieldHint">根据审批规则自动匹配，可手动更换</p>
+        <p className="fieldHint">审核人用于记录归属；是否可提交由当前登录账号权限决定。</p>
         {reviewerError ? <p className="fieldError">{reviewerError}</p> : null}
       </div>
 

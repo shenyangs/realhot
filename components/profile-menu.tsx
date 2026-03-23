@@ -13,7 +13,7 @@ const roleDescriptions = {
   media_channel: "负责渠道分发策略、发布节奏和媒介协同执行。",
   approver: "负责审核内容、退回修改、控制是否允许导出与发布。",
   guest: "尚未登录，仅能看到登录与注册入口。",
-  trial_guest: "试用模式仅支持浏览首页与热点机会，无法执行转题、审核、制作与发布。"
+  trial_guest: "试用模式可浏览全流程页面与内容；默认禁用写入操作，热点页可体验AI判断能力。"
 } as const;
 
 function getInitials(name: string) {
@@ -71,7 +71,7 @@ export function ProfileMenu({ viewer }: { viewer: ViewerContext }) {
                 业务工作台
               </Link>
             ) : null}
-            {!viewer.isPlatformAdmin && viewer.effectiveRole !== "trial_guest" ? (
+            {!viewer.isPlatformAdmin ? (
               <Link href="/team" onClick={() => setOpen(false)}>
                 成员与组织
               </Link>

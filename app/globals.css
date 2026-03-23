@@ -68,6 +68,11 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.96fr) minmax(0, 0.96fr);
 }
 
+.workbenchCoreGrid,
+.workbenchSecondaryGrid {
+  align-items: start;
+}
+
 .brandSupportGrid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
@@ -132,7 +137,8 @@
 
 .commandBoardCard,
 .secondaryBoardCard {
-  min-height: 100%;
+  min-height: 0;
+  height: auto;
 }
 
 .brandWorkbenchCard {
@@ -731,7 +737,8 @@
   .topicWorkbenchLayout,
   .filterMetaGrid,
   .adminSummaryGrid,
-  .adminModuleGrid {
+  .adminModuleGrid,
+  .adminHealthGrid {
     grid-template-columns: 1fr;
   }
 
@@ -774,7 +781,8 @@
   .decisionMetricGrid,
   .publishExecutionGrid,
   .editorAssistGrid,
-  .adminMetricGrid {
+  .adminMetricGrid,
+  .adminHealthGrid {
     grid-template-columns: 1fr;
   }
 
@@ -1387,6 +1395,42 @@ strong {
 
 .adminConsolePage .summaryCardElevated {
   min-height: 0;
+}
+
+.adminHealthPanel {
+  gap: 1rem;
+}
+
+.adminHealthHeaderMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.adminHealthGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.adminHealthCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-height: 100%;
+  padding: 1rem 1.05rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 8px 18px rgba(18, 24, 32, 0.035);
+}
+
+.adminHealthCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
 }
 
 .statusCardLabelRow {
@@ -2243,6 +2287,33 @@ strong {
   text-decoration: underline;
   text-decoration-color: rgba(29, 41, 59, 0.26);
   text-underline-offset: 3px;
+}
+
+.panelHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.sectionActionButton {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(29, 41, 59, 0.72);
+  font-size: 0.84rem;
+  font-weight: 560;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.sectionActionButton:hover:not(:disabled) {
+  color: var(--accent-strong);
+}
+
+.sectionActionButton:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
 }
 
 .workflowPanel {

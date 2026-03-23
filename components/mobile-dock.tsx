@@ -20,11 +20,6 @@ const workbenchNavItems: MobileNavItem[] = [
   { href: "/publish", label: "发布", short: "去执行" }
 ];
 
-const trialNavItems: MobileNavItem[] = [
-  { href: "/", label: "首页", short: "先做什么" },
-  { href: "/hotspots", label: "热点", short: "找机会" }
-];
-
 const adminWorkbenchNavItems: MobileNavItem[] = [
   { href: "/", label: "首页", short: "先做什么" },
   { href: "/hotspots", label: "热点", short: "找机会" },
@@ -45,14 +40,11 @@ const adminNavItems: MobileNavItem[] = [
 
 export function MobileDock({ viewer }: { viewer: ViewerContext }) {
   const pathname = usePathname();
-  const isTrial = viewer.effectiveRole === "trial_guest";
-  const navItems = isTrial
-    ? trialNavItems
-    : viewer.isPlatformAdmin && viewer.memberships.length > 0
-      ? adminWorkbenchNavItems
-      : pathname.startsWith("/admin")
-        ? adminNavItems
-        : workbenchNavItems;
+  const navItems = viewer.isPlatformAdmin && viewer.memberships.length > 0
+    ? adminWorkbenchNavItems
+    : pathname.startsWith("/admin")
+      ? adminNavItems
+      : workbenchNavItems;
   const navClassName = `mobileDockNav ${navItems.length > 5 ? "mobileDockNavDense" : ""}`;
 
   function isItemActive(item: MobileNavItem) {

@@ -62,10 +62,10 @@ export function HotspotInsightTrigger({ hotspotId, disabled = false }: HotspotIn
     <div className="hotspotInsightBlock">
       <div className="hotspotInsightActions">
         <button className="buttonLike subtleButton" disabled={disabled || isPending} onClick={fetchInsight} type="button">
-          {disabled ? "试用模式不可用" : isPending ? "正在生成专业判断..." : "补充专业判断"}
+          {disabled ? "当前角色不可用" : isPending ? "正在生成专业判断..." : "补充专业判断"}
         </button>
         <span className="muted">
-          {disabled ? "试用模式仅展示静态热点信息。" : "按需补充该热点的品牌结合路径、执行策略与风险边界。"}
+          {disabled ? "当前角色只能查看热点，不能触发深度判断。" : "按需补充该热点的品牌结合路径、执行策略与风险边界。"}
         </span>
       </div>
 

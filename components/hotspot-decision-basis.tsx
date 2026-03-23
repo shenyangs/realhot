@@ -149,7 +149,7 @@ export function HotspotDecisionBasis({
             <span className="muted">每条热点独立判断，不复用固定模板。</span>
           </div>
         ) : (
-          <p className="muted">试用模式下仅可查看基础判断依据。</p>
+          <p className="muted">当前角色仅可查看基础判断依据。</p>
         )}
 
         {message ? <p className="muted inlineActionMessage">{message}</p> : null}

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readLocalDataStore, updateLocalDataStore } from "@/lib/data/local-store";
 import { getSupabaseServerClient } from "@/lib/supabase/client";
+import { getRequestAuditContext } from "@/lib/auth/request-audit-context";
 
 export interface AuditLogPayload {
   [key: string]: unknown;
@@ -56,7 +57,16 @@ function shouldDeduplicate(action: string) {
 
 export async function writeAuditLog(input: AuditLogWriteInput) {
   const createdAt = input.createdAt ?? new Date().toISOString();
-  const payload = input.payload ?? {};
+  const requestContext = getRequestAuditContext();
+  const payload = requestContext
+    ? {
+        ...(input.payload ?? {}),
+        requestContext: {
+          ...((input.payload?.requestContext as Record<string, unknown> | undefined) ?? {}),
+          ...requestContext
+        }
+      }
+    : (input.payload ?? {});
   const supabase = getSupabaseServerClient();
   const actorUserId = input.actorUserId ?? null;
   const entityId = input.entityId ?? null;

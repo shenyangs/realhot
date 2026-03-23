@@ -83,7 +83,7 @@ export default async function LoginPage() {
               <h3>游客演示入口</h3>
             </div>
           </div>
-          <p className="muted">适合给客户现场演示：可浏览首页和热点机会、可切换筛选，但不能转题、审核、制作或发布。</p>
+          <p className="muted">适合现场演示：可浏览全流程页面、切换筛选并试用热点判断，但不能转题、审核、制作或发布。</p>
           <TrialAccessButton />
         </article>
       </section>

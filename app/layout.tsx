@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AppTopbar } from "@/components/app-topbar";
+import { ClientRequestContextBootstrap } from "@/components/client-request-context-bootstrap";
 import { MobileDock } from "@/components/mobile-dock";
 import { getCurrentViewer } from "@/lib/auth/session";
 import { Sidebar } from "@/components/sidebar";
@@ -31,6 +32,7 @@ export default async function RootLayout({
   return (
     <html lang="zh-CN">
       <body>
+        <ClientRequestContextBootstrap />
         <div className="appShell">
           <Sidebar viewer={viewer} />
           <main className="mainContent">

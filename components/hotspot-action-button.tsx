@@ -47,7 +47,7 @@ export function HotspotActionButton({
   if (readOnly) {
     return (
       <button className="buttonLike subtleButton" disabled type="button">
-        试用模式 · 仅浏览
+        试用可浏览 · 暂不可转题
       </button>
     );
   }

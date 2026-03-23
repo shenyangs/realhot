@@ -330,6 +330,11 @@ export default async function ReviewPage({
     });
   }
 
+  reviewerCandidates.push({
+    value: roleLabels.super_admin,
+    description: "平台级复核（需超级管理员账号实际提交）"
+  });
+
   workspaceMembers
     .filter((member) => member.status === "active")
     .sort((left, right) => {

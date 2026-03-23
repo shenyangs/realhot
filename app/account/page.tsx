@@ -27,7 +27,7 @@ const roleExplainMap = {
   },
   trial_guest: {
     title: "试用访客（只读）",
-    body: "可浏览首页与热点机会，用于演示产品能力；不具备转选题、审核、制作、发布等执行权限。"
+    body: "可浏览全流程页面与内容；默认不具备写入权限。热点页可试用AI判断与专业判断，但“转为选题”仍禁用。"
   },
   guest: {
     title: "未登录",
@@ -94,7 +94,7 @@ export default async function AccountPage() {
               <span>热点与策划</span>
               <strong>
                 {viewer.effectiveRole === "trial_guest"
-                  ? "仅可浏览首页与热点机会"
+                  ? "可浏览全流程；热点页可做AI判断，转题仍禁用"
                   : viewer.effectiveRole === "approver"
                   ? "可查看与审核"
                   : viewer.effectiveRole === "super_admin"
