@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiAccess } from "@/lib/auth/api-guard";
 import { canManageBrands } from "@/lib/auth/permissions";
 import { updateBrandStrategyPack } from "@/lib/data";
+import type { BrandAutofillFocus } from "@/lib/domain/brand-autofill";
 import { autofillBrandStrategy } from "@/lib/services/brand-autofill";
+
+const validFocuses = new Set<BrandAutofillFocus>(["full", "basic", "goals", "rules", "materials", "recent"]);
 
 export async function POST(request: NextRequest) {
   const access = await requireApiAccess(request, {
@@ -18,7 +21,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as {
       brandName?: string;
+      focus?: BrandAutofillFocus;
     };
+
+    const focus = validFocuses.has(body.focus ?? "full") ? (body.focus ?? "full") : "full";
 
     if (!body.brandName?.trim()) {
       return NextResponse.json(
@@ -31,7 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await autofillBrandStrategy(body.brandName);
+    const result = await autofillBrandStrategy(body.brandName, focus);
     const strategy = await updateBrandStrategyPack(result.strategy, {
       workspaceId: access.viewer.currentWorkspace?.id
     });

@@ -1,5 +1,6 @@
 import { getBrandStrategyPack } from "@/lib/data";
 import {
+  BrandAutofillFocus,
   BrandAutofillDraft,
   BrandAutofillReference,
   BrandAutofillResult
@@ -312,13 +313,61 @@ function normalizeModelPayload(
   };
 }
 
-function buildPrompt(brandName: string) {
+function resolveFocusInstruction(focus: BrandAutofillFocus) {
+  if (focus === "basic") {
+    return [
+      "当前重点步骤：品牌基础。",
+      "请优先把 brandName、sector、slogan、audiences、positioning 这组字段写准写实。",
+      "其余字段可以保守归纳，但不要喧宾夺主。"
+    ].join("\n");
+  }
+
+  if (focus === "goals") {
+    return [
+      "当前重点步骤：传播目标。",
+      "请优先把 objective、primaryPlatforms、topics 写清楚，明确今年传播重点、主平台和内容方向。",
+      "其余字段可以简洁保守。"
+    ].join("\n");
+  }
+
+  if (focus === "rules") {
+    return [
+      "当前重点步骤：表达规则。",
+      "请优先把 tone、redLines、competitors 写具体，尤其是品牌语气、禁区和竞品边界。",
+      "其余字段可以维持基础完整度即可。"
+    ].join("\n");
+  }
+
+  if (focus === "materials") {
+    return [
+      "当前重点步骤：素材与资料。",
+      "请优先判断最值得补的资料项，重点写 materials 与 references，让后续内容生成更稳。",
+      "其余字段可以简洁保守。"
+    ].join("\n");
+  }
+
+  if (focus === "recent") {
+    return [
+      "当前重点步骤：近期动态。",
+      "请优先写 recentMoves，聚焦最近一个月可公开确认的活动、发布、合作、传播动作与节点。",
+      "其余字段可以保守归纳。"
+    ].join("\n");
+  }
+
+  return [
+    "当前重点步骤：整份品牌档案。",
+    "请完整生成一版可直接回填的品牌策略草稿，兼顾品牌基础、传播目标、表达规则、资料准备和近期动态。"
+  ].join("\n");
+}
+
+function buildPrompt(brandName: string, focus: BrandAutofillFocus = "full") {
   const today = new Date().toISOString().slice(0, 10);
 
   return [
     `今天是 ${today}。`,
     "你是品牌策略研究员，任务是只基于公开互联网资料，为品牌系统生成一版可直接回填的品牌策略草稿。",
     `目标品牌：${brandName}`,
+    resolveFocusInstruction(focus),
     "请务必先进行多轮联网搜索，再输出结果。",
     "搜索优先级：",
     "1. 官方官网 / About / 产品页 / 新闻页",
@@ -475,7 +524,8 @@ function shouldUseStructuredSearch(model: string) {
 
 async function requestGeminiAutofill(
   brandName: string,
-  preferredModel?: string
+  preferredModel?: string,
+  focus: BrandAutofillFocus = "full"
 ): Promise<{
   payload: BrandAutofillModelPayload;
   model: string;
@@ -522,7 +572,7 @@ async function requestGeminiAutofill(
       try {
         const response = await requestGeminiContent({
           model,
-          contents: [createUserTextContent(buildPrompt(brandName))],
+          contents: [createUserTextContent(buildPrompt(brandName, focus))],
           tools: attempt.tools,
           timeoutMs: 60000,
           generationConfig: attempt.generationConfig
@@ -550,7 +600,8 @@ async function requestGeminiAutofill(
 
 async function requestMiniMaxAutofill(
   brandName: string,
-  model: string
+  model: string,
+  focus: BrandAutofillFocus = "full"
 ): Promise<BrandAutofillModelPayload> {
   const response = await requestMiniMaxChatCompletion({
     model,
@@ -562,7 +613,7 @@ async function requestMiniMaxAutofill(
       },
       {
         role: "user",
-        content: `${buildPrompt(brandName)}\n\n请严格按照 JSON 结构输出。`
+        content: `${buildPrompt(brandName, focus)}\n\n请严格按照 JSON 结构输出。`
       }
     ],
     timeoutMs: 60000
@@ -681,7 +732,10 @@ function buildFallbackPayload(brandName: string, current: BrandStrategyPack): Br
   };
 }
 
-export async function autofillBrandStrategy(brandName: string): Promise<BrandAutofillResult> {
+export async function autofillBrandStrategy(
+  brandName: string,
+  focus: BrandAutofillFocus = "full"
+): Promise<BrandAutofillResult> {
   const current = await getBrandStrategyPack();
   const normalizedBrandName = brandName.trim() || current.name;
   const updatedAt = new Date().toISOString();
@@ -696,11 +750,11 @@ export async function autofillBrandStrategy(brandName: string): Promise<BrandAut
     let payload: BrandAutofillModelPayload;
 
     if (route.provider === "gemini") {
-      const geminiResult = await requestGeminiAutofill(normalizedBrandName, model);
+      const geminiResult = await requestGeminiAutofill(normalizedBrandName, model, focus);
       payload = geminiResult.payload;
       model = geminiResult.model;
     } else {
-      payload = await requestMiniMaxAutofill(normalizedBrandName, model);
+      payload = await requestMiniMaxAutofill(normalizedBrandName, model, focus);
     }
     const normalized = normalizeModelPayload(payload, current);
     const reason =

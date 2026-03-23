@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BrandAutofillPanel, type BrandAutofillPayload } from "@/components/brand-autofill-panel";
+import type { BrandAutofillFocus } from "@/lib/domain/brand-autofill";
 import {
   formatLocalTimestamp,
   getOnboardingStorageKey,
@@ -77,6 +78,53 @@ const materialOptions = [
   "最近一个月活动资料",
   "最近一个月媒体新闻稿"
 ];
+
+const stepAutofillConfig: Record<
+  StepKey,
+  {
+    focus: BrandAutofillFocus;
+    title: string;
+    description: string;
+    buttonLabel: string;
+  }
+> = {
+  basic: {
+    focus: "basic",
+    title: "AI 帮填品牌基础",
+    description: "联网补品牌名称、行业、一句话介绍和核心受众，先把品牌画像搭起来。",
+    buttonLabel: "AI 填品牌基础"
+  },
+  goals: {
+    focus: "goals",
+    title: "AI 帮填传播目标",
+    description: "结合公开资料整理今年重点传播方向、优先平台和主打主题词。",
+    buttonLabel: "AI 填传播目标"
+  },
+  rules: {
+    focus: "rules",
+    title: "AI 帮填表达规则",
+    description: "补品牌语气、禁区和竞品边界，先给内容生产设好护栏。",
+    buttonLabel: "AI 填表达规则"
+  },
+  materials: {
+    focus: "materials",
+    title: "AI 帮填素材建议",
+    description: "判断最值得补的资料项，并从公开来源里找出最有用的资料类型。",
+    buttonLabel: "AI 填素材建议"
+  },
+  recent: {
+    focus: "recent",
+    title: "AI 帮填近期动态",
+    description: "聚焦最近一个月的活动、发布、合作和传播动作，提升热点判断准确度。",
+    buttonLabel: "AI 填近期动态"
+  },
+  done: {
+    focus: "full",
+    title: "AI 复核整份档案",
+    description: "重新拉一版完整品牌草稿，帮你检查前 5 步还有没有明显缺口。",
+    buttonLabel: "AI 复核品牌档案"
+  }
+};
 
 export function BrandOnboardingWizard({
   brandName,
@@ -225,6 +273,27 @@ export function BrandOnboardingWizard({
     setLastSavedAt(payload.updatedAt);
   }
 
+  function applyStepAutofill(step: StepKey, payload: BrandAutofillPayload) {
+    if (step === "basic") {
+      setBasic(payload.draft.basic);
+      setStorageBrandName(payload.strategy.name);
+    } else if (step === "goals") {
+      setGoals(payload.draft.goals);
+    } else if (step === "rules") {
+      setRules(payload.draft.rules);
+    } else if (step === "materials") {
+      setMaterials(payload.draft.materials);
+    } else if (step === "recent") {
+      setRecent(payload.draft.recent);
+    } else {
+      applyAutofill(payload);
+      return;
+    }
+
+    setSaveState("saved");
+    setLastSavedAt(payload.updatedAt);
+  }
+
   return (
     <div className="onboardingLayout">
       <aside className="onboardingSidebar panel">
@@ -281,14 +350,20 @@ export function BrandOnboardingWizard({
             </div>
           </div>
 
+          <BrandAutofillPanel
+            buttonLabel={stepAutofillConfig[currentStep.key].buttonLabel}
+            compact
+            description={stepAutofillConfig[currentStep.key].description}
+            focus={stepAutofillConfig[currentStep.key].focus}
+            initialBrandName={basic.brandName || brandName}
+            onApplied={(payload) => applyStepAutofill(currentStep.key, payload)}
+            persistDraftToStorage={false}
+            refreshAfterApply={false}
+            title={stepAutofillConfig[currentStep.key].title}
+          />
+
           {currentStep.key === "basic" ? (
             <div className="stack">
-              <BrandAutofillPanel
-                compact
-                initialBrandName={basic.brandName || brandName}
-                onApplied={applyAutofill}
-                refreshAfterApply={false}
-              />
               <label className="field">
                 <span>品牌名称</span>
                 <input

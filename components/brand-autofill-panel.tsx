@@ -8,7 +8,12 @@ import {
   getOnboardingStorageKey,
   type StoredOnboardingPayload
 } from "@/lib/client/persistence";
-import type { BrandAutofillDraft, BrandAutofillReference, BrandAutofillRoute } from "@/lib/domain/brand-autofill";
+import type {
+  BrandAutofillDraft,
+  BrandAutofillFocus,
+  BrandAutofillReference,
+  BrandAutofillRoute
+} from "@/lib/domain/brand-autofill";
 import type { BrandStrategyPack } from "@/lib/domain/types";
 
 export interface BrandAutofillPayload {
@@ -25,6 +30,11 @@ interface BrandAutofillPanelProps {
   initialBrandName: string;
   compact?: boolean;
   refreshAfterApply?: boolean;
+  persistDraftToStorage?: boolean;
+  focus?: BrandAutofillFocus;
+  title?: string;
+  description?: string;
+  buttonLabel?: string;
   onApplied?: (payload: BrandAutofillPayload) => void;
 }
 
@@ -66,6 +76,11 @@ export function BrandAutofillPanel({
   initialBrandName,
   compact = false,
   refreshAfterApply = true,
+  persistDraftToStorage = true,
+  focus = "full",
+  title,
+  description,
+  buttonLabel,
   onApplied
 }: BrandAutofillPanelProps) {
   const router = useRouter();
@@ -73,13 +88,13 @@ export function BrandAutofillPanel({
   const [message, setMessage] = useState("");
   const [result, setResult] = useState<BrandAutofillPayload | null>(null);
   const [isPending, startTransition] = useTransition();
-  const buttonLabel = useMemo(() => {
+  const resolvedButtonLabel = useMemo(() => {
     if (isPending) {
       return "检索中...";
     }
 
-    return "AI 填写";
-  }, [isPending]);
+    return buttonLabel ?? (focus === "full" ? "AI 填写" : "AI 帮填这一步");
+  }, [buttonLabel, focus, isPending]);
 
   function persistDraft(payload: BrandAutofillPayload) {
     const completedSteps = countCompletedSteps(payload.draft);
@@ -118,7 +133,8 @@ export function BrandAutofillPanel({
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          brandName: nextBrandName
+          brandName: nextBrandName,
+          focus
         })
       });
 
@@ -146,7 +162,11 @@ export function BrandAutofillPanel({
 
       setBrandName(nextResult.strategy.name);
       setResult(nextResult);
-      persistDraft(nextResult);
+
+      if (persistDraftToStorage) {
+        persistDraft(nextResult);
+      }
+
       onApplied?.(nextResult);
 
       if (refreshAfterApply) {
@@ -160,12 +180,12 @@ export function BrandAutofillPanel({
       <div className="brandAutofillHeader">
         <div>
           <p className="eyebrow">AI 填写</p>
-          <h3>品牌草稿</h3>
+          <h3>{title ?? "品牌草稿"}</h3>
           <p className="muted">
-            基于公开资料生成一版品牌草稿。
+            {description ?? "基于公开资料生成一版品牌草稿。"}
           </p>
         </div>
-        {!compact ? <span className="pill pill-neutral">公开资料优先</span> : null}
+        {!compact ? <span className="pill pill-neutral">{focus === "full" ? "公开资料优先" : "仅回填当前步骤"}</span> : null}
       </div>
 
       <div className="brandAutofillControls">
@@ -178,12 +198,14 @@ export function BrandAutofillPanel({
           />
         </label>
         <button className="buttonLike primaryButton" disabled={isPending} onClick={applyAutofill} type="button">
-          {buttonLabel}
+          {resolvedButtonLabel}
         </button>
       </div>
 
       <div className="brandAutofillMeta">
-        <span className="muted">生成后仍可继续手动调整。</span>
+        <span className="muted">
+          {focus === "full" ? "生成后仍可继续手动调整。" : "只会回填当前步骤，其他步骤内容保持不动。"}
+        </span>
         {result ? <span className="muted">最近回填：{formatLocalTimestamp(result.updatedAt)}</span> : null}
       </div>
 

@@ -1,5 +1,7 @@
 import { BrandSource, BrandStrategyPack } from "@/lib/domain/types";
 
+export type BrandAutofillFocus = "full" | "basic" | "goals" | "rules" | "materials" | "recent";
+
 export interface BrandAutofillDraft {
   basic: {
     brandName: string;
