@@ -49,7 +49,11 @@ const baseNavItems: NavItem[] = [
     label: "发布中心",
     shortLabel: "去发布",
     description: "安排排期、执行发布并查看结果"
-  },
+  }
+];
+
+const trialNavItems: NavItem[] = baseNavItems.filter((item) => item.href === "/" || item.href === "/hotspots");
+const hiddenContextItems: NavItem[] = [
   {
     href: "/brands",
     order: "06",
@@ -58,8 +62,6 @@ const baseNavItems: NavItem[] = [
     description: "统一品牌定位、表达边界和传播主题"
   }
 ];
-
-const trialNavItems: NavItem[] = baseNavItems.filter((item) => item.href === "/" || item.href === "/hotspots");
 
 export function Sidebar({ viewer }: { viewer: ViewerContext }) {
   const pathname = usePathname();
@@ -71,7 +73,7 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
           ...baseNavItems,
           {
             href: "/admin" as Route,
-            order: "07",
+            order: "06",
             label: "平台后台",
             shortLabel: "管理",
             description: "用户、组织、日志与系统配置",
@@ -96,7 +98,7 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
     return pathname.startsWith(`${item.href}/`);
   }
 
-  const activeItem = navItems.find((item) => isItemActive(item)) ?? navItems[0];
+  const activeItem = [...navItems, ...hiddenContextItems].find((item) => isItemActive(item)) ?? navItems[0];
 
   return (
     <aside className="sidebar">

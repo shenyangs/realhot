@@ -35,14 +35,15 @@ export function ProfileMenu({ viewer }: { viewer: ViewerContext }) {
   return (
     <div className="profileMenuRoot">
       <button
-        className="profileTrigger"
+        aria-expanded={open}
+        className={`profileTrigger ${open ? "profileTriggerOpen" : ""}`}
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
         <span className="profileAvatar">{getInitials(viewer.user.displayName || "U")}</span>
         <span className="profileIdentity">
-          <strong>{viewer.user.displayName}</strong>
-          <small>{roleLabels[role]}</small>
+          <span className="profileName">{viewer.user.displayName}</span>
+          <span className="profileRole">{roleLabels[role]}</span>
         </span>
       </button>
 

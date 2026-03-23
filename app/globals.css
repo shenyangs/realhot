@@ -1147,45 +1147,79 @@ strong {
 .profileTrigger {
   display: inline-flex;
   align-items: center;
-  gap: 0.72rem;
-  padding: 0.42rem 0.66rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.56);
-  box-shadow: 0 1px 2px rgba(16, 22, 30, 0.08);
+  gap: 0.62rem;
+  min-height: 2.86rem;
+  padding: 0.34rem 0.68rem 0.34rem 0.4rem;
+  border: 1px solid rgba(20, 26, 36, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 1px 2px rgba(12, 16, 24, 0.05);
   backdrop-filter: blur(14px);
   transition:
     border-color 160ms ease,
-    background 160ms ease;
+    background 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .profileTrigger:hover {
-  border-color: var(--line-strong);
-  background: rgba(255, 255, 255, 0.68);
+  border-color: rgba(20, 26, 36, 0.2);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 3px 10px rgba(12, 16, 24, 0.08);
+}
+
+.profileTriggerOpen {
+  border-color: rgba(41, 63, 94, 0.28);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 6px 14px rgba(19, 28, 41, 0.1);
 }
 
 .profileIdentity {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.14rem;
+  gap: 0.16rem;
+  min-width: 0;
 }
 
-.profileIdentity small {
-  color: var(--text-soft);
-  font-size: 0.82rem;
+.profileName {
+  max-width: 14ch;
+  overflow: hidden;
+  color: #121a26;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.98rem;
+  line-height: 1.16;
+  letter-spacing: -0.004em;
+  font-weight: 620;
+}
+
+.profileRole {
+  display: inline-flex;
+  align-items: center;
+  height: 1.2rem;
+  padding: 0 0.46rem;
+  border-radius: 999px;
+  border: 1px solid rgba(69, 81, 100, 0.16);
+  background: rgba(71, 86, 108, 0.08);
+  color: #5b687d;
+  font-size: 0.7rem;
+  font-weight: 580;
+  line-height: 1;
+  letter-spacing: 0.01em;
 }
 
 .profileAvatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2rem;
+  height: 2rem;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-weight: 700;
+  border: 1px solid rgba(46, 59, 79, 0.12);
+  background: #e8edf4;
+  color: #273447;
+  font-weight: 660;
+  box-shadow: none;
 }
 
 .profileAvatarLarge {
