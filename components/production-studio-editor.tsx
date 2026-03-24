@@ -236,6 +236,9 @@ export function ProductionStudioEditor({
   const articleBodyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const articleTitleDirtyRef = useRef(false);
   const articleBodyDirtyRef = useRef(false);
+  const articleTitleValueRef = useRef(initialJob?.outputs.articleTitle ?? "");
+  const articleBodyValueRef = useRef(initialJob?.outputs.articleBody ?? "");
+  const rewriteSelectionRef = useRef<RewriteSelectionState | null>(null);
   const [currentJob, setCurrentJob] = useState(initialJob);
   const [articleTitle, setArticleTitle] = useState(initialJob?.outputs.articleTitle ?? "");
   const [articleBody, setArticleBody] = useState(initialJob?.outputs.articleBody ?? "");
@@ -260,19 +263,34 @@ export function ProductionStudioEditor({
     initialJob?.outputs.draftProgress.articlePhase === "expanded"
   );
 
+  function setArticleTitleValue(nextValue: string) {
+    articleTitleValueRef.current = nextValue;
+    setArticleTitle(nextValue);
+  }
+
+  function setArticleBodyValue(nextValue: string) {
+    articleBodyValueRef.current = nextValue;
+    setArticleBody(nextValue);
+  }
+
+  function setRewriteSelectionValue(nextSelection: RewriteSelectionState | null) {
+    rewriteSelectionRef.current = nextSelection;
+    setRewriteSelection(nextSelection);
+  }
+
   function syncDraftFromJob(job: ProductionJobRecord | null, options?: { preserveDirty?: boolean; resetDirty?: boolean }) {
     setCurrentJob(job);
-    setRewriteSelection(null);
+    setRewriteSelectionValue(null);
     setSelectionRewriteMessage("");
     setLastSelectionRewrite(null);
     setSelectionUndoStack([]);
 
     if (!job) {
       if (!options?.preserveDirty || !articleTitleDirtyRef.current) {
-        setArticleTitle("");
+        setArticleTitleValue("");
       }
       if (!options?.preserveDirty || !articleBodyDirtyRef.current) {
-        setArticleBody("");
+        setArticleBodyValue("");
       }
       setVideoScript("");
       setVoiceoverText("");
@@ -286,11 +304,11 @@ export function ProductionStudioEditor({
     }
 
     if (!options?.preserveDirty || !articleTitleDirtyRef.current) {
-      setArticleTitle(job.outputs.articleTitle ?? "");
+      setArticleTitleValue(job.outputs.articleTitle ?? "");
     }
 
     if (!options?.preserveDirty || !articleBodyDirtyRef.current) {
-      setArticleBody(job.outputs.articleBody ?? "");
+      setArticleBodyValue(job.outputs.articleBody ?? "");
     }
 
     setVideoScript(job.outputs.videoScript ?? "");
@@ -405,11 +423,11 @@ export function ProductionStudioEditor({
     const nextText = target.value.slice(start, end);
 
     if (start === end || !nextText.trim()) {
-      setRewriteSelection((current) => (current?.field === field ? null : current));
+      setRewriteSelectionValue(rewriteSelectionRef.current?.field === field ? null : rewriteSelectionRef.current);
       return;
     }
 
-    setRewriteSelection({
+    setRewriteSelectionValue({
       field,
       start,
       end,
@@ -443,7 +461,7 @@ export function ProductionStudioEditor({
       target.setSelectionRange(rewriteSelection.end, rewriteSelection.end);
     }
 
-    setRewriteSelection(null);
+    setRewriteSelectionValue(null);
     setSelectionRewriteMessage("");
   }
 
@@ -452,7 +470,9 @@ export function ProductionStudioEditor({
   }
 
   function runSelectionRewrite() {
-    if (!rewriteSelection) {
+    const selectionSnapshot = rewriteSelectionRef.current;
+
+    if (!selectionSnapshot) {
       setSelectionRewriteMessage("先在左侧标题或正文里选中你想改的那段文字。");
       return;
     }
@@ -463,12 +483,13 @@ export function ProductionStudioEditor({
     }
 
     startSelectionRewriteTransition(async () => {
-      const activeValue = rewriteSelection.field === "title" ? articleTitle : articleBody;
-      const latestSelectedText = activeValue.slice(rewriteSelection.start, rewriteSelection.end);
+      const activeValue =
+        selectionSnapshot.field === "title" ? articleTitleValueRef.current : articleBodyValueRef.current;
+      const latestSelectedText = activeValue.slice(selectionSnapshot.start, selectionSnapshot.end);
 
       if (!latestSelectedText.trim()) {
         setSelectionRewriteMessage("当前选区已经变化，请重新选中后再试。");
-        setRewriteSelection(null);
+        setRewriteSelectionValue(null);
         return;
       }
 
@@ -481,12 +502,12 @@ export function ProductionStudioEditor({
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            targetField: rewriteSelection.field,
+            targetField: selectionSnapshot.field,
             selectedText: latestSelectedText,
-            selectionStart: rewriteSelection.start,
-            selectionEnd: rewriteSelection.end,
-            currentTitle: articleTitle,
-            currentBody: articleBody,
+            selectionStart: selectionSnapshot.start,
+            selectionEnd: selectionSnapshot.end,
+            currentTitle: articleTitleValueRef.current,
+            currentBody: articleBodyValueRef.current,
             userRequest: selectionPrompt
           })
         });
@@ -510,7 +531,7 @@ export function ProductionStudioEditor({
         if (rewrittenText === latestSelectedText) {
           pendingCompareScrollRef.current = true;
           setLastSelectionRewrite({
-            field: rewriteSelection.field,
+            field: selectionSnapshot.field,
             beforeText: latestSelectedText,
             afterText: rewrittenText,
             request: selectionPrompt,
@@ -518,43 +539,45 @@ export function ProductionStudioEditor({
           });
           setSelectionPrompt("");
           setSelectionRewriteMessage(payload.changeSummary ?? "这轮返回与原文一致，没有发生替换。");
-          focusSelection(rewriteSelection.field, rewriteSelection.start, rewriteSelection.end);
+          focusSelection(selectionSnapshot.field, selectionSnapshot.start, selectionSnapshot.end);
           return;
         }
 
         const nextValue =
-          activeValue.slice(0, rewriteSelection.start) + rewrittenText + activeValue.slice(rewriteSelection.end);
+          activeValue.slice(0, selectionSnapshot.start) +
+          rewrittenText +
+          activeValue.slice(selectionSnapshot.end);
         const nextSelection = {
-          field: rewriteSelection.field,
-          start: rewriteSelection.start,
-          end: rewriteSelection.start + rewrittenText.length,
+          field: selectionSnapshot.field,
+          start: selectionSnapshot.start,
+          end: selectionSnapshot.start + rewrittenText.length,
           text: rewrittenText
         } satisfies RewriteSelectionState;
 
-        if (rewriteSelection.field === "title") {
+        if (selectionSnapshot.field === "title") {
           articleTitleDirtyRef.current = true;
-          setArticleTitle(nextValue);
+          setArticleTitleValue(nextValue);
         } else {
           articleBodyDirtyRef.current = true;
-          setArticleBody(nextValue);
+          setArticleBodyValue(nextValue);
         }
 
         const nextRecord = {
-          field: rewriteSelection.field,
+          field: selectionSnapshot.field,
           beforeText: latestSelectedText,
           afterText: rewrittenText,
           request: selectionPrompt,
           summary: payload.changeSummary ?? "已只替换你选中的那段文字。",
           beforeFullValue: activeValue,
           afterFullValue: nextValue,
-          beforeSelectionStart: rewriteSelection.start,
-          beforeSelectionEnd: rewriteSelection.end
+          beforeSelectionStart: selectionSnapshot.start,
+          beforeSelectionEnd: selectionSnapshot.end
         } satisfies SelectionRewriteRecord;
 
         pendingCompareScrollRef.current = true;
         setLastSelectionRewrite(nextRecord);
         setSelectionUndoStack((current) => [...current, nextRecord]);
-        setRewriteSelection(nextSelection);
+        setRewriteSelectionValue(nextSelection);
         setSelectionPrompt("");
         setSelectionRewriteMessage(payload?.changeSummary ?? "已只替换你选中的那段文字。");
         focusSelection(nextSelection.field, nextSelection.start, nextSelection.end);
@@ -572,7 +595,8 @@ export function ProductionStudioEditor({
       return;
     }
 
-    const currentValue = latestUndoRecord.field === "title" ? articleTitle : articleBody;
+    const currentValue =
+      latestUndoRecord.field === "title" ? articleTitleValueRef.current : articleBodyValueRef.current;
 
     if (currentValue !== latestUndoRecord.afterFullValue) {
       setSelectionRewriteMessage("这次局部改稿后你又继续改了内容，无法安全一键撤销。");
@@ -581,13 +605,13 @@ export function ProductionStudioEditor({
 
     if (latestUndoRecord.field === "title") {
       articleTitleDirtyRef.current = true;
-      setArticleTitle(latestUndoRecord.beforeFullValue);
+      setArticleTitleValue(latestUndoRecord.beforeFullValue);
     } else {
       articleBodyDirtyRef.current = true;
-      setArticleBody(latestUndoRecord.beforeFullValue);
+      setArticleBodyValue(latestUndoRecord.beforeFullValue);
     }
 
-    setRewriteSelection({
+    setRewriteSelectionValue({
       field: latestUndoRecord.field,
       start: latestUndoRecord.beforeSelectionStart,
       end: latestUndoRecord.beforeSelectionEnd,
@@ -913,7 +937,7 @@ export function ProductionStudioEditor({
                 ref={articleTitleInputRef}
                 onChange={(event) => {
                   articleTitleDirtyRef.current = true;
-                  setArticleTitle(event.target.value);
+                  setArticleTitleValue(event.target.value);
                   updateRewriteSelection("title", event.currentTarget);
                 }}
                 onKeyUp={(event) => updateRewriteSelection("title", event.currentTarget)}
@@ -930,7 +954,7 @@ export function ProductionStudioEditor({
                   ref={articleBodyTextareaRef}
                   onChange={(event) => {
                     articleBodyDirtyRef.current = true;
-                    setArticleBody(event.target.value);
+                    setArticleBodyValue(event.target.value);
                     updateRewriteSelection("body", event.currentTarget);
                   }}
                   onKeyUp={(event) => updateRewriteSelection("body", event.currentTarget)}
