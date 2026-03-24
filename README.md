@@ -322,6 +322,7 @@ npm run run:publish
 
 - [`Dockerfile`](Dockerfile)
 - [`compose.yaml`](compose.yaml)
+- [`docs/docker-deploy.md`](docs/docker-deploy.md)
 
 如果你只想快速用容器跑起来，最简单的是直接用 `docker build` + `docker run`：
 
@@ -348,7 +349,7 @@ docker run -d \
   brand-hotspot-studio
 ```
 
-`compose.yaml` 也可以继续用，但 README 这里不再绑定任何个人化部署环境说明。
+`compose.yaml` 也可以继续用，详细说明见 [`docs/docker-deploy.md`](docs/docker-deploy.md)。
 
 ## GitHub Actions 定时同步
 
