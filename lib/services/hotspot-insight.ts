@@ -52,6 +52,12 @@ const HOTSPOT_INSIGHT_SECTIONS = [
   ["RISK_NOTE", "riskNote"]
 ] as const;
 
+const HOTSPOT_INSIGHT_PREVIEW_SECTIONS = [
+  ["WHY_NOW", "whyNow"],
+  ["WHY_BRAND", "whyBrand"],
+  ["ANGLE", "angle"]
+] as const;
+
 function extractSection(content: string, label: string) {
   const pattern = new RegExp(`${label}:([\\s\\S]*?)(?:\\n[A-Z_]+:|$)`);
   const match = content.match(pattern);
@@ -84,6 +90,29 @@ function extractSectionProgress(content: string, label: string) {
   return content.slice(contentStart, endIndex).trim();
 }
 
+function hasClosedSection(content: string, label: string) {
+  const currentIndex = HOTSPOT_INSIGHT_SECTIONS.findIndex(([sectionLabel]) => sectionLabel === label);
+
+  if (currentIndex === -1) {
+    return false;
+  }
+
+  const marker = `${label}:`;
+  const startIndex = content.indexOf(marker);
+
+  if (startIndex === -1) {
+    return false;
+  }
+
+  const nextSection = HOTSPOT_INSIGHT_SECTIONS[currentIndex + 1];
+
+  if (!nextSection) {
+    return false;
+  }
+
+  return content.indexOf(`\n${nextSection[0]}:`, startIndex + marker.length) !== -1;
+}
+
 function sanitizeInsightText(raw: string): string {
   return raw
     .replace(/\r/g, "")
@@ -91,7 +120,8 @@ function sanitizeInsightText(raw: string): string {
     .replace(/```/g, "")
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/__(.*?)__/g, "$1")
-    .replace(/(^|\n)\s*(\d+)\s*\/\s*/g, "$1$2. ")
+    .replace(/(^|\n)\s*(\d+)\s*\/\s+(?=\S)/g, "$1$2. ")
+    .replace(/(^|\n)\s*[A-Z_]+:\s*/g, "$1")
     .replace(/\s*[—-]\s*(?=\*\*|[^\n])/g, "\n- ")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
@@ -210,6 +240,59 @@ function buildPrompt(input: {
     "- 如果结合点偏弱，就把策划做成“借势议题 + 品牌方法论”，但仍然要给出 3 个切口",
     "- 输出必须简洁，方便直接放在热点详情里",
     "- 每条建议都要有“动作词”，例如：先定义、再验证、最后放大"
+  ].join("\n");
+}
+
+function buildPreviewPrompt(input: {
+  brandName: string;
+  sector: string;
+  topics: string[];
+  positioning: string[];
+  tone: string[];
+  redLines: string[];
+  recentMoves: string[];
+  title: string;
+  summary: string;
+  kind: string;
+  source: string;
+  relevanceScore: number;
+  industryScore: number;
+  velocityScore: number;
+  riskScore: number;
+  reasons: string[];
+}) {
+  return [
+    "你是中国市场的企业品牌策略顾问，负责先给热点页输出一版极短、可直接显示的 AI 快速预判。",
+    "任务：只针对当前这 1 条热点，输出 3 个非常短的判断，帮助用户快速决定是否继续看深度专业判断。",
+    "硬性要求：",
+    "- 不能空泛，必须给出明确动作和结合点",
+    "- 即使相关度一般，也要给出能成立的最小切入角度",
+    "- 每个字段控制在 1 句话内，尽量 24-40 个中文字符",
+    "- 不要解释过程，不要加前后说明，不要输出 markdown",
+    `品牌: ${input.brandName}`,
+    `行业: ${input.sector}`,
+    `品牌主题: ${input.topics.join("、")}`,
+    `品牌定位: ${input.positioning.join("；")}`,
+    `品牌语气: ${input.tone.join(" / ")}`,
+    `品牌禁区: ${input.redLines.join("；")}`,
+    `近期动态: ${input.recentMoves.join("；") || "暂无"}`,
+    `热点标题: ${input.title}`,
+    `热点摘要: ${input.summary}`,
+    `热点类型: ${input.kind}`,
+    `热点来源: ${input.source}`,
+    `相关性分: ${input.relevanceScore}`,
+    `行业性分: ${input.industryScore}`,
+    `传播速度分: ${input.velocityScore}`,
+    `风险分: ${input.riskScore}`,
+    `已有判断: ${input.reasons.join("；") || "暂无"}`,
+    "中国市场要求:",
+    ...getChinaMarketPromptLines().map((line) => `- ${line}`),
+    "热点判断要求:",
+    ...getChinaHotspotRules().map((line) => `- ${line}`),
+    "请严格输出以下固定结构：",
+    "WHY_NOW: 用 1 句话说明为什么这条热点值得现在看或现在做",
+    "WHY_BRAND: 用 1 句话说明它和品牌的结合点，必须落到 WPS AI / WPS 365 / 办公协同 / AI提效场景",
+    "ANGLE: 用 1 句话给出最建议先做的切入口，必须带动作词，比如先定义、先验证、先回应、先拆解"
   ].join("\n");
 }
 
@@ -389,6 +472,10 @@ function buildInsightPartial(output: string): Partial<Omit<HotspotInsightResult,
   const partial: Partial<Omit<HotspotInsightResult, "route">> = {};
 
   for (const [label, key] of HOTSPOT_INSIGHT_SECTIONS) {
+    if (!hasClosedSection(output, label)) {
+      continue;
+    }
+
     const value = sanitizeInsightText(extractSectionProgress(output, label));
 
     if (value) {
@@ -413,6 +500,25 @@ export function buildHotspotInsightPreview(input: {
   };
 }
 
+function buildAiHotspotInsightPreview(
+  output: string,
+  fallback: HotspotInsightPreviewResult
+): HotspotInsightPreviewResult {
+  const sections = Object.fromEntries(
+    HOTSPOT_INSIGHT_PREVIEW_SECTIONS.map(([label, key]) => [
+      key,
+      sanitizeInsightText(extractSection(output, label))
+    ])
+  ) as Record<(typeof HOTSPOT_INSIGHT_PREVIEW_SECTIONS)[number][1], string>;
+
+  return {
+    whyNow: sections.whyNow || fallback.whyNow,
+    whyBrand: sections.whyBrand || fallback.whyBrand,
+    angle: sections.angle || fallback.angle,
+    source: "ai"
+  };
+}
+
 export async function generateHotspotInsightPreview(
   hotspotId: string
 ): Promise<HotspotInsightPreviewResult> {
@@ -433,12 +539,55 @@ export async function generateHotspotInsightPreview(
     riskScore: hotspot.riskScore
   });
 
-  return buildHotspotInsightPreview({
+  const fallbackPreview = buildHotspotInsightPreview({
     communicationStrategy: fallback.communicationStrategy,
     connectionPoint: fallback.connectionPoint,
     planningDirection: fallback.planningDirection,
     source: "local"
   });
+
+  const route = await decideModelRoute("hotspot-analysis", { feature: "hotspot-insight" });
+
+  if (route.provider === "mock") {
+    return fallbackPreview;
+  }
+
+  const prompt = buildPreviewPrompt({
+    brandName: brand.name,
+    sector: brand.sector,
+    topics: brand.topics,
+    positioning: brand.positioning,
+    tone: brand.tone,
+    redLines: brand.redLines,
+    recentMoves: brand.recentMoves,
+    title: hotspot.title,
+    summary: hotspot.summary,
+    kind: hotspot.kind,
+    source: hotspot.source,
+    relevanceScore: hotspot.relevanceScore,
+    industryScore: hotspot.industryScore,
+    velocityScore: hotspot.velocityScore,
+    riskScore: hotspot.riskScore,
+    reasons: hotspot.reasons
+  });
+
+  try {
+    const output = await runInsightWithRetry(route, prompt);
+    return buildAiHotspotInsightPreview(output, fallbackPreview);
+  } catch (error) {
+    const failoverRoute = buildFailoverRoute(route);
+
+    if (failoverRoute) {
+      try {
+        const failoverOutput = await runInsightWithRetry(failoverRoute, prompt);
+        return buildAiHotspotInsightPreview(failoverOutput, fallbackPreview);
+      } catch {
+        return fallbackPreview;
+      }
+    }
+
+    return fallbackPreview;
+  }
 }
 
 export async function generateHotspotInsight(hotspotId: string): Promise<HotspotInsightResult> {
