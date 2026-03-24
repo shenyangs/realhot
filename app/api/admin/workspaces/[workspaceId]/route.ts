@@ -3,6 +3,8 @@ import { requireApiAccess } from "@/lib/auth/api-guard";
 import { canAccessAdmin, canManageMembers } from "@/lib/auth/permissions";
 import { updateWorkspace } from "@/lib/auth/repository";
 
+export const dynamic = "force-dynamic";
+
 export async function PATCH(
   request: NextRequest,
   context: {

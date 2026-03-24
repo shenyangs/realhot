@@ -3,6 +3,8 @@ import { requireApiAccess } from "@/lib/auth/api-guard";
 import { canAccessAdmin } from "@/lib/auth/permissions";
 import { createWorkspace } from "@/lib/auth/repository";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   const access = await requireApiAccess(request, {
     authorize: canAccessAdmin

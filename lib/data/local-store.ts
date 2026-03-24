@@ -21,13 +21,25 @@ import { ensurePasswordHashMatches, normalizeStoredPassword } from "@/lib/auth/p
 import type { AuditLogRecord } from "@/lib/auth/audit";
 import { ViewerUser, ViewerWorkspace } from "@/lib/auth/types";
 import { AiRoutingConfig, DEFAULT_AI_ROUTING_CONFIG } from "@/lib/domain/ai-routing";
-import { BrandStrategyPack, HotspotPack, HotspotSignal, HotspotSyncSnapshot, PublishJob } from "@/lib/domain/types";
+import {
+  BrandStrategyPack,
+  HotspotPack,
+  HotspotSignal,
+  HotspotSyncSnapshot,
+  ProductionAsset,
+  ProductionDraft,
+  ProductionJob,
+  PublishJob
+} from "@/lib/domain/types";
 
 export interface LocalDataStore {
   brand: BrandStrategyPack;
   hotspots: HotspotSignal[];
   packs: HotspotPack[];
   publishJobs: PublishJob[];
+  productionJobs: ProductionJob[];
+  productionAssets: ProductionAsset[];
+  productionDrafts: ProductionDraft[];
   lastHotspotSync: HotspotSyncSnapshot | null;
   aiRoutingConfig: AiRoutingConfig;
   profiles: ViewerUser[];
@@ -115,6 +127,9 @@ function buildInitialStore(): LocalDataStore {
     hotspots: clone(mockHotspotSignals),
     packs: clone(mockHotspotPacks),
     publishJobs: [],
+    productionJobs: [],
+    productionAssets: [],
+    productionDrafts: [],
     lastHotspotSync: null,
     aiRoutingConfig: clone(DEFAULT_AI_ROUTING_CONFIG),
     profiles: clone(Object.values(DEMO_USERS)),
@@ -135,6 +150,9 @@ function normalizeStore(raw: Partial<LocalDataStore> | null | undefined): LocalD
     hotspots: Array.isArray(raw?.hotspots) ? clone(raw.hotspots) : initial.hotspots,
     packs: Array.isArray(raw?.packs) ? clone(raw.packs) : initial.packs,
     publishJobs: Array.isArray(raw?.publishJobs) ? clone(raw.publishJobs) : initial.publishJobs,
+    productionJobs: Array.isArray(raw?.productionJobs) ? clone(raw.productionJobs) : initial.productionJobs,
+    productionAssets: Array.isArray(raw?.productionAssets) ? clone(raw.productionAssets) : initial.productionAssets,
+    productionDrafts: Array.isArray(raw?.productionDrafts) ? clone(raw.productionDrafts) : initial.productionDrafts,
     lastHotspotSync: raw?.lastHotspotSync ? clone(raw.lastHotspotSync) : initial.lastHotspotSync,
     aiRoutingConfig: raw?.aiRoutingConfig
       ? {

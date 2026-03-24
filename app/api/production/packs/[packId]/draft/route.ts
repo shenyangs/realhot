@@ -24,7 +24,7 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "pack_not_found" }, { status: 404 });
   }
 
-  const workspaceId = auth.viewer.currentWorkspace?.id ?? pack.workspaceId;
+  const workspaceId = auth.viewer.currentWorkspace?.id;
 
   if (!workspaceId) {
     return NextResponse.json({ ok: false, error: "workspace_context_required" }, { status: 400 });
@@ -61,7 +61,7 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "pack_not_found" }, { status: 404 });
   }
 
-  const workspaceId = auth.viewer.currentWorkspace?.id ?? pack.workspaceId;
+  const workspaceId = auth.viewer.currentWorkspace?.id;
 
   if (!workspaceId) {
     return NextResponse.json({ ok: false, error: "workspace_context_required" }, { status: 400 });

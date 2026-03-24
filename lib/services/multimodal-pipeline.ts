@@ -178,7 +178,7 @@ function parseVideoCandidates(input: {
         return null;
       }
 
-      return {
+      const asset: MultimodalVideoAsset = {
         name: index === 0 ? "主视频" : `视频版本 ${index + 1}`,
         previewUrl,
         videoUrl,
@@ -186,6 +186,8 @@ function parseVideoCandidates(input: {
         provider: input.provider,
         model: input.model
       };
+
+      return asset;
     })
     .filter((asset): asset is MultimodalVideoAsset => asset !== null);
 

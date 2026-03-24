@@ -136,3 +136,55 @@ export interface PublishJob {
   createdAt: string;
   updatedAt: string;
 }
+
+export type ProductionJobStatus = "queued" | "running" | "completed" | "failed";
+
+export type ProductionJobStage = "script" | "image" | "video" | "voice" | "subtitle" | "finalize";
+
+export type ProductionAssetKind = "script" | "image" | "video" | "voice" | "subtitle" | "bundle";
+
+export interface ProductionJob {
+  id: string;
+  workspaceId: string;
+  packId: string;
+  status: ProductionJobStatus;
+  stage: ProductionJobStage;
+  createdBy?: string;
+  errorMessage?: string;
+  retryCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductionAsset {
+  id: string;
+  workspaceId: string;
+  packId: string;
+  jobId: string;
+  kind: ProductionAssetKind;
+  name: string;
+  status: "ready" | "failed";
+  provider: string;
+  model: string;
+  previewUrl?: string;
+  textContent?: string;
+  jsonContent?: string;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductionDraft {
+  id: string;
+  workspaceId: string;
+  packId: string;
+  title: string;
+  body: string;
+  subtitles: string;
+  coverAssetId?: string;
+  videoAssetId?: string;
+  voiceAssetId?: string;
+  updatedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}

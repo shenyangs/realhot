@@ -403,7 +403,7 @@ export async function runProductionJob(input: {
   const createdAssets: ProductionAsset[] = [];
 
   if (stageGte(fromStage, "script")) {
-    const route = decideModelRoute("strategy-planning");
+    const route = await decideModelRoute("strategy-planning");
     scriptText = await runModelTask(
       "strategy-planning",
       composeScriptPrompt({
@@ -530,6 +530,8 @@ export async function runProductionJob(input: {
       provider: "pipeline",
       model: "storyboard-video-v1",
       assets: [],
+      voiceScript: undefined,
+      subtitles: undefined,
       warning: `视频接口调用失败，已回退本地预览：${error instanceof Error ? error.message : "unknown_error"}`
     }));
 
