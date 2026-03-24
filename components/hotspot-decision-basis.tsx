@@ -71,14 +71,18 @@ export function HotspotDecisionBasis({
 
       if (!payload.ok) {
         if (trigger === "manual") {
-          setMessage(payload.error || "获取 AI 快速判断失败");
+          setMessage(payload.error || "获取快速预判失败");
         }
         return;
       }
 
       setPreview(payload.preview);
       if (trigger === "manual") {
-        setMessage("已更新这条热点的 AI 快速判断。");
+        setMessage(
+          payload.preview.source === "ai"
+            ? "已更新这条热点的 AI 快速判断。"
+            : "已更新这条热点的快速预判。"
+        );
       }
     });
   }
@@ -159,8 +163,10 @@ export function HotspotDecisionBasis({
       <div className="hotspotInsightActions">
         <span className="muted">
           {preview
-            ? `当前展示的是${preview.source === "ai" ? "AI 快速判断" : "本地规则判断"}。`
-            : "先给你一版可直接用的判断依据，滑到附近时会自动预取 AI 快速判断。"}
+            ? preview.source === "ai"
+              ? "当前展示的是 AI 快速判断。"
+              : "当前展示的是快速预判，基于本地规则先给你一版可直接使用的判断依据。"
+            : "先给你一版可直接用的快速预判，滑到附近时会自动准备后面的专业判断。"}
         </span>
         {allowAiActions ? (
           <button
@@ -169,7 +175,13 @@ export function HotspotDecisionBasis({
             onClick={() => loadPreview("manual")}
             type="button"
           >
-            {isPending ? "判断中..." : preview ? "刷新 AI 判断" : "补一版 AI 判断"}
+            {isPending
+              ? "判断中..."
+              : preview?.source === "ai"
+              ? "刷新 AI 快速判断"
+              : preview
+              ? "刷新快速预判"
+              : "补一版快速预判"}
           </button>
         ) : null}
       </div>
@@ -178,7 +190,9 @@ export function HotspotDecisionBasis({
 
       <div className="hotspotInsightCard">
         <div className="tagRow">
-          <span className="tag">判断来源：{preview?.source === "ai" ? "AI" : "本地规则"}</span>
+          <span className="tag">
+            判断来源：{preview?.source === "ai" ? "AI 快速判断" : "本地快速预判"}
+          </span>
           <span className="tag">证据链接：{sourceLinks.length} 条</span>
         </div>
 
