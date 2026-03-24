@@ -17,6 +17,7 @@ function buildReviewHref(input: {
   packId: string;
   variantId?: string;
   platform?: string;
+  seed?: boolean;
 }): Route {
   const params = new URLSearchParams({
     pack: input.packId
@@ -28,6 +29,10 @@ function buildReviewHref(input: {
 
   if (input.platform) {
     params.set("platform", input.platform);
+  }
+
+  if (input.seed) {
+    params.set("seed", "1");
   }
 
   return `/review?${params.toString()}` as Route;
@@ -106,11 +111,12 @@ export function HotspotActionButton({
       const nextHref = buildReviewHref({
         packId: payload.pack.id,
         variantId: nextVariant?.id,
-        platform: nextPlatform
+        platform: nextPlatform,
+        seed: true
       });
 
       if (payload.pack.variants && payload.pack.variants.length <= 1) {
-        setMessage("已先生成首条主稿，进入审核台后继续往下看，系统会自动补剩余方案。");
+        setMessage("已先创建选题骨架，正在进入审核台补正式主稿。");
       } else if (payload.usedMockStorage) {
         setMessage("已生成并保存到本地试用数据，正在进入选题库。");
       }

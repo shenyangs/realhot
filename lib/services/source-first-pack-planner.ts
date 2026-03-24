@@ -174,7 +174,7 @@ async function enrichPacketFromSourceUrl(
   };
 }
 
-function buildFallbackPlan(
+export function buildFallbackPlan(
   brand: BrandStrategyPack,
   hotspot: HotspotSignal,
   candidates: SourceFirstCandidateSlot[],

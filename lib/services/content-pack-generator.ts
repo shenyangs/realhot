@@ -8,6 +8,8 @@ import { enforceBodyMinimumWithContext, resolveMinimumCharsForVariant } from "@/
 import { runModelTask } from "@/lib/services/model-router";
 import { getPublishableDraftRuleLines, getVariationRuleLines } from "@/lib/services/publishable-content-rules";
 import {
+  buildFallbackPlan,
+  buildSourceMaterialPacket,
   planSourceFirstPack,
   SourceFirstCandidateSlot,
   SourceFirstPackPlan,
@@ -23,7 +25,7 @@ export interface GeneratedPackResult {
   modelOutput?: string;
 }
 
-type PackGenerationMode = "initial" | "full";
+type PackGenerationMode = "seed" | "initial" | "full";
 
 type VariantSlot = "rapid-1" | "rapid-2" | "pov-1" | "pov-2";
 
@@ -1199,6 +1201,112 @@ async function tryModelGeneration(
   };
 }
 
+async function tryFastInitialModelGeneration(
+  brand: BrandStrategyPack,
+  hotspot: HotspotSignal,
+  blueprints: VariantBlueprint[],
+  packet: SourceMaterialPacket,
+  plan: SourceFirstPackPlan
+): Promise<{
+  output?: string;
+  whyNow: string;
+  whyUs: string;
+  variants: Partial<Record<VariantSlot, ModelGeneratedVariant>>;
+}> {
+  const planned = resolvePlannedBriefs(brand, hotspot, blueprints, null, {
+    whyNow: plan.whyNow,
+    whyUs: plan.whyUs
+  });
+
+  const slotResults = await Promise.all(
+    blueprints.map(async (blueprint) => {
+      try {
+        const slotPrompt = buildSlotGenerationPrompt(
+          hotspot,
+          blueprint,
+          planned.briefs[blueprint.slot],
+          planned.whyNow,
+          planned.whyUs,
+          packet,
+          plan
+        );
+        const generationResult = await runContentGenerationWithProviderFallback(slotPrompt, {
+          primaryProvider: "gemini",
+          fallbackProvider: "minimax"
+        });
+
+        return {
+          slot: blueprint.slot,
+          output: generationResult.output,
+          provider: generationResult.provider,
+          fallbackReason: generationResult.fallbackReason,
+          payload: parseJsonPayload<ModelGeneratedVariant>(generationResult.output)
+        };
+      } catch {
+        return {
+          slot: blueprint.slot,
+          payload: null
+        };
+      }
+    })
+  );
+
+  return {
+    output: slotResults
+      .map((result) =>
+        result.output
+          ? [
+              `[${result.slot}:${result.provider ?? "unknown"}]`,
+              result.fallbackReason ? `[${result.slot}-fallback-from:gemini]\n${result.fallbackReason}` : null,
+              result.output
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : null
+      )
+      .filter(Boolean)
+      .join("\n\n---\n\n"),
+    whyNow: planned.whyNow,
+    whyUs: planned.whyUs,
+    variants: slotResults.reduce(
+      (accumulator, result) => {
+        if (result.payload) {
+          accumulator[result.slot] = result.payload;
+        }
+        return accumulator;
+      },
+      {} as Partial<Record<VariantSlot, ModelGeneratedVariant>>
+    )
+  };
+}
+
+async function preparePacketAndPlan(
+  brand: BrandStrategyPack,
+  hotspot: HotspotSignal,
+  blueprints: VariantBlueprint[],
+  generationMode: PackGenerationMode
+): Promise<{
+  packet: SourceMaterialPacket;
+  plan: SourceFirstPackPlan;
+}> {
+  const candidates = buildSourceFirstCandidates(blueprints);
+
+  if (generationMode === "seed" || generationMode === "initial") {
+    const packet = buildSourceMaterialPacket(brand, hotspot);
+
+    return {
+      packet,
+      plan: buildFallbackPlan(brand, hotspot, candidates, packet)
+    };
+  }
+
+  return planSourceFirstPack({
+    brand,
+    hotspot,
+    candidates
+  });
+}
+
 function mergeModelVariants(
   blueprints: VariantBlueprint[],
   fallbackVariants: ContentVariant[],
@@ -1350,17 +1458,23 @@ export async function generateContentPackForEntities(
   }
 ): Promise<GeneratedPackResult> {
   const blueprints = resolveVariantBlueprints(hotspot);
-  const { packet, plan } = await planSourceFirstPack({
-    brand,
-    hotspot,
-    candidates: buildSourceFirstCandidates(blueprints)
-  });
-  const activeBlueprints = filterBlueprintsByPlan(blueprints, plan);
   const generationMode = options?.mode ?? "full";
-  const stagedBlueprints = generationMode === "initial" ? activeBlueprints.slice(0, 1) : activeBlueprints;
+  const { packet, plan } = await preparePacketAndPlan(brand, hotspot, blueprints, generationMode);
+  const activeBlueprints = filterBlueprintsByPlan(blueprints, plan);
+  const stagedBlueprints =
+    generationMode === "seed" || generationMode === "initial" ? activeBlueprints.slice(0, 1) : activeBlueprints;
   const effectiveBlueprints = stagedBlueprints.length > 0 ? stagedBlueprints : activeBlueprints.slice(0, 1);
   const fallbackVariants = createTemplateVariants(brand, hotspot, effectiveBlueprints, plan.whyNow, plan.whyUs);
-  const modelGenerated = await tryModelGeneration(brand, hotspot, effectiveBlueprints, packet, plan);
+  const modelGenerated =
+    generationMode === "seed"
+      ? {
+          whyNow: plan.whyNow,
+          whyUs: plan.whyUs,
+          variants: {} as Partial<Record<VariantSlot, ModelGeneratedVariant>>
+        }
+      : generationMode === "initial"
+        ? await tryFastInitialModelGeneration(brand, hotspot, effectiveBlueprints, packet, plan)
+        : await tryModelGeneration(brand, hotspot, effectiveBlueprints, packet, plan);
   const merged = mergeModelVariants(effectiveBlueprints, fallbackVariants, {
     ...modelGenerated,
     whyNow: modelGenerated.whyNow || plan.whyNow,
@@ -1415,7 +1529,25 @@ export async function generateInitialContentPackForHotspot(hotspotId: string): P
   });
 }
 
-export async function continueContentPackGeneration(packId: string): Promise<GeneratedPackResult> {
+export async function generateSeedContentPackForHotspot(hotspotId: string): Promise<GeneratedPackResult> {
+  const [brand, hotspots] = await Promise.all([getBrandStrategyPack(), getHotspotSignals()]);
+  const hotspot = hotspots.find((item) => item.id === hotspotId);
+
+  if (!hotspot) {
+    throw new Error(`Unknown hotspot: ${hotspotId}`);
+  }
+
+  return generateContentPackForEntities(brand, hotspot, {
+    mode: "seed"
+  });
+}
+
+export async function continueContentPackGeneration(
+  packId: string,
+  options?: {
+    replaceExistingVariants?: boolean;
+  }
+): Promise<GeneratedPackResult> {
   const [brand, hotspots, existingPack] = await Promise.all([getBrandStrategyPack(), getHotspotSignals(), getHotspotPack(packId)]);
 
   if (!existingPack) {
@@ -1430,6 +1562,6 @@ export async function continueContentPackGeneration(packId: string): Promise<Gen
 
   return generateContentPackForEntities(brand, hotspot, {
     mode: "full",
-    preserveExistingVariants: existingPack.variants
+    preserveExistingVariants: options?.replaceExistingVariants ? undefined : existingPack.variants
   });
 }

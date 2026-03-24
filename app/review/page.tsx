@@ -5,6 +5,7 @@ import { PackDeleteButton } from "@/components/pack-delete-button";
 import { PageHero } from "@/components/page-hero";
 import { PublishActions } from "@/components/publish-actions";
 import { ReviewPackContinuationTrigger } from "@/components/review-pack-continuation-trigger";
+import { ReviewPackSeedTrigger } from "@/components/review-pack-seed-trigger";
 import { ReviewQueueBatchList } from "@/components/review-queue-batch-list";
 import { ReviewActions } from "@/components/review-actions";
 import { ReviewEditor } from "@/components/review-editor";
@@ -43,6 +44,7 @@ type SearchParams = Promise<{
   platform?: Platform;
   status?: ReviewStatus | "all";
   q?: string;
+  seed?: string;
 }>;
 
 interface ReviewActionReviewerOption {
@@ -331,6 +333,7 @@ export default async function ReviewPage({
     ) ??
     platformDrafts.find((draft) => draft.variant.id === activeVariant?.id) ??
     platformDrafts[0];
+  const shouldHydrateSeedPack = resolvedSearchParams?.seed === "1";
 
   const jobs = await getPublishJobsForPack(activePack.id);
   const queuedCount = jobs.filter((job) => job.status === "queued").length;
@@ -677,10 +680,17 @@ export default async function ReviewPage({
           </div>
         </section>
 
-        <ReviewPackContinuationTrigger
-          currentVariantCount={activePack.variants.length}
+        <ReviewPackSeedTrigger
           packId={activePack.id}
+          shouldHydrate={shouldHydrateSeedPack}
         />
+
+        {!shouldHydrateSeedPack ? (
+          <ReviewPackContinuationTrigger
+            currentVariantCount={activePack.variants.length}
+            packId={activePack.id}
+          />
+        ) : null}
 
         <section className="panel topicEditorPanel">
           <div className="panelHeader sectionTitle">

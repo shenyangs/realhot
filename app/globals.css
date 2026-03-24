@@ -444,6 +444,32 @@
   color: #f4f7fb;
 }
 
+.hotspotFilterPanel .filterChipCleared {
+  border-color: rgba(173, 95, 38, 0.28);
+  background: linear-gradient(180deg, rgba(255, 247, 237, 0.96), rgba(252, 235, 215, 0.98));
+  color: #8a4b22;
+  box-shadow:
+    0 8px 16px rgba(120, 74, 36, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.56);
+}
+
+.hotspotFilterPanel .filterChipCleared strong {
+  color: #8a4b22;
+}
+
+.filterChipStateTag {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.38rem;
+  padding: 0.12rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(138, 75, 34, 0.1);
+  color: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
 .hotspotDecisionGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1101,6 +1127,93 @@ strong {
   display: flex;
   gap: 0.65rem;
   flex-wrap: wrap;
+}
+
+.hotspotSyncHeaderActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid rgba(43, 55, 74, 0.12);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(252, 251, 247, 0.94), rgba(245, 242, 235, 0.88));
+  box-shadow: var(--shadow-xs);
+  max-width: 420px;
+}
+
+.hotspotSyncMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  text-align: right;
+}
+
+.hotspotSyncEyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.hotspotSyncMeta strong {
+  font-size: 0.98rem;
+  color: var(--text-main);
+}
+
+.hotspotSyncActionRow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.45rem;
+}
+
+.hotspotSyncButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 172px;
+  justify-content: center;
+}
+
+.hotspotSyncButtonIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.9rem;
+  height: 1.45rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+}
+
+.hotspotSyncHint,
+.hotspotSyncMessage {
+  max-width: 340px;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.hotspotSyncHint {
+  color: var(--text-soft);
+}
+
+.hotspotSyncMessage-positive {
+  color: #1f5c3f;
+}
+
+.hotspotSyncMessage-warning {
+  color: #9a3412;
+}
+
+.hotspotSyncMessage-neutral {
+  color: var(--text-soft);
 }
 
 .fieldCompact {
@@ -4405,6 +4518,20 @@ strong {
 
   .publishPackHeaderActions {
     width: 100%;
+  }
+
+  .hotspotSyncHeaderActions,
+  .hotspotSyncMeta,
+  .hotspotSyncActionRow {
+    width: 100%;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .hotspotSyncHint,
+  .hotspotSyncMessage {
+    max-width: none;
+    text-align: left;
   }
 
   .publishVariantMeta {

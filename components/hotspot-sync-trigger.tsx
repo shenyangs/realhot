@@ -41,11 +41,13 @@ function buildSyncSuccessMessage(payload: HotspotSyncPayload) {
 export function HotspotSyncTrigger({ lastSyncText }: { lastSyncText: string }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"neutral" | "positive" | "warning">("neutral");
   const [isPending, startTransition] = useTransition();
 
   function syncHotspots() {
     startTransition(async () => {
       setMessage("");
+      setMessageTone("neutral");
 
       const response = await fetch("/api/hotspots/sync", {
         method: "POST"
@@ -55,23 +57,33 @@ export function HotspotSyncTrigger({ lastSyncText }: { lastSyncText: string }) {
 
       if (!response.ok || !payload?.ok) {
         setMessage(payload?.error ?? "手动刷新失败，请稍后再试。");
+        setMessageTone("warning");
         return;
       }
 
       setMessage(buildSyncSuccessMessage(payload));
+      setMessageTone("positive");
       router.refresh();
     });
   }
 
   return (
     <div className="hotspotSyncHeaderActions">
-      <div className="inlineActions">
-        <button className="buttonLike primaryButton" disabled={isPending} onClick={syncHotspots} type="button">
-          {isPending ? "正在刷新热点..." : "手动刷新热点"}
-        </button>
+      <div className="hotspotSyncMeta">
+        <span className="hotspotSyncEyebrow">手动刷新</span>
+        <strong>立即重新抓取热点机会</strong>
         <span className="muted">{lastSyncText}</span>
       </div>
-      {message ? <p className="muted">{message}</p> : null}
+      <div className="hotspotSyncActionRow">
+        <button className="buttonLike primaryButton hotspotSyncButton" disabled={isPending} onClick={syncHotspots} type="button">
+          <span className="hotspotSyncButtonIcon" aria-hidden="true">
+            [R]
+          </span>
+          {isPending ? "正在刷新热点机会..." : "刷新热点机会"}
+        </button>
+        <span className="hotspotSyncHint">重新抓取来源、更新排序，并把最新机会刷回当前看板。</span>
+      </div>
+      {message ? <p className={`hotspotSyncMessage hotspotSyncMessage-${messageTone}`}>{message}</p> : null}
     </div>
   );
 }

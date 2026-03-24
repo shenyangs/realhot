@@ -29,7 +29,14 @@ export async function POST(
 
     const { viewer } = access;
     const { packId } = await params;
-    const result = await continueContentPackGeneration(packId);
+    const payload = (await request.json().catch(() => null)) as
+      | {
+          replaceExistingVariants?: boolean;
+        }
+      | null;
+    const result = await continueContentPackGeneration(packId, {
+      replaceExistingVariants: payload?.replaceExistingVariants === true
+    });
 
     await writeAuditLog({
       workspaceId: viewer.currentWorkspace?.id,
@@ -43,7 +50,8 @@ export async function POST(
         hotspotId: result.pack.hotspotId,
         whyNow: result.pack.whyNow,
         variantTitles: result.pack.variants.map((variant) => variant.title),
-        variantCount: result.pack.variants.length
+        variantCount: result.pack.variants.length,
+        replaceExistingVariants: payload?.replaceExistingVariants === true
       }
     });
 
