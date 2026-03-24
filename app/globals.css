@@ -2200,20 +2200,8 @@ strong {
 }
 
 .homeTopMomentDate p,
-.homeTopMomentQuote p,
-.homeTopMomentSource {
+.homeTopMomentQuote p {
   margin: 0;
-}
-
-.homeTopMomentDate p,
-.homeTopMomentSource {
-  color: var(--text-soft);
-  font-size: 0.86rem;
-  white-space: nowrap;
-}
-
-.homeTopMomentSource {
-  margin-left: auto;
 }
 
 .homeTopMomentDivider {
@@ -4444,11 +4432,6 @@ strong {
     width: 100%;
     height: 1px;
   }
-
-  .homeTopMomentSource {
-    margin-left: 0;
-  }
-
   .summaryGrid,
   .workflowStrip,
   .hotspotViewSwitch,

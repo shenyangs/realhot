@@ -226,8 +226,6 @@ export default async function HomePage() {
           <span className="homeTopMomentLabel">今日箴言</span>
           <p>{homepageMoment.quote}</p>
         </div>
-
-        <p className="homeTopMomentSource">{homepageMoment.source}</p>
       </section>
 
       <section className="panel brandWorkbenchCard">
