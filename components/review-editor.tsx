@@ -12,6 +12,7 @@ import {
   enforceBodyMinimumWithContext,
   resolveMinimumCharsForLabels
 } from "@/lib/services/content-quality";
+import { formatReviewNoteForDisplay } from "@/lib/shared/display-format";
 
 interface ReviewEditorProps {
   packId: string;
@@ -135,6 +136,7 @@ export function ReviewEditor({
       }),
     [packId, platformKey, variantId]
   );
+  const reviewNoteDisplay = useMemo(() => formatReviewNoteForDisplay(reviewNote), [reviewNote]);
   const minimumBodyChars = useMemo(
     () =>
       resolveMinimumCharsForLabels({
@@ -615,16 +617,22 @@ export function ReviewEditor({
       <section className="editorAssistNote editorAssistGrid">
         <div>
           <strong>AI 源头判断</strong>
-          {reviewNote ? (
-            reviewNote
-              .split("\n")
-              .map((line) => line.trim())
-              .filter(Boolean)
-              .map((line, index) => (
-                <p className="muted" key={`${line}-${index}`}>
-                  {line}
-                </p>
-              ))
+          {reviewNoteDisplay.sections.length > 0 ? (
+            <div className="reviewNoteBlock">
+              {reviewNoteDisplay.sections.map((section) => (
+                <div className="reviewNoteSection" key={section.title}>
+                  <p className="muted reviewNoteSectionTitle">{section.title}</p>
+                  <ul className="simpleList reviewNoteList">
+                    {section.items.map((item) => (
+                      <li key={`${section.title}-${item}`}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              {reviewNoteDisplay.hiddenCount > 0 ? (
+                <p className="muted">已自动隐藏 {reviewNoteDisplay.hiddenCount} 条技术字段，只保留可读结论。</p>
+              ) : null}
+            </div>
           ) : (
             <p className="muted">这条内容暂时还没有生成源头判断，当前先沿用审核台里的立题信息。</p>
           )}

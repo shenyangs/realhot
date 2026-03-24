@@ -598,6 +598,53 @@
   gap: 1rem;
 }
 
+.reviewNoteBlock,
+.reviewNoteSection,
+.adminPayloadSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.reviewNoteBlock,
+.adminPayloadSections {
+  margin-top: 0.65rem;
+}
+
+.reviewNoteBlock,
+.reviewNoteSection,
+.adminPayloadSection,
+.adminPayloadSections {
+  gap: 0.7rem;
+}
+
+.reviewNoteSection {
+  gap: 0.45rem;
+}
+
+.reviewNoteSectionTitle {
+  margin: 0;
+}
+
+.reviewNoteList,
+.adminPayloadList {
+  margin: 0;
+}
+
+.adminPayloadSections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.adminPayloadSections > .muted {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.adminPayloadSection strong {
+  font-size: 0.95rem;
+}
+
 .reviewActionButtons,
 .publishPrimaryActions,
 .publishSecondaryActions {
@@ -4350,6 +4397,35 @@ strong {
   .productionEditorBodyGrid {
     grid-template-columns: 1fr;
   }
+
+  .onboardingLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .onboardingSidebar,
+  .onboardingMain {
+    min-width: 0;
+  }
+
+  .onboardingStepList {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(220px, 72vw);
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scroll-snap-type: x proximity;
+  }
+
+  .onboardingStepItem {
+    min-height: 100%;
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+    scroll-snap-align: start;
+  }
+
+  .adminPayloadSections {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px), (hover: none) and (pointer: coarse) and (max-width: 1024px) {
@@ -4515,6 +4591,19 @@ strong {
   .hotspotSyncMessage {
     max-width: none;
     text-align: left;
+  }
+
+  .onboardingSidebar {
+    padding-bottom: 1rem;
+  }
+
+  .onboardingStepList {
+    grid-auto-columns: minmax(200px, 82vw);
+  }
+
+  .onboardingActions {
+    flex-direction: column-reverse;
+    align-items: stretch;
   }
 
   .publishVariantMeta {

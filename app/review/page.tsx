@@ -19,6 +19,7 @@ import { getHotspotPlanningLabels } from "@/lib/services/hotspot-planning-labels
 import { resolveFeatureProviderConfig } from "@/lib/services/model-router";
 import { fetchSourceMaterial } from "@/lib/services/source-material-extractor";
 import type { ContentTrack, Platform, ReviewStatus } from "@/lib/domain/types";
+import { formatReviewNoteForDisplay } from "@/lib/shared/display-format";
 
 const platformLabels: Record<Platform, string> = {
   xiaohongshu: "小红书图文",
@@ -611,19 +612,31 @@ export default async function ReviewPage({
             </div>
             <div>
               <strong>AI 源头判断</strong>
-              {activePack.reviewNote ? (
-                activePack.reviewNote
-                  .split("\n")
-                  .map((line) => line.trim())
-                  .filter(Boolean)
-                  .map((line, index) => (
-                    <p className="muted" key={`${line}-${index}`}>
-                      {line}
-                    </p>
-                  ))
-              ) : (
-                <p className="muted">这条内容暂时还没有生成 AI 源头判断。</p>
-              )}
+              {(() => {
+                const reviewNoteDisplay = formatReviewNoteForDisplay(activePack.reviewNote);
+
+                if (reviewNoteDisplay.sections.length === 0) {
+                  return <p className="muted">这条内容暂时还没有生成 AI 源头判断。</p>;
+                }
+
+                return (
+                  <div className="reviewNoteBlock">
+                    {reviewNoteDisplay.sections.map((section) => (
+                      <div className="reviewNoteSection" key={section.title}>
+                        <p className="muted reviewNoteSectionTitle">{section.title}</p>
+                        <ul className="simpleList reviewNoteList">
+                          {section.items.map((item) => (
+                            <li key={`${section.title}-${item}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                    {reviewNoteDisplay.hiddenCount > 0 ? (
+                      <p className="muted">已自动隐藏 {reviewNoteDisplay.hiddenCount} 条技术字段，只保留可读结论。</p>
+                    ) : null}
+                  </div>
+                );
+              })()}
             </div>
             <div>
               <strong>原始来源线索</strong>

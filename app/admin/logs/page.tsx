@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PageHero } from "@/components/page-hero";
 import { listPlatformAuditLogs } from "@/lib/auth/audit";
 import { listPlatformUsers, listPlatformWorkspaces } from "@/lib/auth/repository";
+import { formatAuditPayloadForDisplay } from "@/lib/shared/display-format";
 
 const actionLabels: Record<string, string> = {
   "auth.login_success": "登录成功",
@@ -52,18 +53,6 @@ function formatDate(value: string) {
     second: "2-digit",
     hour12: false
   }).format(parsed);
-}
-
-function formatPayload(payload: Record<string, unknown>) {
-  const entries = Object.entries(payload).filter(([, value]) => value !== undefined && value !== null && value !== "");
-
-  if (entries.length === 0) {
-    return "无附加信息";
-  }
-
-  return entries
-    .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : typeof value === "object" ? JSON.stringify(value) : String(value)}`)
-    .join(" | ");
 }
 
 export default async function AdminLogsPage({
@@ -165,33 +154,55 @@ export default async function AdminLogsPage({
             <p className="muted">建议下一步：放宽筛选条件，或者回到平台后台查看最近是否有新的系统动作。</p>
           </article>
         ) : (
-          logs.map((log) => (
-            <article className="panel adminEntityCard" key={log.id}>
-              <div className="adminEntityHead">
-                <div>
-                  <strong>{actionLabels[log.action] ?? log.action}</strong>
-                  <p className="muted">{formatDate(log.createdAt)}</p>
-                </div>
-                <span className="pill pill-neutral">{log.entityType}</span>
-              </div>
+          logs.map((log) => {
+            const payloadDisplay = formatAuditPayloadForDisplay(log.payload);
 
-              <div className="adminMetricGrid">
-                <div>
-                  <span>操作人</span>
-                  <strong>
-                    {log.actorDisplayName}
-                    {log.actorEmail ? ` · ${log.actorEmail}` : ""}
-                  </strong>
+            return (
+              <article className="panel adminEntityCard" key={log.id}>
+                <div className="adminEntityHead">
+                  <div>
+                    <strong>{actionLabels[log.action] ?? log.action}</strong>
+                    <p className="muted">{formatDate(log.createdAt)}</p>
+                  </div>
+                  <span className="pill pill-neutral">{log.entityType}</span>
                 </div>
-                <div>
-                  <span>工作组</span>
-                  <strong>{log.workspaceName ?? "平台级动作"}</strong>
-                </div>
-              </div>
 
-              <p className="muted">详情：{formatPayload(log.payload)}</p>
-            </article>
-          ))
+                <div className="adminMetricGrid">
+                  <div>
+                    <span>操作人</span>
+                    <strong>
+                      {log.actorDisplayName}
+                      {log.actorEmail ? ` · ${log.actorEmail}` : ""}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>工作组</span>
+                    <strong>{log.workspaceName ?? "平台级动作"}</strong>
+                  </div>
+                </div>
+
+                {payloadDisplay.sections.length > 0 ? (
+                  <div className="adminPayloadSections">
+                    {payloadDisplay.sections.map((section) => (
+                      <section className="subPanel adminPayloadSection" key={`${log.id}-${section.title}`}>
+                        <strong>{section.title}</strong>
+                        <ul className="simpleList adminPayloadList">
+                          {section.items.map((item) => (
+                            <li key={`${section.title}-${item}`}>{item}</li>
+                          ))}
+                        </ul>
+                      </section>
+                    ))}
+                    {payloadDisplay.hiddenCount > 0 ? (
+                      <p className="muted">已隐藏 {payloadDisplay.hiddenCount} 条设备与请求上下文字段，避免干扰排查。</p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="muted">详情：无附加信息</p>
+                )}
+              </article>
+            );
+          })
         )}
       </section>
     </div>
