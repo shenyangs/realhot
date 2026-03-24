@@ -40,7 +40,7 @@ const adminNavItems: MobileNavItem[] = [
 
 export function MobileDock({ viewer }: { viewer: ViewerContext }) {
   const pathname = usePathname();
-  const navItems = viewer.isPlatformAdmin && viewer.memberships.length > 0
+  const navItems = viewer.isPlatformAdmin && viewer.currentWorkspace
     ? adminWorkbenchNavItems
     : pathname.startsWith("/admin")
       ? adminNavItems

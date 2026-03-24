@@ -29,7 +29,7 @@ export function ProfileMenu({ viewer }: { viewer: ViewerContext }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const workspaces = viewer.memberships.map((membership) => membership.workspace);
+  const workspaces = viewer.availableWorkspaces ?? viewer.memberships.map((membership) => membership.workspace);
   const role = viewer.effectiveRole;
 
   return (
@@ -58,7 +58,7 @@ export function ProfileMenu({ viewer }: { viewer: ViewerContext }) {
             </div>
           </div>
 
-          {viewer.memberships.length > 0 ? (
+          {workspaces.length > 0 ? (
             <WorkspaceSwitcher currentSlug={viewer.currentWorkspace?.slug} workspaces={workspaces} />
           ) : null}
 

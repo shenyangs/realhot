@@ -1156,6 +1156,14 @@ strong {
   background: rgba(255, 255, 255, 0.76);
 }
 
+.topbarWorkspaceSwitcher {
+  min-width: min(100%, 260px);
+}
+
+.topbarWorkspaceSwitcher .field {
+  gap: 0.35rem;
+}
+
 .topbarMetaCard span {
   color: var(--text-soft);
   font-size: 0.76rem;

@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { ProfileMenu } from "@/components/profile-menu";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { ViewerContext } from "@/lib/auth/types";
 
 const routeMeta = [
@@ -66,6 +67,15 @@ export function AppTopbar({ viewer }: { viewer: ViewerContext }) {
       </div>
 
       <div className="topbarMetaStrip">
+        {viewer.isPlatformAdmin && (viewer.availableWorkspaces?.length ?? 0) > 0 ? (
+          <div className="topbarMetaCard topbarWorkspaceSwitcher">
+            <WorkspaceSwitcher
+              currentSlug={viewer.currentWorkspace?.slug}
+              label="切换组织"
+              workspaces={viewer.availableWorkspaces ?? []}
+            />
+          </div>
+        ) : null}
         <div className="topbarMetaCard">
           <span>当前空间</span>
           <strong>{viewer.currentWorkspace?.name ?? "平台视角"}</strong>

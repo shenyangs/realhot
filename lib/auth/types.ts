@@ -40,6 +40,7 @@ export interface ViewerContext {
   user: ViewerUser;
   currentWorkspace: ViewerWorkspace | null;
   memberships: ViewerMembership[];
+  availableWorkspaces?: ViewerWorkspace[];
 }
 
 export const roleLabels: Record<AppRole, string> = {

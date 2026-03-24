@@ -258,9 +258,29 @@ export async function listAvailableWorkspaces() {
   if (viewer.mode === "demo") {
     const store = await readLocalDataStore();
 
+    if (viewer.isPlatformAdmin) {
+      return store.workspaces;
+    }
+
     return viewer.memberships
       .map((membership) => store.workspaces.find((workspace) => workspace.id === membership.workspace.id))
       .filter((workspace): workspace is ViewerWorkspace => workspace !== undefined);
+  }
+
+  if (viewer.isPlatformAdmin) {
+    const supabase = getSupabaseServerClient();
+
+    if (!supabase) {
+      return [];
+    }
+
+    const { data } = await supabase
+      .from("workspaces")
+      .select("id, name, slug, plan_type, status")
+      .order("name", { ascending: true })
+      .returns<WorkspaceRow[]>();
+
+    return (data ?? []).map(mapWorkspaceRow);
   }
 
   return viewer.memberships.map((membership) => membership.workspace);
@@ -315,8 +335,13 @@ function getLocalAccountSummary(userId: string, store: Awaited<ReturnType<typeof
 export async function setCurrentWorkspaceBySlug(slug: string) {
   const viewer = await getCurrentViewer();
   const membership = viewer.memberships.find((item) => item.workspace.slug === slug);
+  let targetWorkspace = membership?.workspace ?? null;
 
-  if (!membership) {
+  if (!targetWorkspace && viewer.isPlatformAdmin) {
+    targetWorkspace = await getWorkspaceBySlug(slug);
+  }
+
+  if (!targetWorkspace) {
     throw new Error("workspace_not_allowed");
   }
 
@@ -324,7 +349,7 @@ export async function setCurrentWorkspaceBySlug(slug: string) {
   cookieStore.set(sessionCookieNames.workspaceSlug, slug, getSessionCookieOptions(APP_SESSION_TTL_SECONDS));
 
   await writeAuditLog({
-    workspaceId: membership.workspace.id,
+    workspaceId: targetWorkspace.id,
     actorUserId: viewer.user.id,
     actorDisplayName: viewer.user.displayName,
     actorEmail: viewer.user.email,
@@ -333,11 +358,11 @@ export async function setCurrentWorkspaceBySlug(slug: string) {
     action: "auth.workspace_switched",
     payload: {
       workspaceSlug: slug,
-      workspaceName: membership.workspace.name
+      workspaceName: targetWorkspace.name
     }
   });
 
-  return membership.workspace;
+  return targetWorkspace;
 }
 
 function buildDemoMemberRecord(

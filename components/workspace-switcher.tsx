@@ -6,9 +6,11 @@ import { ViewerWorkspace } from "@/lib/auth/types";
 
 export function WorkspaceSwitcher({
   currentSlug,
+  label = "当前工作区",
   workspaces
 }: {
   currentSlug?: string;
+  label?: string;
   workspaces: ViewerWorkspace[];
 }) {
   const router = useRouter();
@@ -20,9 +22,9 @@ export function WorkspaceSwitcher({
 
   return (
     <label className="field fieldCompact">
-      <span>当前工作区</span>
+      <span>{label}</span>
       <select
-        defaultValue={currentSlug}
+        value={currentSlug ?? workspaces[0]?.slug}
         disabled={isPending}
         onChange={(event) => {
           const slug = event.target.value;
@@ -48,4 +50,3 @@ export function WorkspaceSwitcher({
     </label>
   );
 }
-

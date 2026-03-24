@@ -62,6 +62,18 @@ function normalizeWorkspace(input: WorkspaceMembershipRow["workspaces"]): Viewer
   };
 }
 
+function resolveCurrentWorkspaceFromList(workspaces: ViewerWorkspace[], workspaceSlug?: string | null) {
+  if (workspaces.length === 0) {
+    return null;
+  }
+
+  if (workspaceSlug) {
+    return workspaces.find((workspace) => workspace.slug === workspaceSlug) ?? null;
+  }
+
+  return workspaces.length === 1 ? workspaces[0] : null;
+}
+
 async function buildLocalViewerFromUserId(userId: string, workspaceSlug?: string | null): Promise<ViewerContext | null> {
   const store = await readLocalDataStore();
   const profile = store.profiles.find((item) => item.id === userId);
@@ -87,12 +99,11 @@ async function buildLocalViewerFromUserId(userId: string, workspaceSlug?: string
       };
     })
     .filter((member): member is ViewerMembership => member !== null && member.status !== "disabled");
-  const matchedWorkspace = memberships.find((membership) => membership.workspace.slug === workspaceSlug)?.workspace;
-  const currentWorkspace =
-    matchedWorkspace ?? (memberships.length === 1 ? memberships[0]?.workspace ?? null : null);
+  const isPlatformAdmin = userId === DEMO_USERS.super_admin.id;
+  const availableWorkspaces = isPlatformAdmin ? store.workspaces : memberships.map((membership) => membership.workspace);
+  const currentWorkspace = resolveCurrentWorkspaceFromList(availableWorkspaces, workspaceSlug);
   const currentMembership =
     currentWorkspace ? memberships.find((membership) => membership.workspace.id === currentWorkspace.id) ?? null : null;
-  const isPlatformAdmin = userId === DEMO_USERS.super_admin.id;
 
   return {
     mode: "demo",
@@ -106,7 +117,8 @@ async function buildLocalViewerFromUserId(userId: string, workspaceSlug?: string
       passwordSetupRequired: account?.passwordSetupRequired ?? false
     },
     currentWorkspace,
-    memberships
+    memberships,
+    availableWorkspaces
   };
 }
 
@@ -163,8 +175,25 @@ async function resolveViewerFromSupabase(userId: string, workspaceSlug?: string 
   const currentMembership =
     normalizedMemberships.find((membership) => membership.workspace.slug === workspaceSlug) ??
     (normalizedMemberships.length === 1 ? normalizedMemberships[0] : null);
+  let currentWorkspace = currentMembership?.workspace ?? null;
 
   if (platformAdmin) {
+    if (!currentWorkspace && workspaceSlug) {
+      const { data: workspaceBySlug } = await supabase
+        .from("workspaces")
+        .select("id, name, slug, plan_type, status")
+        .eq("slug", workspaceSlug)
+        .maybeSingle<{
+          id: string;
+          name: string;
+          slug: string;
+          plan_type: string | null;
+          status: string | null;
+        }>();
+
+      currentWorkspace = workspaceBySlug ? normalizeWorkspace(workspaceBySlug) : null;
+    }
+
     return {
       mode: "supabase",
       isAuthenticated: true,
@@ -178,8 +207,9 @@ async function resolveViewerFromSupabase(userId: string, workspaceSlug?: string 
         displayName: profile.display_name,
         avatarUrl: profile.avatar_url ?? undefined
       },
-      currentWorkspace: currentMembership?.workspace ?? null,
-      memberships: normalizedMemberships
+      currentWorkspace,
+      memberships: normalizedMemberships,
+      availableWorkspaces: undefined
     };
   }
 
@@ -201,7 +231,8 @@ async function resolveViewerFromSupabase(userId: string, workspaceSlug?: string 
       avatarUrl: profile.avatar_url ?? undefined
     },
     currentWorkspace: currentMembership.workspace,
-    memberships: normalizedMemberships
+    memberships: normalizedMemberships,
+    availableWorkspaces: undefined
   };
 }
 
@@ -218,7 +249,8 @@ function buildGuestViewer(): ViewerContext {
       displayName: "未登录用户"
     },
     currentWorkspace: null,
-    memberships: []
+    memberships: [],
+    availableWorkspaces: undefined
   };
 }
 
