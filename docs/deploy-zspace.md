@@ -1,45 +1,99 @@
-# 极空间部署说明
+# Docker 部署说明
 
 ## 目标
 
-- 用 Docker 在极空间部署 `brand-hotspot-studio`
-- 把本地演示数据持久化到宿主机目录，避免容器重建后丢失
-- 用节点小宝把公网流量转到极空间上的 HTTP 服务，实现外网访问
+- 用 Docker 方式部署 `brand-hotspot-studio`
+- 让容器重建后仍然保留运行时数据
+- 尽量用最少步骤把服务跑起来
 
-## 目录说明
+## 相关文件
 
-- 镜像构建文件：`/Users/sam/Desktop/1st/Dockerfile`
-- Compose 文件：`/Users/sam/Desktop/1st/compose.yaml`
-- 极空间环境变量模板：`/Users/sam/Desktop/1st/.env.zspace.example`
-- 本地持久化目录：宿主机 `./data/runtime` -> 容器 `/app/.runtime`
+- [`Dockerfile`](../Dockerfile)
+- [`compose.yaml`](../compose.yaml)
+- [`.env.example`](../.env.example)
 
-这个项目在没有 Supabase 时，会自动退回本地 JSON 数据模式，数据文件会写入 `/app/.runtime/brand-hotspot-studio.json`。所以极空间部署时，最关键的挂载就是 `/app/.runtime`。
+如果你只需要最简单的启动方式，优先使用 `docker build` + `docker run`。
 
 ## 部署前准备
 
-1. 复制环境变量模板：
+1. 先准备环境变量文件
 
-   ```bash
-   cp .env.zspace.example .env.zspace
-   ```
+```bash
+cp .env.example .env.local
+```
 
-2. 按需修改 `.env.zspace`
-   - 如果先跑演示模式，Supabase 相关变量可以先留空
-   - 如果要接真实数据和账号体系，再填写 Supabase 三个变量
-   - `HOTSPOT_SYNC_SECRET` 和 `PUBLISH_RUNNER_SECRET` 建议改成随机长字符串
-   - `APP_URL` 在容器内部脚本场景下建议保持 `http://127.0.0.1:3000`
+2. 按需补齐关键变量
 
-## 方式一：命令行部署
+- Supabase 相关变量
+- 模型密钥
+- `LOCAL_SESSION_SECRET`
+- 如果要跑定时同步或发布，再补充对应 secret
+
+如果你暂时还没接 Supabase 或模型密钥，项目也可以先以演示模式启动，用来先验证页面和容器链路。
+
+## 方式一：docker build + docker run
+
+```bash
+docker build -t brand-hotspot-studio .
+
+docker run -d \
+  --name brand-hotspot-studio \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  --env-file .env.local \
+  brand-hotspot-studio
+```
+
+默认访问地址：
+
+- `http://127.0.0.1:3000`
+
+## 方式二：带运行时数据持久化
+
+如果你希望本地运行时数据在容器重建后仍保留，增加卷挂载：
+
+```bash
+docker run -d \
+  --name brand-hotspot-studio \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  --env-file .env.local \
+  -v "$(pwd)/data/runtime:/app/.runtime" \
+  brand-hotspot-studio
+```
+
+运行时数据默认会写到：
+
+- `/app/.runtime`
+
+## 方式三：使用 Compose
+
+仓库里已经提供了 [`compose.yaml`](../compose.yaml)。
+
+如果你要直接使用它，建议先确认：
+
+- 端口映射是否符合你的环境
+- 环境变量文件是否符合你的部署习惯
+- 数据卷路径是否符合你的服务器目录结构
+
+然后再执行：
 
 ```bash
 docker compose build
 docker compose up -d
 ```
 
-查看状态：
+## 常用检查命令
+
+查看容器状态：
 
 ```bash
 docker compose ps
+```
+
+查看日志：
+
+```bash
 docker compose logs -f app
 ```
 
@@ -47,54 +101,6 @@ docker compose logs -f app
 
 ```bash
 curl http://127.0.0.1:3000/api/health
-```
-
-## 方式二：极空间图形界面部署
-
-如果你走极空间 Docker/容器管理界面，参数按下面填：
-
-- 镜像构建目录：项目根目录
-- Dockerfile：`Dockerfile`
-- 容器端口：`3000`
-- 宿主机端口：`3000` 或你想暴露的其他端口
-- 环境变量：从 `.env.zspace` 导入
-- 卷挂载：把极空间上的持久化目录挂到 `/app/.runtime`
-
-建议的宿主机目录示例：
-
-- `/volume1/docker/brand-hotspot-studio/runtime` -> `/app/.runtime`
-
-## 节点小宝外网访问
-
-部署完成后，先确认局域网内可以访问：
-
-- `http://极空间局域网IP:3000`
-
-再到节点小宝里新增一个 HTTP/HTTPS 转发：
-
-- 内网主机：你的极空间局域网 IP
-- 内网端口：`3000`
-- 协议：HTTP
-- 外网域名：使用节点小宝分配的域名，或你自己的域名
-
-建议：
-
-- 如果节点小宝支持 HTTPS，优先开 HTTPS
-- 如果后面你在极空间前面再加 Nginx/Caddy，节点小宝也可以改转发到反代端口
-- 首次外网访问后，检查登录、切换工作区、接口请求是否正常
-
-## 纯 docker run
-
-```bash
-docker build -t brand-hotspot-studio:latest .
-
-docker run -d \
-  --name brand-hotspot-studio \
-  --restart unless-stopped \
-  -p 3000:3000 \
-  --env-file .env.zspace \
-  -v "$(pwd)/data/runtime:/app/.runtime" \
-  brand-hotspot-studio:latest
 ```
 
 ## 升级
@@ -106,18 +112,26 @@ docker compose up -d
 
 ## 常见问题
 
-### 1. 重建容器后数据没了
+### 1. 容器启动了，但页面打不开
 
-检查是不是忘了挂载 `/app/.runtime`。演示模式下的数据都在这个目录里。
+先检查：
 
-### 2. 外网能打开但热点同步失败
+- 端口是否已被占用
+- 环境变量文件是否已正确加载
+- 容器日志里是否有启动报错
 
-这通常不是节点小宝的问题，而是容器访问外部 RSS/API 信源时被网络、TLS 或目标站风控拦截。先看容器日志，再按需调整：
+### 2. 重建容器后数据丢了
 
-- `HOTSPOT_ALLOW_INSECURE_TLS`
-- `GEMINI_ALLOW_INSECURE_TLS`
-- 关闭不稳定热点源
+通常是因为没有挂载 `/app/.runtime`。如果你需要保留本地运行时数据，请增加卷挂载。
 
-### 3. 只想先把页面跑起来
+### 3. 热点同步失败
 
-可以先不填 Supabase 和模型密钥。项目会用本地演示数据启动，适合先把 Docker、极空间和节点小宝链路打通。
+通常先看容器日志，再检查：
+
+- 外部网络是否能访问目标 RSS/API
+- TLS 证书链是否正常
+- 热点源开关是否启用了不稳定来源
+
+### 4. 只想先把页面跑起来
+
+可以先不接 Supabase 和模型密钥，用演示模式先验证页面、容器和基础接口是否正常。

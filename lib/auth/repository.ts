@@ -110,6 +110,103 @@ export interface WorkspaceInviteCodeRecord {
   createdAt: string;
 }
 
+export async function deleteWorkspaceInviteCodes(input: {
+  workspaceId: string;
+  inviteCodeIds: string[];
+}): Promise<number> {
+  const viewer = await getCurrentViewer();
+  const inviteCodeIds = Array.from(
+    new Set(
+      input.inviteCodeIds
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (inviteCodeIds.length === 0) {
+    throw new Error("invite_code_ids_required");
+  }
+
+  if (viewer.mode === "demo") {
+    const store = await readLocalDataStore();
+    const matchedCodes = store.workspaceInviteCodes.filter(
+      (code) => code.workspaceId === input.workspaceId && inviteCodeIds.includes(code.id)
+    );
+
+    if (matchedCodes.length === 0) {
+      throw new Error("invite_codes_not_found");
+    }
+
+    await updateLocalDataStore((current) => ({
+      ...current,
+      workspaceInviteCodes: current.workspaceInviteCodes.filter(
+        (code) => !(code.workspaceId === input.workspaceId && inviteCodeIds.includes(code.id))
+      )
+    }));
+
+    await writeAuditLog({
+      workspaceId: input.workspaceId,
+      actorUserId: viewer.user.id,
+      actorDisplayName: viewer.user.displayName,
+      actorEmail: viewer.user.email,
+      entityType: "workspace_invite_code_batch",
+      action: "workspace.invite_codes_deleted",
+      payload: {
+        quantity: matchedCodes.length,
+        codes: matchedCodes.map((code) => code.code)
+      }
+    });
+
+    return matchedCodes.length;
+  }
+
+  const supabase = getSupabaseServerClient();
+
+  if (!supabase) {
+    throw new Error("supabase_not_configured");
+  }
+
+  const { data: matchedCodes, error: selectError } = await supabase
+    .from("workspace_invite_codes")
+    .select("id, workspace_id, code")
+    .eq("workspace_id", input.workspaceId)
+    .in("id", inviteCodeIds)
+    .returns<Array<{ id: string; workspace_id: string; code: string }>>();
+
+  if (selectError) {
+    throw new Error(selectError.message ?? "invite_code_delete_failed");
+  }
+
+  if (!matchedCodes || matchedCodes.length === 0) {
+    throw new Error("invite_codes_not_found");
+  }
+
+  const { error: deleteError } = await supabase
+    .from("workspace_invite_codes")
+    .delete()
+    .eq("workspace_id", input.workspaceId)
+    .in("id", inviteCodeIds);
+
+  if (deleteError) {
+    throw new Error(deleteError.message ?? deleteError.details ?? deleteError.hint ?? "invite_code_delete_failed");
+  }
+
+  await writeAuditLog({
+    workspaceId: input.workspaceId,
+    actorUserId: viewer.user.id,
+    actorDisplayName: viewer.user.displayName,
+    actorEmail: viewer.user.email,
+    entityType: "workspace_invite_code_batch",
+    action: "workspace.invite_codes_deleted",
+    payload: {
+      quantity: matchedCodes.length,
+      codes: matchedCodes.map((code) => code.code)
+    }
+  });
+
+  return matchedCodes.length;
+}
+
 interface SupabaseAuthProfileInput {
   id: string;
   email?: string | null;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiAccess } from "@/lib/auth/api-guard";
 import { canAccessAdmin } from "@/lib/auth/permissions";
-import { createWorkspaceInviteCodes } from "@/lib/auth/repository";
+import { createWorkspaceInviteCodes, deleteWorkspaceInviteCodes } from "@/lib/auth/repository";
 
 export async function POST(
   request: NextRequest,
@@ -47,6 +47,48 @@ export async function POST(
       {
         ok: false,
         error: error instanceof Error ? error.message : "invite_code_create_failed"
+      },
+      { status: 400 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  context: {
+    params: Promise<{
+      workspaceId: string;
+    }>;
+  }
+) {
+  const access = await requireApiAccess(request, {
+    authorize: canAccessAdmin
+  });
+
+  if (!access.ok) {
+    return access.response;
+  }
+
+  const { workspaceId } = await context.params;
+  const body = (await request.json().catch(() => ({}))) as {
+    ids?: string[];
+  };
+
+  try {
+    const removedCount = await deleteWorkspaceInviteCodes({
+      workspaceId,
+      inviteCodeIds: Array.isArray(body.ids) ? body.ids : []
+    });
+
+    return NextResponse.json({
+      ok: true,
+      removedCount
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : "invite_code_delete_failed"
       },
       { status: 400 }
     );

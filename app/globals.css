@@ -308,6 +308,22 @@
   padding: 1rem 1.05rem;
 }
 
+.workspaceAdminCard {
+  gap: 1rem;
+}
+
+.workspaceAdminHead {
+  align-items: flex-start;
+}
+
+.workspaceAdminPicker {
+  max-width: 460px;
+}
+
+.workspaceAdminSummary {
+  margin-top: 0.1rem;
+}
+
 .compactOpportunityHead,
 .hotspotDecisionHead,
 .reviewActionHeader,

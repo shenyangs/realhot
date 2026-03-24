@@ -1,0 +1,197 @@
+<svg width="1800" height="1200" viewBox="0 0 1800 1200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="80" x2="1650" y2="1120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7F1E8"/>
+      <stop offset="1" stop-color="#EFE5D6"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="240" y1="150" x2="1560" y2="150" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#113B32"/>
+      <stop offset="1" stop-color="#225B4C"/>
+    </linearGradient>
+    <linearGradient id="inputCard" x1="150" y1="0" x2="450" y2="260" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF8EF"/>
+      <stop offset="1" stop-color="#F2E4D0"/>
+    </linearGradient>
+    <linearGradient id="aiCard" x1="0" y1="0" x2="360" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E4F1EA"/>
+      <stop offset="1" stop-color="#CFE6DA"/>
+    </linearGradient>
+    <linearGradient id="humanCard" x1="0" y1="0" x2="360" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE7DA"/>
+      <stop offset="1" stop-color="#F9D0BB"/>
+    </linearGradient>
+    <linearGradient id="deliverCard" x1="0" y1="0" x2="420" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E2A38"/>
+      <stop offset="1" stop-color="#2B3A4D"/>
+    </linearGradient>
+    <filter id="shadow" x="-40" y="-40" width="1880" height="1280" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="20" stdDeviation="25" flood-color="#866E4C" flood-opacity="0.13"/>
+    </filter>
+    <marker id="arrowDark" markerWidth="18" markerHeight="18" refX="12" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12" fill="#1F473D"/>
+    </marker>
+    <marker id="arrowLight" markerWidth="18" markerHeight="18" refX="12" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12" fill="#D26F45"/>
+    </marker>
+  </defs>
+
+  <rect width="1800" height="1200" fill="url(#bg)"/>
+  <circle cx="1560" cy="170" r="210" fill="#E7D3B2" opacity="0.25"/>
+  <circle cx="1440" cy="1060" r="250" fill="#D9E7DD" opacity="0.4"/>
+  <circle cx="230" cy="1020" r="180" fill="#F6D6C4" opacity="0.45"/>
+
+  <g filter="url(#shadow)">
+    <rect x="78" y="64" width="1644" height="1072" rx="34" fill="#FCFAF6" fill-opacity="0.82"/>
+  </g>
+
+  <rect x="120" y="96" width="1560" height="136" rx="28" fill="url(#hero)"/>
+  <text x="168" y="148" fill="#F4EAD9" font-size="22" font-family="'Instrument Serif', 'Times New Roman', serif" letter-spacing="2.8">SOURCE-FIRST CONTENT STUDIO</text>
+  <text x="168" y="198" fill="#FFFFFF" font-size="48" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">品牌客户讲解版内容生产流程图</text>
+  <text x="168" y="228" fill="#D7E6DD" font-size="20" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">把“品牌资料 + 市场信号 + AI 生产 + 人工把关 + 发布交付”串成一条标准化内容产线</text>
+
+  <g>
+    <rect x="1210" y="118" width="118" height="38" rx="19" fill="#F7E8D0"/>
+    <text x="1269" y="143" text-anchor="middle" fill="#274C43" font-size="18" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">更快响应</text>
+    <rect x="1340" y="118" width="118" height="38" rx="19" fill="#D7E9E0"/>
+    <text x="1399" y="143" text-anchor="middle" fill="#274C43" font-size="18" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">更稳风控</text>
+    <rect x="1470" y="118" width="150" height="38" rx="19" fill="#F7D5C5"/>
+    <text x="1545" y="143" text-anchor="middle" fill="#274C43" font-size="18" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">多平台复用</text>
+  </g>
+
+  <g>
+    <rect x="138" y="296" width="306" height="198" rx="28" fill="url(#inputCard)" stroke="#D7B68B" stroke-width="2"/>
+    <text x="174" y="340" fill="#8D5B2D" font-size="18" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">输入 A</text>
+    <text x="174" y="388" fill="#21362D" font-size="34" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">品牌资料沉淀</text>
+    <text x="174" y="428" fill="#50645C" font-size="21" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">
+      <tspan x="174" dy="0">品牌定位、卖点、禁区、近期动作</tspan>
+      <tspan x="174" dy="32">都先整理进工作台，避免内容跑偏。</tspan>
+    </text>
+    <rect x="174" y="454" width="148" height="28" rx="14" fill="#FFF3E1"/>
+    <text x="248" y="474" text-anchor="middle" fill="#7C5832" font-size="15" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">客户上下文先入场</text>
+  </g>
+
+  <g>
+    <rect x="138" y="560" width="306" height="198" rx="28" fill="url(#inputCard)" stroke="#D7B68B" stroke-width="2"/>
+    <text x="174" y="604" fill="#8D5B2D" font-size="18" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">输入 B</text>
+    <text x="174" y="652" fill="#21362D" font-size="34" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">市场信号采集</text>
+    <text x="174" y="692" fill="#50645C" font-size="21" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">
+      <tspan x="174" dy="0">行业热点、平台热榜、竞品动作、</tspan>
+      <tspan x="174" dy="32">原始链接与风险提示同步进入。</tspan>
+    </text>
+    <rect x="174" y="718" width="136" height="28" rx="14" fill="#FFF3E1"/>
+    <text x="242" y="738" text-anchor="middle" fill="#7C5832" font-size="15" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">不是拍脑袋选题</text>
+  </g>
+
+  <g>
+    <path d="M444 395C520 395 526 395 590 395" stroke="#1F473D" stroke-width="4" marker-end="url(#arrowDark)"/>
+    <path d="M444 659C520 659 526 659 590 659" stroke="#1F473D" stroke-width="4" marker-end="url(#arrowDark)"/>
+    <path d="M590 395C650 395 650 526 650 526C650 600 650 659 590 659" stroke="#1F473D" stroke-width="4" fill="none"/>
+  </g>
+
+  <g>
+    <rect x="598" y="430" width="332" height="222" rx="34" fill="url(#aiCard)" stroke="#7AA28F" stroke-width="2"/>
+    <text x="636" y="474" fill="#225243" font-size="18" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">AI 判断层</text>
+    <text x="636" y="522" fill="#173A31" font-size="36" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">机会判断与建议</text>
+    <text x="636" y="562" fill="#456359" font-size="21" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">
+      <tspan x="636" dy="0">先判断“值不值得做、为什么现在做、</tspan>
+      <tspan x="636" dy="32">适合哪个平台、有哪些风险”。</tspan>
+    </text>
+    <rect x="636" y="594" width="168" height="30" rx="15" fill="#EEF7F2"/>
+    <text x="720" y="615" text-anchor="middle" fill="#2A5B4B" font-size="15" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">先判断，再生成</text>
+  </g>
+
+  <g>
+    <path d="M930 541C998 541 998 541 1066 541" stroke="#1F473D" stroke-width="4" marker-end="url(#arrowDark)"/>
+  </g>
+
+  <g>
+    <rect x="1078" y="430" width="322" height="222" rx="34" fill="url(#humanCard)" stroke="#D48A62" stroke-width="2"/>
+    <text x="1114" y="474" fill="#A85D32" font-size="18" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">人工决策层</text>
+    <text x="1114" y="522" fill="#3F271A" font-size="36" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">审核确认选题</text>
+    <text x="1114" y="562" fill="#6A4B39" font-size="21" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">
+      <tspan x="1114" dy="0">品牌团队看 AI 给出的理由与证据，</tspan>
+      <tspan x="1114" dy="32">决定是否进入正式制作。</tspan>
+    </text>
+    <rect x="1114" y="594" width="170" height="30" rx="15" fill="#FFF0E7"/>
+    <text x="1199" y="615" text-anchor="middle" fill="#AA633A" font-size="15" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">关键节点有人把关</text>
+  </g>
+
+  <g>
+    <path d="M1240 652C1240 736 1240 736 1240 804" stroke="#D26F45" stroke-width="4" marker-end="url(#arrowLight)"/>
+  </g>
+
+  <g>
+    <rect x="964" y="820" width="552" height="222" rx="34" fill="url(#aiCard)" stroke="#7AA28F" stroke-width="2"/>
+    <text x="1002" y="864" fill="#225243" font-size="18" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">AI 生产层</text>
+    <text x="1002" y="912" fill="#173A31" font-size="38" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">一键生成多平台首版内容</text>
+    <text x="1002" y="952" fill="#456359" font-size="21" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">
+      <tspan x="1002" dy="0">自动产出图文、视频脚本、口播、字幕、封面提示词，</tspan>
+      <tspan x="1002" dy="32">把“从想法到首版成品”的时间大幅压缩。</tspan>
+    </text>
+    <g>
+      <rect x="1002" y="980" width="92" height="30" rx="15" fill="#EEF7F2"/>
+      <text x="1048" y="1001" text-anchor="middle" fill="#2A5B4B" font-size="15" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">图文</text>
+      <rect x="1106" y="980" width="92" height="30" rx="15" fill="#EEF7F2"/>
+      <text x="1152" y="1001" text-anchor="middle" fill="#2A5B4B" font-size="15" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">视频</text>
+      <rect x="1210" y="980" width="92" height="30" rx="15" fill="#EEF7F2"/>
+      <text x="1256" y="1001" text-anchor="middle" fill="#2A5B4B" font-size="15" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">口播</text>
+      <rect x="1314" y="980" width="92" height="30" rx="15" fill="#EEF7F2"/>
+      <text x="1360" y="1001" text-anchor="middle" fill="#2A5B4B" font-size="15" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">字幕</text>
+      <rect x="1418" y="980" width="86" height="30" rx="15" fill="#EEF7F2"/>
+      <text x="1461" y="1001" text-anchor="middle" fill="#2A5B4B" font-size="15" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">封面</text>
+    </g>
+  </g>
+
+  <g>
+    <path d="M1516 930C1574 930 1600 930 1640 930" stroke="#1F473D" stroke-width="4" marker-end="url(#arrowDark)"/>
+  </g>
+
+  <g>
+    <rect x="1540" y="820" width="220" height="222" rx="34" fill="url(#humanCard)" stroke="#D48A62" stroke-width="2"/>
+    <text x="1572" y="864" fill="#A85D32" font-size="18" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">人工精修层</text>
+    <text x="1572" y="912" fill="#3F271A" font-size="33" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">工作台微调</text>
+    <text x="1572" y="952" fill="#6A4B39" font-size="19" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">
+      <tspan x="1572" dy="0">改标题、正文、画面、</tspan>
+      <tspan x="1572" dy="28">字幕和口播细节，</tspan>
+      <tspan x="1572" dy="28">让内容更像品牌自己做的。</tspan>
+    </text>
+  </g>
+
+  <g>
+    <path d="M1650 1042C1650 1085 1610 1088 1562 1088H1228C1138 1088 1110 1080 1070 1080" stroke="#1F473D" stroke-width="4" marker-end="url(#arrowDark)" fill="none"/>
+  </g>
+
+  <g>
+    <rect x="564" y="820" width="340" height="222" rx="34" fill="url(#deliverCard)"/>
+    <text x="602" y="864" fill="#F7D6B8" font-size="18" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">交付层</text>
+    <text x="602" y="912" fill="#FFFFFF" font-size="38" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">导出、发布与回流</text>
+    <text x="602" y="952" fill="#D1DEE4" font-size="21" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">
+      <tspan x="602" dy="0">成品导出、进入发布队列、</tspan>
+      <tspan x="602" dy="32">沉淀结果数据，继续优化下一轮判断。</tspan>
+    </text>
+    <rect x="602" y="980" width="174" height="30" rx="15" fill="#34485B"/>
+    <text x="689" y="1001" text-anchor="middle" fill="#F4EAD9" font-size="15" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">形成闭环，不是一次性出稿</text>
+  </g>
+
+  <g>
+    <path d="M736 820C736 730 736 730 736 652" stroke="#1F473D" stroke-width="4" stroke-dasharray="10 10" marker-end="url(#arrowDark)"/>
+    <text x="770" y="742" fill="#406458" font-size="18" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">发布结果 / 客户反馈回流</text>
+  </g>
+
+  <g>
+    <rect x="118" y="830" width="392" height="190" rx="30" fill="#FFF8EF" stroke="#D7B68B" stroke-width="2"/>
+    <text x="154" y="876" fill="#8D5B2D" font-size="18" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">销售讲解重点</text>
+    <text x="154" y="924" fill="#21362D" font-size="28" font-weight="700" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">一句话怎么讲给客户听</text>
+    <text x="154" y="966" fill="#50645C" font-size="21" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">
+      <tspan x="154" dy="0">我们先用品牌资料和市场热点判断机会，</tspan>
+      <tspan x="154" dy="32">再一键生成图文和视频首版，最后由人工</tspan>
+      <tspan x="154" dy="32">在工作台把关微调后进入正式交付。</tspan>
+    </text>
+  </g>
+
+  <g>
+    <line x1="120" y1="1100" x2="1680" y2="1100" stroke="#D9CBB7" stroke-width="2"/>
+    <text x="120" y="1136" fill="#7D756B" font-size="17" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">说明：绿色代表系统自动推进，橙色代表人工确认与精修，深色代表最终业务交付。</text>
+    <text x="1320" y="1136" fill="#7D756B" font-size="17" font-family="'PingFang SC', 'Hiragino Sans GB', sans-serif">适合用于销售讲解、客户提案、项目启动会。</text>
+  </g>
+</svg>

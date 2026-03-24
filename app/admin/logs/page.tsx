@@ -17,6 +17,7 @@ const actionLabels: Record<string, string> = {
   "workspace.member_updated": "修改成员角色/状态",
   "workspace.invite_created": "创建成员邀请",
   "workspace.invite_codes_created": "生成邀请码",
+  "workspace.invite_codes_deleted": "删除邀请码",
   "workspace.created": "创建组织",
   "workspace.updated": "修改工作组",
   "platform.ai_routing_updated": "修改模型路由",

@@ -211,7 +211,7 @@
 
 你新增的需求已拆成独立执行文档：
 
-- [2026-03-23-one-click-production-workbench-plan.md](/Users/sam/Desktop/1st/docs/plans/2026-03-23-one-click-production-workbench-plan.md)
+- [2026-03-23-one-click-production-workbench-plan.md](2026-03-23-one-click-production-workbench-plan.md)
 
 建议排期：
 
