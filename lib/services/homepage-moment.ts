@@ -75,7 +75,7 @@ function getShanghaiParts(date: Date) {
   const hour = Number(lookup("hour")) || 0;
 
   return {
-    dateLabel: `${lookup("year")}年${lookup("month")}${lookup("day")}日`,
+    dateLabel: `${lookup("year")}年${lookup("month")}月${lookup("day")}日`,
     weekdayLabel: lookup("weekday"),
     timeLabel: `${lookup("hour")}:${lookup("minute")}`,
     dayPeriodLabel: getDayPeriodLabel(hour)

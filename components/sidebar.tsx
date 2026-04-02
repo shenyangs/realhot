@@ -65,6 +65,17 @@ const hiddenContextItems: NavItem[] = [
 export function Sidebar({ viewer }: { viewer: ViewerContext }) {
   const pathname = usePathname();
   const isTrial = viewer.effectiveRole === "trial_guest";
+  const primaryAction = viewer.isPlatformAdmin
+    ? {
+        href: "/admin" as Route,
+        label: "进入平台后台",
+        hint: "处理用户、组织与系统配置"
+      }
+    : {
+        href: "/hotspots" as Route,
+        label: "开始看热点机会",
+        hint: "先判断今天值不值得跟"
+      };
   const navItems = viewer.isPlatformAdmin
     ? [
         ...baseNavItems,
@@ -126,12 +137,14 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
                   key={item.href}
                   title={item.description}
                 >
-                  <div className="navCardHeader">
-                    <span className="navCardMeta">{item.order}</span>
+                  <div className="navCardIndex">
+                    <span className="navCardOrder">{item.order}</span>
                     <span className="navCardMeta">{item.shortLabel}</span>
                   </div>
-                  <strong>{item.label}</strong>
-                  <span>{item.description}</span>
+                  <div className="navCardBody">
+                    <strong>{item.label}</strong>
+                    <span>{item.description}</span>
+                  </div>
                 </Link>
               );
             })}
@@ -149,6 +162,13 @@ export function Sidebar({ viewer }: { viewer: ViewerContext }) {
             </small>
             <small className="muted">{activeItem.description}</small>
           </div>
+        </div>
+
+        <div className="sidebarActions">
+          <Link className="buttonLike primaryButton sidebarPrimaryAction" href={primaryAction.href}>
+            {primaryAction.label}
+          </Link>
+          <p className="sidebarFootnote">{primaryAction.hint}</p>
         </div>
       </div>
     </aside>
