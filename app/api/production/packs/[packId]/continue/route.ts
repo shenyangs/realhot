@@ -27,12 +27,9 @@ export async function POST(
       imageProvider?: AiProvider;
       imageModel?: string;
     };
-    const provider = payload.provider === "gemini" || payload.provider === "minimax" ? payload.provider : undefined;
+    const provider = payload.provider === "minimax" ? payload.provider : undefined;
     const model = payload.model?.trim() || undefined;
-    const imageProvider =
-      payload.imageProvider === "gemini" || payload.imageProvider === "minimax"
-        ? payload.imageProvider
-        : undefined;
+    const imageProvider = payload.imageProvider === "minimax" ? payload.imageProvider : undefined;
     const imageModel = payload.imageModel?.trim() || undefined;
 
     const job = await continueProductionJob(packId, {

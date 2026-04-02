@@ -7,7 +7,6 @@ import { buildEffectiveFeatureRoutes, getAiRoutingConfig } from "@/lib/services/
 import { listProviderConfigs, resolveFeatureProviderConfig } from "@/lib/services/model-router";
 
 const providerLabels: Record<AiProvider, string> = {
-  gemini: "Gemini",
   minimax: "MiniMax"
 };
 
@@ -39,7 +38,7 @@ export default async function AdminAiRoutingPage() {
           { label: "默认提供方", value: providerLabels[config.defaultProvider] },
           { label: "可用提供方", value: `${availableProviders}/${providerStatus.length}` },
           { label: "覆盖能力", value: `${AI_FEATURES.length} 项` },
-          { label: "当前重点", value: "一键制作默认 MiniMax" }
+          { label: "当前重点", value: "全局默认 MiniMax" }
         ]}
         title="模型路由设置"
       />

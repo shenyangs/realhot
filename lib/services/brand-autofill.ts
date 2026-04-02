@@ -6,7 +6,6 @@ import {
   BrandAutofillResult
 } from "@/lib/domain/brand-autofill";
 import { BrandSource, BrandStrategyPack } from "@/lib/domain/types";
-import { createUserTextContent, extractGeminiText, requestGeminiContent } from "@/lib/services/gemini-client";
 import { extractMiniMaxText, requestMiniMaxChatCompletion } from "@/lib/services/minimax-client";
 import { decideModelRoute } from "@/lib/services/model-router";
 
@@ -481,20 +480,6 @@ function getJsonSchema() {
   };
 }
 
-function getGeminiModelCandidates(preferredModel?: string) {
-  return Array.from(
-    new Set(
-      [
-        preferredModel?.trim(),
-        process.env.GEMINI_SEARCH_MODEL?.trim(),
-        process.env.GEMINI_MODEL?.trim(),
-        "gemini-3.1-pro-preview",
-        "gemini-2.5-pro"
-      ].filter((item): item is string => Boolean(item))
-    )
-  );
-}
-
 function extractJsonObject(text: string): string {
   const trimmed = text.trim();
 
@@ -516,86 +501,6 @@ function extractJsonObject(text: string): string {
   }
 
   return trimmed;
-}
-
-function shouldUseStructuredSearch(model: string) {
-  return /^gemini-3(\.|-)/.test(model);
-}
-
-async function requestGeminiAutofill(
-  brandName: string,
-  preferredModel?: string,
-  focus: BrandAutofillFocus = "full"
-): Promise<{
-  payload: BrandAutofillModelPayload;
-  model: string;
-}> {
-  const modelCandidates = getGeminiModelCandidates(preferredModel);
-  let lastError: Error | null = null;
-
-  for (const model of modelCandidates) {
-    const attempts = [
-      {
-        tools: [
-          {
-            googleSearch: {}
-          }
-        ],
-        generationConfig: shouldUseStructuredSearch(model)
-          ? {
-              responseMimeType: "application/json",
-              responseJsonSchema: getJsonSchema()
-            }
-          : {
-              responseMimeType: "text/plain"
-            }
-      },
-      {
-        tools: [
-          {
-            googleSearch: {}
-          }
-        ],
-        generationConfig: {
-          responseMimeType: "text/plain"
-        }
-      },
-      {
-        tools: undefined,
-        generationConfig: {
-          responseMimeType: "text/plain"
-        }
-      }
-    ];
-
-    for (const attempt of attempts) {
-      try {
-        const response = await requestGeminiContent({
-          model,
-          contents: [createUserTextContent(buildPrompt(brandName, focus))],
-          tools: attempt.tools,
-          timeoutMs: 60000,
-          generationConfig: attempt.generationConfig
-        });
-        const text = extractGeminiText(response);
-
-        if (!text) {
-          throw new Error("Gemini 未返回可解析的 JSON 文本");
-        }
-
-        const parsed = JSON.parse(extractJsonObject(text)) as unknown;
-
-        return {
-          payload: coerceModelPayload(parsed, brandName),
-          model
-        };
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error("Gemini 深搜失败");
-      }
-    }
-  }
-
-  throw lastError ?? new Error("Gemini 深搜失败");
 }
 
 async function requestMiniMaxAutofill(
@@ -747,20 +652,9 @@ export async function autofillBrandStrategy(
     }
 
     let model = route.model;
-    let payload: BrandAutofillModelPayload;
-
-    if (route.provider === "gemini") {
-      const geminiResult = await requestGeminiAutofill(normalizedBrandName, model, focus);
-      payload = geminiResult.payload;
-      model = geminiResult.model;
-    } else {
-      payload = await requestMiniMaxAutofill(normalizedBrandName, model, focus);
-    }
+    const payload = await requestMiniMaxAutofill(normalizedBrandName, model, focus);
     const normalized = normalizeModelPayload(payload, current);
-    const reason =
-      route.provider === "gemini"
-        ? `${route.reason} 已启用 Gemini + Google Search 尝试联网补充公开资料。`
-        : `${route.reason} 使用 MiniMax 生成结构化品牌草稿。`;
+    const reason = `${route.reason} 使用 MiniMax 生成结构化品牌草稿。`;
 
     return {
       route: {

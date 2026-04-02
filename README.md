@@ -149,7 +149,7 @@
 - React 19
 - Supabase
 - OpenAI SDK
-- Gemini / MiniMax 路由能力
+- MiniMax 路由能力
 
 ## 当前代码里的核心能力
 
@@ -259,10 +259,6 @@ npm run run:publish
 
 ### AI 模型
 
-- `GEMINI_API_KEY`
-- `GEMINI_BASE_URL`
-- `GEMINI_MODEL`
-- `GEMINI_SEARCH_MODEL`
 - `MINIMAX_API_KEY`
 - `MINIMAX_BASE_URL`
 - `MINIMAX_MODEL`

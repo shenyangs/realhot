@@ -1,10 +1,6 @@
 import type { AiProvider } from "@/lib/domain/ai-routing";
 
 function getProviderLabel(provider?: AiProvider | string) {
-  if (provider === "gemini") {
-    return "Gemini";
-  }
-
   if (provider === "minimax") {
     return "MiniMax";
   }
@@ -69,10 +65,6 @@ export function humanizeAiError(error: unknown, provider?: AiProvider | string) 
 
   if (normalized.includes("status 500") || normalized.includes("status 502") || normalized.includes("status 504")) {
     return `${label} 当前服务不稳定（上游异常），请稍后再试。`;
-  }
-
-  if (normalized.includes("未检测到 gemini_api_key")) {
-    return "Gemini 尚未配置密钥。";
   }
 
   if (normalized.includes("未检测到 minimax_api_key")) {

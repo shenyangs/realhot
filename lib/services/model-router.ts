@@ -6,12 +6,6 @@ import {
   resolveProviderForFeature
 } from "@/lib/services/ai-routing-config";
 import {
-  createUserTextContent,
-  extractGeminiText,
-  requestGeminiContent,
-  requestGeminiContentStream
-} from "@/lib/services/gemini-client";
-import {
   extractMiniMaxText,
   requestMiniMaxChatCompletion,
   requestMiniMaxChatCompletionStream
@@ -55,14 +49,6 @@ function resolveFeature(task: LlmTask, options?: ModelRouteOptions): AiFeature {
   return options?.feature ?? taskFeatureDefaults[task];
 }
 
-function resolveGeminiModel(feature: AiFeature): string {
-  if (feature === "brand-autofill") {
-    return process.env.GEMINI_SEARCH_MODEL?.trim() || process.env.GEMINI_MODEL?.trim() || "gemini-2.5-pro";
-  }
-
-  return process.env.GEMINI_MODEL?.trim() || "gemini-2.5-pro";
-}
-
 function resolveMiniMaxModel(feature: AiFeature): string {
   if (feature === "production-generation") {
     return process.env.MINIMAX_PRODUCTION_MODEL?.trim() || process.env.MINIMAX_MODEL?.trim() || "MiniMax-M2.7";
@@ -72,10 +58,6 @@ function resolveMiniMaxModel(feature: AiFeature): string {
 }
 
 function resolveDefaultModel(provider: AiProvider, feature: AiFeature): string {
-  if (provider === "gemini") {
-    return resolveGeminiModel(feature);
-  }
-
   return resolveMiniMaxModel(feature);
 }
 
@@ -86,20 +68,10 @@ function getProviderConfigs(
     modelOverride?: string;
   }
 ): ProviderConfig[] {
-  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY?.trim());
   const hasMiniMaxKey = Boolean(process.env.MINIMAX_API_KEY?.trim());
   const resolvedModelOverride = options?.modelOverride?.trim();
 
   return [
-    {
-      provider: "gemini",
-      model:
-        options?.desiredProvider === "gemini" && resolvedModelOverride
-          ? resolvedModelOverride
-          : resolveGeminiModel(feature),
-      available: hasGeminiKey,
-      missingEnvKey: hasGeminiKey ? undefined : "GEMINI_API_KEY"
-    },
     {
       provider: "minimax",
       model:
@@ -136,10 +108,6 @@ export function resolveFeatureProviderConfig(
 }
 
 function getProviderLabel(provider: string): string {
-  if (provider === "gemini") {
-    return "Gemini";
-  }
-
   if (provider === "minimax") {
     return "MiniMax";
   }
@@ -210,7 +178,7 @@ export async function decideModelRoute(
     task,
     provider: "mock",
     model: "template-engine",
-    reason: `未检测到可用模型密钥（Gemini/MiniMax），已回退到本地模板输出。${feature} 仍保留为 ${preferred} 优先级。`
+    reason: `未检测到可用的 MiniMax 密钥，已回退到本地模板输出。${feature} 仍保留为 ${preferred} 优先级。`
   };
 }
 
@@ -222,10 +190,6 @@ export async function runResolvedModelTask(route: ModelRouteDecision, prompt: st
       "Prompt summary:",
       prompt.slice(0, 220)
     ].join("\n");
-  }
-
-  if (route.provider === "gemini") {
-    return runGeminiTask(route.model, prompt);
   }
 
   if (route.provider === "minimax") {
@@ -250,11 +214,6 @@ export async function* runResolvedModelTaskStream(
       "Prompt summary:",
       prompt.slice(0, 220)
     ].join("\n");
-    return;
-  }
-
-  if (route.provider === "gemini") {
-    yield* runGeminiTaskStream(route.model, prompt);
     return;
   }
 
@@ -314,18 +273,7 @@ export async function testAiProviderConnection(
   const prompt = "Reply with OK.";
   let outputPreview: string | null = null;
 
-  if (provider === "gemini") {
-    const payload = await requestGeminiContent({
-      model: providerConfig.model,
-      contents: [createUserTextContent(prompt)],
-      timeoutMs: 15000,
-      generationConfig: {
-        responseMimeType: "text/plain"
-      }
-    });
-
-    outputPreview = extractGeminiText(payload);
-  } else if (provider === "minimax") {
+  if (provider === "minimax") {
     const payload = await requestMiniMaxChatCompletion({
       model: providerConfig.model,
       messages: [
@@ -348,31 +296,6 @@ export async function testAiProviderConnection(
     latencyMs: Math.max(Date.now() - startedAt, 1),
     outputPreview: outputPreview?.slice(0, 120) ?? null
   };
-}
-
-async function runGeminiTask(model: string, prompt: string): Promise<string> {
-  const payload = await requestGeminiContent({
-    model,
-    contents: [createUserTextContent(prompt)],
-    timeoutMs: 60000,
-    generationConfig: {
-      responseMimeType: "text/plain"
-    }
-  });
-  const outputText = extractGeminiText(payload);
-
-  return outputText ?? "No text returned from Gemini generateContent.";
-}
-
-async function* runGeminiTaskStream(model: string, prompt: string): AsyncGenerator<string> {
-  yield* requestGeminiContentStream({
-    model,
-    contents: [createUserTextContent(prompt)],
-    timeoutMs: 60000,
-    generationConfig: {
-      responseMimeType: "text/plain"
-    }
-  });
 }
 
 async function runMiniMaxTask(model: string, prompt: string): Promise<string> {

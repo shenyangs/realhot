@@ -40,7 +40,6 @@ interface SelectionRewriteUndoState {
 interface SelectionRewriteRecord extends SelectionRewriteHistoryEntry, SelectionRewriteUndoState {}
 
 const providerLabels: Record<AiProvider, string> = {
-  gemini: "Gemini",
   minimax: "MiniMax M2.7"
 };
 
@@ -156,7 +155,7 @@ function parseProductionApiErrorMessage(raw: string, jobType: ProductionJobType)
 }
 
 function isAiProvider(value: string | null | undefined): value is AiProvider {
-  return value === "gemini" || value === "minimax";
+  return value === "minimax";
 }
 
 function resolveSelectedProvider(job: ProductionJobRecord | null, fallback: AiProvider) {
@@ -835,12 +834,11 @@ export function ProductionStudioEditor({
           <span>本次制作引擎</span>
           <select
             disabled={isPending || isAutoContinuing || !canRun}
-            onChange={(event) => setProvider(event.target.value as AiProvider)}
-            value={provider}
-          >
-            <option value="minimax">引擎 A（默认）</option>
-            <option value="gemini">引擎 B</option>
-          </select>
+          onChange={(event) => setProvider(event.target.value as AiProvider)}
+          value={provider}
+        >
+          <option value="minimax">引擎 A（默认）</option>
+        </select>
           <span className="muted">将使用 {providerLabels[provider]}，系统会自动选择具体模型。</span>
         </label>
 
@@ -848,12 +846,11 @@ export function ProductionStudioEditor({
           <span>图片策划模型</span>
           <select
             disabled={isPending || isAutoContinuing || !canRun}
-            onChange={(event) => setImageProvider(event.target.value as AiProvider)}
-            value={imageProvider}
-          >
-            <option value="minimax">MiniMax M2.7（默认）</option>
-            <option value="gemini">Gemini</option>
-          </select>
+          onChange={(event) => setImageProvider(event.target.value as AiProvider)}
+          value={imageProvider}
+        >
+          <option value="minimax">MiniMax M2.7（默认）</option>
+        </select>
           <span className="muted">只影响图片提示词规划，实际生图引擎保持不变。</span>
         </label>
 

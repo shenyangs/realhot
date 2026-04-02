@@ -18,9 +18,10 @@ interface ProviderStatus {
 }
 
 const providerLabels: Record<AiProvider, string> = {
-  gemini: "Gemini",
   minimax: "MiniMax"
 };
+
+const GLOBAL_DEFAULT_PROVIDER_OPTIONS: AiProvider[] = ["minimax"];
 
 function toOverrideState(
   input: Partial<Record<AiFeature, AiProvider>>
@@ -147,7 +148,7 @@ export function AdminAiRoutingForm({
           onChange={(event) => setDefaultProvider(event.target.value as AiProvider)}
           value={defaultProvider}
         >
-          {AI_PROVIDERS.map((provider) => (
+          {GLOBAL_DEFAULT_PROVIDER_OPTIONS.map((provider) => (
             <option key={provider} value={provider}>
               {providerLabels[provider]}
             </option>

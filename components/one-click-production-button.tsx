@@ -9,7 +9,6 @@ import type { ProductionJobRecord } from "@/lib/services/production-studio";
 type ProductionJobType = "article" | "video" | "one_click";
 
 const providerLabels: Record<AiProvider, string> = {
-  gemini: "Gemini",
   minimax: "MiniMax M2.7"
 };
 
@@ -174,7 +173,6 @@ export function OneClickProductionButton({
           value={provider}
         >
           <option value="minimax">引擎 A（默认）</option>
-          <option value="gemini">引擎 B</option>
         </select>
         <span className="muted">
           当前将使用 {providerLabels[provider]}
@@ -190,7 +188,6 @@ export function OneClickProductionButton({
           value={imageProvider}
         >
           <option value="minimax">MiniMax M2.7（默认）</option>
-          <option value="gemini">Gemini</option>
         </select>
         <span className="muted">只影响图片提示词规划，实际生图引擎保持不变。</span>
       </label>

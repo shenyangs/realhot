@@ -17,7 +17,6 @@ interface ProviderTestState {
 const HIGH_LATENCY_MS = 6000;
 
 const providerLabels: Record<AiProvider, string> = {
-  gemini: "Gemini",
   minimax: "MiniMax"
 };
 

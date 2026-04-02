@@ -110,7 +110,7 @@ create table if not exists platform_admins (
 
 create table if not exists platform_ai_routing_configs (
   id uuid primary key default gen_random_uuid(),
-  default_provider text not null default 'gemini',
+  default_provider text not null default 'minimax',
   feature_overrides jsonb not null default '{}'::jsonb,
   feature_model_overrides jsonb not null default '{}'::jsonb,
   updated_by uuid references profiles(id) on delete set null,

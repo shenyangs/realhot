@@ -377,7 +377,7 @@ function buildLocalFallback(input: {
 }
 
 function isSupportedProvider(provider: string): provider is AiProvider {
-  return provider === "gemini" || provider === "minimax";
+  return provider === "minimax";
 }
 
 function wait(ms: number) {
@@ -388,22 +388,7 @@ function buildFailoverRoute(currentRoute: ModelRouteDecision): ModelRouteDecisio
   if (!isSupportedProvider(currentRoute.provider)) {
     return null;
   }
-
-  const nextProvider: AiProvider = currentRoute.provider === "gemini" ? "minimax" : "gemini";
-  const nextConfig = listProviderConfigs("hotspot-insight").find(
-    (item) => item.provider === nextProvider && item.available
-  );
-
-  if (!nextConfig) {
-    return null;
-  }
-
-  return {
-    task: currentRoute.task,
-    provider: nextConfig.provider,
-    model: nextConfig.model,
-    reason: `主模型 ${currentRoute.provider} 临时不可用，已切换到备用模型 ${nextConfig.provider}。`
-  };
+  return null;
 }
 
 async function runInsightWithRetry(route: ModelRouteDecision, prompt: string) {

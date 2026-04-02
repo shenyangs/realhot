@@ -157,8 +157,7 @@ function normalizeStore(raw: Partial<LocalDataStore> | null | undefined): LocalD
     aiRoutingConfig: raw?.aiRoutingConfig
       ? {
           defaultProvider:
-            raw.aiRoutingConfig.defaultProvider === "minimax" ||
-            raw.aiRoutingConfig.defaultProvider === "gemini"
+            raw.aiRoutingConfig.defaultProvider === "minimax"
               ? raw.aiRoutingConfig.defaultProvider
               : DEFAULT_AI_ROUTING_CONFIG.defaultProvider,
           featureProviderOverrides:

@@ -45,17 +45,11 @@ export async function POST(request: NextRequest) {
       payload.jobType === "article" || payload.jobType === "video" || payload.jobType === "one_click"
         ? payload.jobType
         : "one_click";
-    const provider = payload.provider === "gemini" || payload.provider === "minimax" ? payload.provider : undefined;
+    const provider = payload.provider === "minimax" ? payload.provider : undefined;
     const model = payload.model?.trim() || undefined;
-    const imageProvider =
-      payload.imageProvider === "gemini" || payload.imageProvider === "minimax"
-        ? payload.imageProvider
-        : undefined;
+    const imageProvider = payload.imageProvider === "minimax" ? payload.imageProvider : undefined;
     const imageModel = payload.imageModel?.trim() || undefined;
-    const videoProvider =
-      payload.videoProvider === "gemini" || payload.videoProvider === "minimax"
-        ? payload.videoProvider
-        : undefined;
+    const videoProvider = payload.videoProvider === "minimax" ? payload.videoProvider : undefined;
     const videoModel = payload.videoModel?.trim() || undefined;
 
     if (!packId) {

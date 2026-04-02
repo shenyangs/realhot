@@ -375,7 +375,7 @@ async function upsertProductionJob(job: ProductionJobRecord): Promise<void> {
 }
 
 function normalizeStoredProvider(value: unknown): AiProvider | null {
-  return value === "gemini" || value === "minimax" ? value : null;
+  return value === "minimax" ? value : null;
 }
 
 function normalizeStore(raw: Partial<ProductionStore> | null | undefined): ProductionStore {
@@ -624,10 +624,6 @@ function buildDraftProgress(
 function getProviderLabel(provider: string): string {
   if (provider === "minimax") {
     return "MiniMax";
-  }
-
-  if (provider === "gemini") {
-    return "Gemini";
   }
 
   if (provider === "mock") {

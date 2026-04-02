@@ -68,9 +68,8 @@ export function normalizeAiRoutingConfig(value: unknown): AiRoutingConfig {
   const input = value as Partial<AiRoutingConfig>;
 
   return {
-    defaultProvider: isAiProvider(input.defaultProvider)
-      ? input.defaultProvider
-      : DEFAULT_AI_ROUTING_CONFIG.defaultProvider,
+    // 全局默认统一收敛到 MiniMax。
+    defaultProvider: DEFAULT_AI_ROUTING_CONFIG.defaultProvider,
     featureProviderOverrides: normalizeFeatureOverrides(input.featureProviderOverrides),
     featureModelOverrides: normalizeFeatureModelOverrides(input.featureModelOverrides)
   };

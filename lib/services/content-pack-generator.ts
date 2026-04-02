@@ -1061,7 +1061,7 @@ async function runContentGenerationWithProviderFallback(
   prompt: string,
   options: {
     primaryProvider: AiProvider;
-    fallbackProvider: AiProvider;
+    fallbackProvider?: AiProvider;
   }
 ): Promise<{
   output: string;
@@ -1079,6 +1079,10 @@ async function runContentGenerationWithProviderFallback(
       provider: options.primaryProvider
     };
   } catch (error) {
+    if (!options.fallbackProvider || options.fallbackProvider === options.primaryProvider) {
+      throw error;
+    }
+
     const fallbackOutput = await runModelTask("content-generation", prompt, {
       feature: "content-generation",
       desiredProvider: options.fallbackProvider
@@ -1107,14 +1111,13 @@ async function tryModelGeneration(
   let plannerOutput: string | undefined;
   let plannerPayload: PlannedBriefPayload | null = null;
   let plannerFallbackReason: string | undefined;
-  let plannerProvider: AiProvider = "gemini";
+  let plannerProvider: AiProvider = "minimax";
 
   try {
     const plannerResult = await runContentGenerationWithProviderFallback(
       buildBriefPlannerPrompt(blueprints, packet, plan),
       {
-        primaryProvider: "gemini",
-        fallbackProvider: "minimax"
+        primaryProvider: "minimax"
       }
     );
     plannerOutput = plannerResult.output;
@@ -1142,8 +1145,7 @@ async function tryModelGeneration(
             plan
           );
         const generationResult = await runContentGenerationWithProviderFallback(slotPrompt, {
-          primaryProvider: "gemini",
-          fallbackProvider: "minimax"
+          primaryProvider: "minimax"
         });
 
         return {
@@ -1167,7 +1169,7 @@ async function tryModelGeneration(
       plannerOutput
         ? [
             `[planner:${plannerProvider}]`,
-            plannerFallbackReason ? `[planner-fallback-from:gemini]\n${plannerFallbackReason}` : null,
+            plannerFallbackReason ? `[planner-fallback-from:minimax]\n${plannerFallbackReason}` : null,
             plannerOutput
           ]
             .filter(Boolean)
@@ -1177,7 +1179,7 @@ async function tryModelGeneration(
         result.output
           ? [
               `[${result.slot}:${result.provider ?? "unknown"}]`,
-              result.fallbackReason ? `[${result.slot}-fallback-from:gemini]\n${result.fallbackReason}` : null,
+              result.fallbackReason ? `[${result.slot}-fallback-from:minimax]\n${result.fallbackReason}` : null,
               result.output
             ]
               .filter(Boolean)
@@ -1231,8 +1233,7 @@ async function tryFastInitialModelGeneration(
           plan
         );
         const generationResult = await runContentGenerationWithProviderFallback(slotPrompt, {
-          primaryProvider: "gemini",
-          fallbackProvider: "minimax"
+          primaryProvider: "minimax"
         });
 
         return {
@@ -1257,7 +1258,7 @@ async function tryFastInitialModelGeneration(
         result.output
           ? [
               `[${result.slot}:${result.provider ?? "unknown"}]`,
-              result.fallbackReason ? `[${result.slot}-fallback-from:gemini]\n${result.fallbackReason}` : null,
+              result.fallbackReason ? `[${result.slot}-fallback-from:minimax]\n${result.fallbackReason}` : null,
               result.output
             ]
               .filter(Boolean)

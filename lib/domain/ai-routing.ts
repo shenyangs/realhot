@@ -1,4 +1,4 @@
-export const AI_PROVIDERS = ["gemini", "minimax"] as const;
+export const AI_PROVIDERS = ["minimax"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
 
 export const AI_FEATURES = [
@@ -19,10 +19,8 @@ export interface AiRoutingConfig {
 }
 
 export const DEFAULT_AI_ROUTING_CONFIG: AiRoutingConfig = {
-  defaultProvider: "gemini",
-  featureProviderOverrides: {
-    "production-generation": "minimax"
-  },
+  defaultProvider: "minimax",
+  featureProviderOverrides: {},
   featureModelOverrides: {
     "production-generation": "MiniMax-M2.7"
   }
